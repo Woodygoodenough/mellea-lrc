@@ -1,36 +1,36 @@
 """Post-extraction citation validation."""
 
+from mellea_lrc.validation.pipeline import initialize_validation, validate_document
 from mellea_lrc.validation.types import (
     CandidateEvaluationNode,
     CandidateEvaluationOutcome,
     CandidateEvaluationSource,
-    CourtCheckNode,
     CandidateSelectionNode,
     CandidateSelectionOutcome,
-    ExactCaseNameCheckNode,
     CitationValidation,
+    CourtCheckNode,
     DocketCourtRetrievalNode,
     DocketCourtRetrievalOutcome,
+    ExactCaseNameCheckNode,
     ExactLocatorLookupNode,
     FieldCheckOutcome,
     LocatorLookupOutcome,
     MelleaCaseNameCheckNode,
     MelleaCaseNameCheckOutcome,
-    MelleaCaseNameReextractionNode,
-    MelleaCaseNameReextractionOutcome,
     MelleaCaseNameQueryPreparationNode,
     MelleaCaseNameQueryPreparationOutcome,
+    MelleaCaseNameReextractionNode,
+    MelleaCaseNameReextractionOutcome,
+    MelleaReextractedCaseNameCheckNode,
     OpinionSearchNode,
     OpinionSearchOutcome,
     RecapSearchNode,
     RecapSearchOutcome,
-    MelleaReextractedCaseNameCheckNode,
     ValidatedDocument,
     ValidationNode,
     ValidationNodeStatus,
     YearCheckNode,
 )
-from mellea_lrc.validation.pipeline import initialize_validation, validate_document
 
 __all__ = [
     "CandidateEvaluationNode",

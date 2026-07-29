@@ -8,14 +8,30 @@ from typing import cast
 from eyecite import get_citations, resolve_citations
 from eyecite.models import (
     CitationBase,
-    FullCaseCitation as EyeciteFullCaseCitation,
-    FullJournalCitation as EyeciteFullJournalCitation,
-    FullLawCitation as EyeciteFullLawCitation,
-    IdCitation as EyeciteIdCitation,
-    ReferenceCitation as EyeciteReferenceCitation,
     Resource,
+)
+from eyecite.models import (
+    FullCaseCitation as EyeciteFullCaseCitation,
+)
+from eyecite.models import (
+    FullJournalCitation as EyeciteFullJournalCitation,
+)
+from eyecite.models import (
+    FullLawCitation as EyeciteFullLawCitation,
+)
+from eyecite.models import (
+    IdCitation as EyeciteIdCitation,
+)
+from eyecite.models import (
+    ReferenceCitation as EyeciteReferenceCitation,
+)
+from eyecite.models import (
     ShortCaseCitation as EyeciteShortCaseCitation,
+)
+from eyecite.models import (
     SupraCitation as EyeciteSupraCitation,
+)
+from eyecite.models import (
     UnknownCitation as EyeciteUnknownCitation,
 )
 
@@ -33,7 +49,7 @@ from mellea_lrc.core.citations import (
 from mellea_lrc.core.spans import Span
 from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument, ExtractionMetadata
 from mellea_lrc.preprocessing.plain_text import preprocess_plain_text_from_string
-from mellea_lrc.preprocessing.types import PreprocessedDocument  # noqa: TC001
+from mellea_lrc.preprocessing.types import PreprocessedDocument
 
 EYECITE_CITATION_TYPES = frozenset(
     {

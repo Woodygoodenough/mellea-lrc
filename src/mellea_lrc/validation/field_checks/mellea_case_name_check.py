@@ -17,8 +17,8 @@ from mellea_lrc.llm import (
     start_mellea_session_from_env,
 )
 from mellea_lrc.validation.types import (
-    ExactCaseNameCheckNode,
     CandidateEvaluationNode,
+    ExactCaseNameCheckNode,
     MelleaCaseNameCheckNode,
     MelleaCaseNameCheckOutcome,
     MelleaCaseNameReextractionNode,
@@ -29,6 +29,7 @@ from mellea_lrc.validation.types import (
 if TYPE_CHECKING:
     from mellea import MelleaSession
     from mellea.core.base import Context
+
     from mellea_lrc.validation.types import CitationValidation
 
 MAX_TOKENS = 128

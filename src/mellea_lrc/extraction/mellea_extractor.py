@@ -1,43 +1,41 @@
 """Use Mellea to extract and label."""
 
 # %%
-import uuid
 import re
+import uuid
 from pathlib import Path
 
 import mellea
+from dotenv import find_dotenv, load_dotenv
 from mellea import MelleaSession
-from mellea.backends.model_ids import IBM_GRANITE_4_1_3B
-from mellea.backends.model_ids import ModelIdentifier
-from dotenv import load_dotenv, find_dotenv
+from mellea.backends.model_ids import IBM_GRANITE_4_1_3B, ModelIdentifier
 
-from mellea_lrc.extraction.base import BaseExtractor
-from mellea_lrc.preprocessing import (
-    preprocess,
-    PreprocessingBackend,
-    PreprocessingMetadata,
-)
 from mellea_lrc.core import (
-    Span,
-    CitationKind,
-    FullLawCitation,
-    ShortCaseCitation,
-    SupraCitation,
-    IdCitation,
-    FullJournalCitation,
-    UnknownCitation,
-    ReferenceCitation,
-    FullCaseCitation,
     CanonicalCitation,
+    CitationKind,
+    FullCaseCitation,
+    FullJournalCitation,
+    FullLawCitation,
+    IdCitation,
+    ReferenceCitation,
+    ShortCaseCitation,
     SourceFormat,
     SourceMetadata,
+    Span,
+    SupraCitation,
+    UnknownCitation,
 )
-
+from mellea_lrc.extraction.base import BaseExtractor
 from mellea_lrc.extraction.types import (
-    ExtractedDocument,
     ExtractedCitation,
+    ExtractedDocument,
     ExtractionBackend,
     ExtractionMetadata,
+)
+from mellea_lrc.preprocessing import (
+    PreprocessingBackend,
+    PreprocessingMetadata,
+    preprocess,
 )
 
 # %%
@@ -103,7 +101,7 @@ class MelleaExtractor(BaseExtractor):
         kind = CitationKind(kind)
         return mapping[kind](**kwargs)
 
-    def _assemble_extractor_citation(self, text: str, **kwargs) -> ExtractedCitation:  # noqa: ARG002
+    def _assemble_extractor_citation(self, text: str, **kwargs) -> ExtractedCitation:
         """Build and return a ExtractedCitation class.
 
         Args:
