@@ -170,7 +170,7 @@ async def _run_reextracted_check(
     retrieved = candidate.case_name
     if extracted is None or retrieved is None:
         return MelleaReextractedCaseNameCheckNode(
-            node_id=f"{validation.citation_id}:mellea_reextracted_case_name_check",
+            node_id=f"{reextraction.node_id}:mellea_reextracted_case_name_check",
             status=ValidationNodeStatus.SKIPPED,
             outcome=MelleaCaseNameCheckOutcome.UNAVAILABLE,
             reextracted_case_name=extracted,
@@ -185,7 +185,7 @@ async def _run_reextracted_check(
         session,
     )
     return MelleaReextractedCaseNameCheckNode(
-        node_id=f"{validation.citation_id}:mellea_reextracted_case_name_check",
+        node_id=f"{reextraction.node_id}:mellea_reextracted_case_name_check",
         status=status,
         outcome=outcome,
         reextracted_case_name=extracted,
