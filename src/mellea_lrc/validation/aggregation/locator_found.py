@@ -49,6 +49,7 @@ def run_locator_candidate_assessment(
     year_outcome = _field_outcome(year.outcome)
     court_outcome = _field_outcome(court.outcome)
     outcome = _assessment_outcome(case_name.outcome, year_outcome, court_outcome)
+    outcome_message = _assessment_message(outcome, case_name=case_name.outcome, court=court_outcome)
     return LocatorCandidateAssessmentNode(
         node_id=f"{candidate.node_id}:locator_candidate_assessment",
         status=ValidationNodeStatus.SUCCEEDED,
@@ -68,7 +69,7 @@ def run_locator_candidate_assessment(
         docket_id=candidate.docket_id,
         depends_on=(case_name.dependency_id, year.node_id, court.node_id),
         status_message="Locator candidate assessment completed.",
-        outcome_message=_assessment_message(outcome),
+        outcome_message=outcome_message,
     )
 
 
@@ -136,21 +137,41 @@ def _assessment_outcome(
     year: AggregatedFieldOutcome,
     court: AggregatedFieldOutcome,
 ) -> LocatorCandidateAssessmentOutcome:
+    """Reduce case name, year, and court into one candidate conclusion.
+
+    An outright case-name or court disagreement is a mismatch. Case name
+    must be affirmatively confirmed to match - it is the identity anchor.
+    Year and court only need to not actively disagree: eyecite often can't
+    parse a year, and court isn't always checked, so unavailable or failed
+    evidence for either should not by itself downgrade a confirmed match
+    into a mismatch.
+    """
     if case_name is AggregatedFieldOutcome.MISMATCH:
         return LocatorCandidateAssessmentOutcome.MISMATCH
-    if case_name is not AggregatedFieldOutcome.MATCH:
+    if court is AggregatedFieldOutcome.MISMATCH:
         return LocatorCandidateAssessmentOutcome.MISMATCH
-    if AggregatedFieldOutcome.MISMATCH in (year, court):
-        return LocatorCandidateAssessmentOutcome.PARTIAL_MATCH
-    return LocatorCandidateAssessmentOutcome.MATCH
+    if case_name is AggregatedFieldOutcome.MATCH and year is not AggregatedFieldOutcome.MISMATCH:
+        return LocatorCandidateAssessmentOutcome.MATCH
+    return LocatorCandidateAssessmentOutcome.PARTIAL_MATCH
 
 
-def _assessment_message(outcome: LocatorCandidateAssessmentOutcome) -> str:
-    return {
-        LocatorCandidateAssessmentOutcome.MATCH: "Case name, year, and court do not disagree with this candidate.",
-        LocatorCandidateAssessmentOutcome.MISMATCH: "The retrieved candidate has a different case name.",
-        LocatorCandidateAssessmentOutcome.PARTIAL_MATCH: "Case name matches; verify the differing year or court.",
-    }[outcome]
+def _assessment_message(
+    outcome: LocatorCandidateAssessmentOutcome,
+    *,
+    case_name: AggregatedFieldOutcome,
+    court: AggregatedFieldOutcome,
+) -> str:
+    if outcome is LocatorCandidateAssessmentOutcome.MATCH:
+        return "Case name, year, and court do not disagree with this candidate."
+    if outcome is LocatorCandidateAssessmentOutcome.PARTIAL_MATCH:
+        if case_name is not AggregatedFieldOutcome.MATCH:
+            return "The retrieved candidate's case name could not be confirmed."
+        return "Case name and court do not disagree; verify the differing year."
+    if case_name is AggregatedFieldOutcome.MISMATCH and court is AggregatedFieldOutcome.MISMATCH:
+        return "The retrieved candidate has a different case name and court."
+    if case_name is AggregatedFieldOutcome.MISMATCH:
+        return "The retrieved candidate has a different case name."
+    return "The retrieved candidate has a different court."
 
 
 def _field_outcome(outcome: FieldCheckOutcome) -> AggregatedFieldOutcome:
