@@ -6,6 +6,83 @@ Validation (CourtListener Heuristics)** set: 423 occurrences, 387 `match` and
 
 Read [the shared setup](../README.md) first.
 
+## End to end
+
+```bash
+uv run hf auth login
+
+uv run hf download gt-csse/false-citation-bench --repo-type dataset \
+  --local-dir data/false-citation-bench
+
+uv run --env-file .env python -m evaluations.validation.run_mellea_lrc \
+  --documents data/false-citation-bench/documents_txt --output run-validation
+
+uv run python evaluations/validation/export_mellea_lrc_artifact.py \
+  --artifact-dir run-validation --output run-artifact.jsonl
+
+uv run python evaluations/validation/evaluate.py \
+  --benchmark data/false-citation-bench/derived/validation-courtlistener-heuristics.jsonl \
+  --artifact run-artifact.jsonl --output-dir evaluation-result
+```
+
+The third step is the expensive one — it calls CourtListener and a model for
+every citation in 26 filings. It needs the credentials set up below, and it
+will not finish on a free CourtListener key: read *Rate limits* first. Expect
+it to take **up to two hours**, depending on the inference model and HTTP
+latency; ours runs on an Nvidia Spark.
+
+## Get the dataset
+
+```bash
+uv sync
+
+uv run hf auth login
+
+uv run hf download gt-csse/false-citation-bench --repo-type dataset \
+  --local-dir data/false-citation-bench
+```
+
+The dataset repository is private, so the download needs a Hugging Face account
+with access to the `gt-csse` organisation.
+
+## Configure the environment
+
+Only the run step needs credentials; converting and scoring a run need none.
+
+```bash
+cp .env.example .env
+```
+
+| variable | required | what it is |
+|---|---|---|
+| `COURTLISTENER_API_TOKEN` | yes | citation-lookup answers `401` without one, and a free-tier quota will not finish a run — see *Rate limits* |
+| `MELLEA_LRC_LLM_MODEL` | yes | model id as the endpoint names it |
+| `MELLEA_LRC_LLM_API_BASE` | yes | OpenAI-compatible base URL, ending in `/v1` |
+| `MELLEA_LRC_LLM_API_KEY` | yes | key for that endpoint |
+| `MELLEA_LRC_LLM_TEMPERATURE` | no | defaults to `0.0`; leave it there |
+
+Leave the temperature at zero for evaluation: the workflow retries under a
+requirement loop, and any other value makes a score irreproducible run to run.
+
+Nothing reads `.env` implicitly — `uv run --env-file .env` is what loads it, so
+the run command below carries that flag and the others do not.
+
+## Rate limits
+
+**A free-tier CourtListener key is not enough.** As of 10 August 2026 its quota
+runs out before the first document finishes, so the run step cannot complete.
+You need one of:
+
+1. **A key with a lenient limit.** Ask CourtListener to raise the quota on your
+   account.
+2. **A cache in front of CourtListener.** A thin layer that stores responses and
+   replays them is enough, since the run repeats many lookups.
+
+If you cache, fill it for the whole corpus before trusting a final artifact —
+the simplest way is to rerun the run step until it stops fetching anything new.
+Each pass gets further before the quota stops it, and the finished artifact is
+only meaningful once every document has been through.
+
 ## What is scored
 
 Given a citation that has **already been extracted**, does the authority
@@ -50,36 +127,10 @@ evaluator does not compare it; do not use it for an exact string check.
 
 ### Producing one with Mellea-LRC
 
-Needs a CourtListener token and an OpenAI-compatible endpoint in `.env`
-(`COURTLISTENER_API_TOKEN`, `MELLEA_LRC_LLM_MODEL`, `MELLEA_LRC_LLM_API_BASE`,
-`MELLEA_LRC_LLM_API_KEY`). Leave `MELLEA_LRC_LLM_TEMPERATURE` at `0.0`: the
-workflow retries under a requirement loop, and a nonzero temperature makes a
-score irreproducible run to run.
-
 ```bash
-uv run --env-file .env python - data/false-citation-bench/documents_txt run-validation <<'PY'
-import asyncio, json, sys
-from pathlib import Path
-from mellea_lrc.courtlistener import CourtListenerClient
-from mellea_lrc.extraction import run_extraction_from_text
-from mellea_lrc.llm import start_mellea_session_from_env
-from mellea_lrc.serialization.validated_document import serialize_validated_document
-from mellea_lrc.validation import validate_document
-
-source, output = Path(sys.argv[1]), Path(sys.argv[2])
-output.mkdir(parents=True, exist_ok=True)
-client, session = CourtListenerClient(), start_mellea_session_from_env()
-
-async def main() -> None:
-    for path in sorted(source.glob("*.txt")):
-        extracted = run_extraction_from_text(path.read_text(encoding="utf-8"), source_path=str(path))
-        validated = await validate_document(extracted, client=client, session=session)
-        (output / f"{path.stem}.json").write_text(
-            json.dumps(serialize_validated_document(validated), indent=2), encoding="utf-8"
-        )
-
-asyncio.run(main())
-PY
+uv run --env-file .env python -m evaluations.validation.run_mellea_lrc \
+  --documents data/false-citation-bench/documents_txt \
+  --output run-validation
 
 uv run python evaluations/validation/export_mellea_lrc_artifact.py \
   --artifact-dir run-validation \
