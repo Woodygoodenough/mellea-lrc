@@ -62,6 +62,13 @@ cp .env.example .env    # then fill in the values below
 Nothing reads `.env` implicitly, so the commands below are run through
 `uv run --env-file .env`. Exporting the variables into your shell works too.
 
+To obtain a CourtListener API token, refer to
+[Getting an API token](docs/courtlistener-client.md#getting-an-api-token).
+
+To use the application in any serious manner, or to reproduce the evaluations,
+refer to [Rate limits](docs/courtlistener-client.md#rate-limits) — a free-tier
+token will not carry a full run.
+
 Installing the package provides a `mellea-lrc` command. It parses the citations
 out of a source and validates each one. `examples/sample-filing.txt` is a
 paragraph to try it on — one citation, stating one proposition the cited page
@@ -187,7 +194,6 @@ Additional information can be found at these locations.
 | Code of Conduct | [CODE_OF_CONDUCT.md](https://github.com/gt-csse/mellea-lrc/blob/main/CODE_OF_CONDUCT.md) | Information about the norms, rules, and responsibilities we adhere to when participating in this open source community. |
 | Contributing | [CONTRIBUTING.md](https://github.com/gt-csse/mellea-lrc/blob/main/CONTRIBUTING.md) | Information about contributing to this project. |
 | Development | [DEVELOPMENT.md](https://github.com/gt-csse/mellea-lrc/blob/main/DEVELOPMENT.md) | Information about development activities involved in making changes to this project. |
-| CourtListener client | [docs/courtlistener-client.md](docs/courtlistener-client.md) | Direct CourtListener citation-lookup usage. |
 | Governance | [GOVERNANCE.md](https://github.com/gt-csse/mellea-lrc/blob/main/GOVERNANCE.md) | Information about how this project is governed. |
 | Maintainers | [MAINTAINERS.md](https://github.com/gt-csse/mellea-lrc/blob/main/MAINTAINERS.md) | Information about individuals who maintain this project. |
 | Security | [SECURITY.md](https://github.com/gt-csse/mellea-lrc/blob/main/SECURITY.md) | Information about how to privately report security issues associated with this project. |
