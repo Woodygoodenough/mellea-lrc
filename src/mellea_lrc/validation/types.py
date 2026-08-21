@@ -501,6 +501,51 @@ class MelleaPinpointCheckNode:
     error: str | None = None
 
 
+class QuotationCheckOutcome(str, Enum):
+    """What the retrieved page established about the citation's quotations.
+
+    The vocabulary matches the pinpoint check's: `altered` is a positive
+    finding about the page in hand, `not_on_page` reports an absence that may
+    only mean the pinpoint is wrong, and neither says anything about whether
+    the authority supports the citing text.
+    """
+
+    VERBATIM = "verbatim"
+    ALTERED = "altered"
+    NOT_ON_PAGE = "not_on_page"
+    NO_QUOTATIONS = "no_quotations"
+    UNAVAILABLE = "unavailable"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class QuotedPassageEvidence:
+    """One quoted passage of the filing, checked against the cited page."""
+
+    quoted_text: str
+    quoted_span: Span
+    outcome: str
+    score: float
+    page_span: Span | None
+    page_text: str | None
+    substitutions: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class QuotationCheckNode:
+    """Verbatim check of every quotation the citing text attributes to this page."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: QuotationCheckOutcome
+    context_span: Span | None
+    passages: tuple[QuotedPassageEvidence, ...]
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+    error: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class LocatorCandidateAssessmentNode:
     """Table-ready conclusion for the one candidate from a found locator."""
@@ -686,6 +731,7 @@ ValidationNode: TypeAlias = (
     | ReporterPageRetrievalNode
     | MelleaCitingPropositionExtractionNode
     | MelleaPinpointCheckNode
+    | QuotationCheckNode
     | CourtCheckNode
     | LocatorCandidateAssessmentNode
     | LocatorCitationSummaryNode

@@ -218,7 +218,7 @@ def test_exact_locator_found_fans_out_to_field_checks() -> None:
 
     progression = validation.citation_by_id("cite-0001")
     assert client.calls == [("347", "U.S.", "483")]
-    assert len(progression.nodes) == 11
+    assert len(progression.nodes) == 12
     (
         exact_locator_lookup_node,
         candidate_evaluation_node,
@@ -228,6 +228,7 @@ def test_exact_locator_found_fans_out_to_field_checks() -> None:
         court_check_node,
         assessment_node,
         reporter_page_retrieval_node,
+        quotation_check_node,
         citing_proposition_node,
         pinpoint_check_node,
         summary_node,
@@ -308,6 +309,7 @@ def test_found_field_checks_treat_unavailable_year_as_a_full_match() -> None:
         _,
         _,
         _,
+        _,
         summary_node,
     ) = progression.nodes
     assert exact_case_name_check_node.outcome is FieldCheckOutcome.MATCH
@@ -379,6 +381,7 @@ def test_found_field_checks_record_mismatch_without_failing_execution(
         _,
         _,
         _,
+        _,
         summary_node,
     ) = _validate(extracted, client).citations[0].nodes
 
@@ -412,6 +415,7 @@ def test_found_field_checks_skip_unavailable_values() -> None:
         _,
         court_check_node,
         assessment_node,
+        _,
         _,
         _,
         _,

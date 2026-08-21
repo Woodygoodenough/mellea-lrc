@@ -42,6 +42,7 @@ from mellea_lrc.validation.pinpoint_retrieval import (
     run_mellea_pinpoint_check,
     run_reporter_page_retrieval,
 )
+from mellea_lrc.validation.quotation import run_quotation_check
 from mellea_lrc.validation.types import (
     AggregatedFieldOutcome,
     CandidateEvaluationNode,
@@ -128,6 +129,7 @@ class CitationValidationRunner:
                 │   └── exact case-name mismatch ->
                 │       ``run_locator_candidate_case_name_recovery``
                 ├── docket court retrieval -> court check
+                ├── reporter-page retrieval -> quotation check
                 ├── reporter-page retrieval -> citing-proposition extraction -> pinpoint check
                 └── completed checks -> locator candidate assessment -> citation summary
         """
@@ -157,6 +159,9 @@ class CitationValidationRunner:
         # intentionally wait for broader candidate/opinion scope semantics.
         retrieval = run_reporter_page_retrieval(validation, evaluation=candidate, client=self.client)
         validation = validation.append(retrieval)
+        validation = validation.append(
+            run_quotation_check(validation, retrieval=retrieval, document_text=document_text)
+        )
         proposition = await run_mellea_citing_proposition_extraction(
             validation,
             trigger=retrieval,

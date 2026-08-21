@@ -57,6 +57,9 @@ from mellea_lrc.validation.types import (
     OpinionSearchCandidateAssessmentNode,
     OpinionSearchNode,
     OpinionSearchOutcome,
+    QuotationCheckNode,
+    QuotationCheckOutcome,
+    QuotedPassageEvidence,
     RecapSearchCandidateAssessmentNode,
     RecapSearchNode,
     RecapSearchOutcome,
@@ -93,6 +96,7 @@ _NODE_TYPES: dict[str, type[ValidationNode]] = {
         ReporterPageRetrievalNode,
         MelleaCitingPropositionExtractionNode,
         MelleaPinpointCheckNode,
+        QuotationCheckNode,
         CourtCheckNode,
         LocatorCandidateAssessmentNode,
         LocatorCitationSummaryNode,
@@ -118,6 +122,7 @@ _OUTCOME_TYPES = {
     ReporterPageRetrievalNode: ReporterPageRetrievalOutcome,
     MelleaCitingPropositionExtractionNode: MelleaCitingPropositionExtractionOutcome,
     MelleaPinpointCheckNode: MelleaPinpointCheckOutcome,
+    QuotationCheckNode: QuotationCheckOutcome,
     CourtCheckNode: FieldCheckOutcome,
     LocatorCandidateAssessmentNode: LocatorCandidateAssessmentOutcome,
     LocatorCitationSummaryNode: LocatorCitationSummaryOutcome,
@@ -213,6 +218,12 @@ def _deserialize_node(value: object) -> ValidationNode:
             if fields["evidence"] is not None
             else None
         )
+    elif node_type is QuotationCheckNode:
+        fields["context_span"] = _optional_span(fields["context_span"], name="node.context_span")
+        fields["passages"] = tuple(
+            _deserialize_quoted_passage(item)
+            for item in require_list(fields["passages"], name="node.passages")
+        )
     elif node_type is MelleaCitingPropositionExtractionNode:
         fields["context_span"] = _deserialize_span(fields["context_span"], name="node.context_span")
         fields["proposition_span"] = _optional_span(
@@ -251,6 +262,17 @@ def _deserialize_node(value: object) -> ValidationNode:
             for item in require_list(fields["candidates"], name="node.candidates")
         )
     return node_type(**fields)
+
+
+def _deserialize_quoted_passage(value: object) -> QuotedPassageEvidence:
+    payload = dict(require_mapping(value, name="node.passages[]"))
+    payload["quoted_span"] = _deserialize_span(payload["quoted_span"], name="passage.quoted_span")
+    payload["page_span"] = _optional_span(payload["page_span"], name="passage.page_span")
+    payload["substitutions"] = tuple(
+        (str(pair[0]), str(pair[1]))
+        for pair in require_list(payload["substitutions"], name="passage.substitutions")
+    )
+    return QuotedPassageEvidence(**payload)
 
 
 def _deserialize_summary_candidate(
