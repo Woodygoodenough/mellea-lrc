@@ -40,7 +40,13 @@ if TYPE_CHECKING:
 _ELLIPSIS = re.compile(r"\.\s*\.\s*\.|\u2026")
 _QUOTE_MARKS = frozenset("\"'\u201c\u201d\u2018\u2019")
 
-MAX_TOKENS = 384
+# A reasoning model spends this budget on reasoning before it emits anything,
+# and how much it spends varies run to run: the same one-field verdict prompt
+# used 43, 74, 120, 171 and 392 reasoning tokens on five consecutive calls.
+# When the budget runs out first the response comes back with no content at all
+# and the verdict is lost, which is a silent failure rather than a worse answer.
+# These are therefore sized for the reasoning, not for the JSON.
+MAX_TOKENS = 2048
 MAX_REPAIR_TURNS = 2
 INSTRUCTION = """
 Decide what cited_reporter_page establishes about citing_proposition. The

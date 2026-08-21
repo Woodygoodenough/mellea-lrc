@@ -33,7 +33,13 @@ if TYPE_CHECKING:
 
 CONTEXT_BEFORE_CHARS = 320
 CONTEXT_AFTER_CHARS = 160
-REEXTRACTION_MAX_TOKENS = 256
+# A reasoning model spends this budget on reasoning before it emits anything,
+# and how much it spends varies run to run: the same one-field verdict prompt
+# used 43, 74, 120, 171 and 392 reasoning tokens on five consecutive calls.
+# When the budget runs out first the response comes back with no content at all
+# and the verdict is lost, which is a silent failure rather than a worse answer.
+# These are therefore sized for the reasoning, not for the JSON.
+REEXTRACTION_MAX_TOKENS = 2048
 REEXTRACTION_MAX_REPAIR_TURNS = 2
 
 REEXTRACTION_INSTRUCTION = """

@@ -30,7 +30,13 @@ if TYPE_CHECKING:
     from mellea import MelleaSession
     from mellea.core.base import Context
 
-MAX_TOKENS = 128
+# A reasoning model spends this budget on reasoning before it emits anything,
+# and how much it spends varies run to run: the same one-field verdict prompt
+# used 43, 74, 120, 171 and 392 reasoning tokens on five consecutive calls.
+# When the budget runs out first the response comes back with no content at all
+# and the verdict is lost, which is a silent failure rather than a worse answer.
+# These are therefore sized for the reasoning, not for the JSON.
+MAX_TOKENS = 1024
 MAX_REPAIR_TURNS = 2
 INSTRUCTION = """
 Prepare broad but faithful party-name search terms for a legal case search.
