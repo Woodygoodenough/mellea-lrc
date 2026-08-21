@@ -104,7 +104,11 @@ def run_reporter_page_retrieval(
             reporter_citation=reporter_citation,
             pin_cite=citation.pin_cite,
             depends_on=dependency,
-            message="The citation has no supported numeric reporter pin cite.",
+            message=(
+                "The pin cite is star pagination, which numbers a slip opinion rather than a reporter page."
+                if is_star_pagination(citation.pin_cite)
+                else "The citation has no supported numeric reporter pin cite."
+            ),
         )
 
     try:
@@ -274,11 +278,42 @@ def _citation_index(
     return same_volume[0] if len(same_volume) == 1 else None
 
 
+def is_star_pagination(pin_cite: str | None) -> bool:
+    """Whether a pin cite numbers a slip opinion rather than a reporter page.
+
+    `at *16` is how an unreported decision is pinpointed on Westlaw or Lexis.
+    There is no reporter page to retrieve, so declining is right -- but saying
+    the citation "has no supported numeric pin cite" misdescribes a citation
+    that has a perfectly good one of a kind this route cannot use. On this
+    corpus 63 of the 75 declined pin cites are this, so the distinction is most
+    of the message.
+    """
+    return pin_cite is not None and "*" in pin_cite
+
+
 def _numeric_pin_page(pin_cite: str | None) -> str | None:
     if pin_cite is None:
         return None
-    match = _NUMERIC_PIN.fullmatch(pin_cite.strip())
+    match = _NUMERIC_PIN.fullmatch(_without_introducer(pin_cite))
     return match.group("page") if match else None
+
+
+def _without_introducer(pin_cite: str) -> str:
+    """Drop the `at` a short form carries into its own pin-cite field.
+
+    `550 U.S. at 563` is parsed with `pin_cite` of `at 563`: the Bluebook
+    introducer travels with the page because it is part of the short form.
+    This is eyecite's structured field rather than free text, so removing the
+    introducer recovers a real reporter page rather than lifting a number out of
+    prose -- twelve of them on this corpus, every one of a short-form citation
+    that would otherwise be silently unpinnable.
+    """
+    stripped = pin_cite.strip()
+    lowered = stripped.lower()
+    for introducer in ("at ", "at\t"):
+        if lowered.startswith(introducer):
+            return stripped[len(introducer) :].strip()
+    return stripped
 
 
 def _reporter_citation(citation: FullCaseCitation) -> str | None:

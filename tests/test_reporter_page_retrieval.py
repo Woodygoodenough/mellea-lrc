@@ -246,8 +246,14 @@ def test_reporter_page_retrieval_explains_missing_reporter_marker() -> None:
     assert "does not mark reporter page 623" in (node.outcome_message or "")
 
 
-def test_reporter_page_retrieval_skips_non_numeric_pin_cites() -> None:
-    """Westlaw star pages remain explicit unsupported evidence."""
+def test_reporter_page_retrieval_names_star_pagination_as_the_reason() -> None:
+    """Westlaw star pages remain explicit unsupported evidence, and say why.
+
+    A star page pinpoints a slip opinion, so there is no reporter page to
+    retrieve and declining is correct. Reporting it as "no supported numeric
+    pin cite" describes a citation that has a good pin cite of a kind this
+    route cannot use, and hides how much of the unavailable bucket this is.
+    """
     validation, evaluation = _validation(reporter="WL", pin_cite="*3")
     client = OpinionClient(opinions={})
 
@@ -255,7 +261,7 @@ def test_reporter_page_retrieval_skips_non_numeric_pin_cites() -> None:
 
     assert node.status is ValidationNodeStatus.SKIPPED
     assert node.outcome is ReporterPageRetrievalOutcome.UNAVAILABLE
-    assert "numeric reporter pin cite" in (node.outcome_message or "")
+    assert "star pagination" in (node.outcome_message or "")
 
 
 @pytest.mark.parametrize(
@@ -281,7 +287,38 @@ def test_the_first_page_is_recovered_from_a_compound_pin_cite(pin_cite: str, exp
     assert reporter_page._numeric_pin_page(pin_cite) == expected
 
 
-@pytest.mark.parametrize("pin_cite", ["at 231", "see 231", "1319 blah", "n.4", "", None])
+@pytest.mark.parametrize(("pin_cite", "expected"), [("at 231", "231"), ("at 1447", "1447")])
+def test_the_short_form_introducer_is_dropped(pin_cite: str, expected: str) -> None:
+    """`550 U.S. at 563` parses with a pin cite of `at 563`.
+
+    The Bluebook introducer travels with the page because it is part of the
+    short form. This is eyecite's structured field rather than prose, so
+    removing it recovers a real reporter page -- twelve of them on
+    false-citation-bench, every one a short form otherwise left unpinnable.
+    """
+    assert reporter_page._numeric_pin_page(pin_cite) == expected
+
+
+@pytest.mark.parametrize("pin_cite", ["see 231", "1319 blah", "n.4", "", None])
 def test_a_number_is_never_lifted_out_of_unrelated_text(pin_cite: str | None) -> None:
-    """Retrieving the wrong page is worse than retrieving none."""
+    """Retrieving the wrong page is worse than retrieving none.
+
+    `at` is the one introducer allowed, because eyecite puts it there itself. A
+    signal like `see` belongs before a citation rather than inside a pin cite,
+    so finding one means something else went wrong and the number nearby should
+    not be trusted.
+    """
     assert reporter_page._numeric_pin_page(pin_cite) is None
+
+
+@pytest.mark.parametrize("pin_cite", ["at *16", "at *6-8", "*23-24"])
+def test_star_pagination_is_named_rather_than_called_unsupported(pin_cite: str) -> None:
+    """`at *16` pinpoints a slip opinion, which has no reporter page to fetch.
+
+    Declining is right, but reporting "no supported numeric pin cite" describes
+    a citation that has a perfectly good pin cite of a kind this route cannot
+    use. Sixty-three of the seventy-five declined pin cites on this corpus are
+    star pagination, so the distinction is most of the message.
+    """
+    assert reporter_page._numeric_pin_page(pin_cite) is None
+    assert reporter_page.is_star_pagination(pin_cite)

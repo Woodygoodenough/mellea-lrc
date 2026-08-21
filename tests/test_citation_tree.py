@@ -1,0 +1,143 @@
+"""Tests for grouping a document's citations under the authority they cite."""
+
+from __future__ import annotations
+
+import pytest
+
+from mellea_lrc.core.citations import FullCaseCitation, IdCitation, ShortCaseCitation
+from mellea_lrc.core.spans import Span
+from mellea_lrc.extraction import ExtractedCitation
+from mellea_lrc.extraction.citation_tree import build_citation_tree
+from mellea_lrc.extraction.types import ExtractedDocument, ExtractionMetadata
+from mellea_lrc.preprocessing.plain_text import preprocess_plain_text_from_string
+
+
+def _document(*citations: ExtractedCitation, text: str = "x" * 400) -> ExtractedDocument:
+    source = preprocess_plain_text_from_string(text)
+    return ExtractedDocument(
+        source_metadata=source.source_metadata,
+        preprocessing_metadata=source.preprocessing_metadata,
+        text=source.text,
+        citations=citations,
+        extraction_metadata=ExtractionMetadata(),
+    )
+
+
+def _full(citation_id: str, page: str, pin: str | None, start: int) -> ExtractedCitation:
+    return ExtractedCitation(
+        citation_id=citation_id,
+        span=Span(start, start + 12),
+        locator_span=Span(start, start + 12),
+        matched_text=f"550 U.S. {page}",
+        citation=FullCaseCitation(volume="550", reporter="U.S.", page=page, pin_cite=pin),
+    )
+
+
+def _short(citation_id: str, pin: str, resolves_to: str, start: int) -> ExtractedCitation:
+    return ExtractedCitation(
+        citation_id=citation_id,
+        span=Span(start, start + 12),
+        locator_span=Span(start, start + 12),
+        matched_text=f"550 U.S. at {pin}",
+        citation=ShortCaseCitation(volume="550", reporter="U.S.", page=pin, pin_cite=f"at {pin}"),
+        resolves_to=resolves_to,
+    )
+
+
+def _id(citation_id: str, pin: str, resolves_to: str, start: int) -> ExtractedCitation:
+    return ExtractedCitation(
+        citation_id=citation_id,
+        span=Span(start, start + 8),
+        locator_span=Span(start, start + 8),
+        matched_text=f"Id. at {pin}",
+        citation=IdCitation(pin_cite=f"at {pin}"),
+        resolves_to=resolves_to,
+    )
+
+
+def test_every_reference_gathers_under_the_authority_it_cites() -> None:
+    """A brief cites a case once in full and returns to it; all of that is one authority."""
+    document = _document(
+        _full("c1", "544", "555", 0),
+        _short("c2", "563", "c1", 100),
+        _id("c3", "570", "c2", 200),
+    )
+
+    tree = build_citation_tree(document)
+
+    (authority,) = tree.authorities
+    assert authority.authority_id == "c1"
+    assert [o.citation_id for o in authority.occurrences] == ["c1", "c2", "c3"]
+    assert tree.unattributed == ()
+
+
+def test_resolution_is_followed_through_a_short_form() -> None:
+    """`Id.` points at the short form before it, not at the full citation."""
+    document = _document(
+        _full("c1", "544", None, 0), _short("c2", "563", "c1", 100), _id("c3", "570", "c2", 200)
+    )
+
+    (authority,) = build_citation_tree(document).authorities
+    depths = {o.citation_id: o.depth for o in authority.occurrences}
+
+    assert depths == {"c1": 0, "c2": 1, "c3": 2}
+
+
+def test_each_reference_keeps_the_page_it_names() -> None:
+    """This is the point: one authority, several separate claims about separate pages.
+
+    Validating only the full citation checks the first of these and skips the
+    rest, which is most of what the brief actually asserts about the case.
+    """
+    document = _document(
+        _full("c1", "544", "555", 0),
+        _short("c2", "563", "c1", 100),
+        _id("c3", "570", "c2", 200),
+    )
+
+    (authority,) = build_citation_tree(document).authorities
+
+    assert authority.pin_cites == ("555", "at 563", "at 570")
+    assert build_citation_tree(document).pinpoint_claim_count == 3
+
+
+def test_one_page_cited_twice_is_one_claim() -> None:
+    """Returning to the same page does not create a second thing to verify."""
+    document = _document(_full("c1", "544", "555", 0), _short("c2", "555", "c1", 100))
+
+    (authority,) = build_citation_tree(document).authorities
+
+    assert authority.pin_cites == ("555", "at 555")
+
+
+def test_an_unresolved_reference_is_reported_not_guessed() -> None:
+    """Attaching a claim to the wrong authority checks it against the wrong page."""
+    document = _document(_full("c1", "544", None, 0), _id("c9", "570", None, 200))
+
+    tree = build_citation_tree(document)
+
+    assert [c.citation_id for c in tree.unattributed] == ["c9"]
+    assert tree.occurrence_count == 1
+
+
+def test_a_resolution_cycle_does_not_hang_or_attribute() -> None:
+    """A cycle is a pathology; it must not loop and must not produce an authority."""
+    first = _short("c1", "563", "c2", 0)
+    second = _short("c2", "570", "c1", 100)
+
+    tree = build_citation_tree(_document(first, second))
+
+    assert {c.citation_id for c in tree.unattributed} == {"c1", "c2"}
+    assert tree.authorities == ()
+
+
+def test_a_dangling_antecedent_cannot_reach_the_tree_at_all() -> None:
+    """The document type refuses one, so the tree never has to decide about it.
+
+    Worth pinning here rather than assuming: the tree still handles a missing
+    antecedent defensively, but this is why that path is unreachable through an
+    `ExtractedDocument` and why no citation can be attributed to an authority
+    that was never extracted.
+    """
+    with pytest.raises(ValueError, match="invalid resolves_to"):
+        _document(_id("c3", "570", "gone", 0))
