@@ -370,6 +370,35 @@ share a node but are scored apart, because the benchmark labels them apart.
 
 ---
 
+## 7c. The daily allowance now spends itself
+
+`scripts/modal/courtlistener/warm.py` runs inside Modal at 06:30 UTC, just
+after the tokens reset. It walks a static worklist of the evaluation's 1,197
+locators, skips whatever the cache holds, and stops when the day's allowance is
+gone. At 375 a day the cache fills in about three days, after which each run
+fetches nothing.
+
+**A scheduled cloud agent cannot do this job.** That was worth finding out by
+running one rather than waiting for it to fail overnight: the sandbox's egress
+policy refuses `*.modal.run` with a 403 on the CONNECT tunnel, before any
+request leaves, so the proxy is unreachable from there permanently. Scheduling
+inside Modal also keeps the tokens and the proxy URL out of a cloud-stored
+prompt.
+
+Two things the smoke test caught that would otherwise have looked like success:
+
+- The first version reported `already_cached: 2` against a bucket holding 402.
+  It walked the worklist in order and broke out at the first uncached entry, so
+  the count reflected where it stopped rather than what was cached. It now
+  surveys the whole list first -- cache membership costs no quota -- so the
+  nightly number means what it says.
+- `warm.py` imports the app from `server.py`, so deploying `server.py` alone
+  publishes a version with only the web endpoint and silently drops the
+  schedule. The proxy keeps working and the job just stops. Both files now say
+  to deploy `warm.py`.
+
+---
+
 ## 8. What I would do next, in order
 
 1. **Let the probe finish**, then read `locator-probe.json`. The number to look

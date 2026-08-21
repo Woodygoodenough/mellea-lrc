@@ -140,8 +140,14 @@ credentials silently points the cache at nothing.
 ## Deploy
 
 ```bash
-uv run --group modal modal deploy scripts/modal/courtlistener/server.py
+uv run --group modal modal deploy scripts/modal/courtlistener/warm.py
 ```
+
+Deploy `warm.py`, never `server.py` alone. `warm.py` imports the app from
+`server.py` and adds the scheduled warming function to it; deploying
+`server.py` by itself publishes a version with only the web endpoint, which
+silently drops the schedule. The proxy keeps working and the nightly job simply
+stops.
 
 Then check it, and confirm it sees every token:
 

@@ -17,9 +17,14 @@ and a plain client cannot provide: a shared cache, because the free tier allows
 evaluation is repeatable; and token rotation, because three tokens is three
 days' budget rather than one.
 
-Deploy:
+Deploy through `warm.py`, not this file:
 
-    uv run --group modal modal deploy scripts/modal/courtlistener/server.py
+    uv run --group modal modal deploy scripts/modal/courtlistener/warm.py
+
+`warm.py` imports this app and adds the scheduled cache-warming function to it.
+Deploying this file on its own publishes an app version containing only the web
+endpoint, which silently removes that schedule -- the proxy keeps working and
+the nightly job just stops happening.
 """
 
 import json
