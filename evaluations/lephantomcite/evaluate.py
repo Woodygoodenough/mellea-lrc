@@ -47,7 +47,17 @@ logger = logging.getLogger(__name__)
 # Node outcomes that assert a defect. Everything else is either a clean finding
 # or an abstention, and the two are kept apart below.
 DEFECT_FINDINGS: dict[HallucinationType, tuple[tuple[str, str], ...]] = {
-    HallucinationType.NON_EXISTENT_CITATION: (("ExactLocatorLookupNode", "not_found"),),
+    # Deliberately empty. A locator the archive cannot resolve is `not_found`,
+    # and that is an abstention, not a claim of fabrication -- the archive is
+    # incomplete, so absence establishes nothing. Scoring `not_found` as a
+    # detection is the binary framing this project exists to reject, and doing
+    # it here manufactured seven false positives out of ordinary abstentions.
+    #
+    # The pipeline currently has no node that asserts fabrication. Offline
+    # refutation against the reporter database does establish it, but it lives
+    # in the probe rather than in the validation graph, so this category scores
+    # as uncovered until that finding is a node.
+    HallucinationType.NON_EXISTENT_CITATION: (),
     HallucinationType.CASE_NAME_MISMATCH: (("LocatorCandidateAssessmentNode", "mismatch"),),
     HallucinationType.WRONG_PINCITE: (("MelleaPinpointCheckNode", "absent_from_page"),),
     HallucinationType.CONTENT_MISREPRESENTATION: (("MelleaPinpointCheckNode", "absent_from_page"),),

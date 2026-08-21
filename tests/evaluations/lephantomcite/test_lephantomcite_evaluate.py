@@ -175,3 +175,29 @@ def test_the_scorer_reads_a_real_run_artifact() -> None:
     assert any(pairs for pairs in outcomes.values()), "every node list came back empty"
     node_types = {node for pairs in outcomes.values() for node, _ in pairs}
     assert "ExactLocatorLookupNode" in node_types
+
+
+def test_a_not_found_locator_is_never_scored_as_a_detection(tmp_path: Path) -> None:
+    """Absence from an incomplete archive establishes nothing.
+
+    Counting `not_found` as a fabrication finding is the binary framing this
+    project rejects, and it manufactured seven false positives out of ordinary
+    abstentions on the first scored sweep.
+    """
+    run_dir = _write_run(
+        tmp_path,
+        [
+            {
+                "citation_id": "c1",
+                "matched_text": "512 U.S. 7000",
+                "nodes": [("ExactLocatorLookupNode", "not_found")],
+            }
+        ],
+        {},
+    )
+
+    score = score_run(run_dir)["by_type"]["non_existent_citation"]
+
+    assert score["false_positive"] == 0
+    assert score["covered"] == 0
+    assert score["abstained_sound"] == 1
