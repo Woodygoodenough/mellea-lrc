@@ -62,6 +62,12 @@ _UNKNOWN_REPORTER_STATUS = 400
 # limit, so the sweep runs at the rate the service allows instead of discovering
 # that rate by being refused. Backoff stays for the occasional refusal, but it
 # should now be rare rather than the steady state.
+# CourtListener's free tier allows 125 requests per token per day. A sweep of
+# the eval split needs 1,197, so no pacing makes it fit -- the budget is the
+# constraint, not the rate. When the daily cap is hit the sweep stops rather
+# than retrying into a wall for hours, and says when the quota returns.
+DAILY_QUOTA_MARKER = "Rate limit exceeded"
+
 MIN_REQUEST_INTERVAL_SECONDS = 2.0
 MAX_ATTEMPTS = 5
 RETRY_BASE_SECONDS = 5.0
@@ -87,6 +93,15 @@ _NON_ALNUM = re.compile(r"[^a-z0-9]")
 # spells `F. App'x`, and calling a real reporter fabricated because a brief used
 # its common abbreviation would be the worst error this check could make.
 _KNOWN_REPORTERS = {_NON_ALNUM.sub("", name.lower()) for name in (*EDITIONS, *VARIATIONS_ONLY)}
+
+
+class DailyQuotaExhausted(RuntimeError):
+    """The token's daily request allowance is spent, so the sweep cannot continue."""
+
+    def __init__(self, detail: str) -> None:
+        """Record the upstream message, which carries the reset time."""
+        super().__init__(detail)
+        self.detail = detail
 
 
 class LookupOutcome(str, Enum):
@@ -196,17 +211,36 @@ def probe_locators(
 
     lock = Lock()
     throttle = _Throttle(request_interval)
+    # `pool.map` submits eagerly, so an exception raised in one task does not
+    # stop the tasks already queued behind it. The flag does: once the quota is
+    # gone, no further request is sent.
+    stopped: list[str] = []
 
     def run(parts: LocatorParts) -> tuple[tuple[str, str, str], LookupResult]:
-        result = _lookup_one(service, parts, throttle=throttle, retry_base=retry_base)
+        if stopped:
+            return (parts.key, LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail="not run"))
+        try:
+            result = _lookup_one(service, parts, throttle=throttle, retry_base=retry_base)
+        except DailyQuotaExhausted as exhausted:
+            stopped.append(exhausted.detail)
+            raise
         if checkpoint is not None:
             with lock:
                 _append_checkpoint(checkpoint, parts, result)
         return (parts.key, result)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        for key, result in pool.map(run, pending.values()):
-            done[key] = result
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            for key, result in pool.map(run, pending.values()):
+                done[key] = result
+    except DailyQuotaExhausted as exhausted:
+        logger.error(
+            "daily quota exhausted after %d of %d lookups: %s",
+            len(done) - (len(distinct) - len(pending)),
+            len(pending),
+            exhausted.detail,
+        )
+        logger.error("the checkpoint holds every lookup that landed; resume when the quota returns")
 
     return {
         text: (
@@ -286,6 +320,13 @@ def summarize(results: Sequence[LookupResult]) -> dict[str, int]:
     return counts
 
 
+def _quota_detail(error: CourtListenerError) -> str:
+    """Pull the upstream throttle message out of the nested proxy envelope."""
+    text = str(error.upstream_detail)
+    start = text.find(DAILY_QUOTA_MARKER)
+    return text[start : start + 120] if start >= 0 else text[:120]
+
+
 def _unparsed_result(cited_text: str) -> LookupResult:
     if names_no_real_reporter(cited_text):
         return LookupResult(
@@ -312,6 +353,8 @@ def _lookup_one(
             response = client.lookup_citation(parts.volume, parts.reporter, parts.page)
             break
         except CourtListenerError as error:
+            if DAILY_QUOTA_MARKER in str(error.upstream_detail):
+                raise DailyQuotaExhausted(_quota_detail(error)) from error
             if not error.retryable or attempt == attempts - 1:
                 logger.warning("lookup failed for %s: %s", parts.key, error.message)
                 return LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail=error.failure_type)

@@ -246,6 +246,46 @@ def test_a_checkpointed_result_is_not_looked_up_again(tmp_path: Path) -> None:
     assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
 
 
+def test_a_daily_quota_refusal_stops_the_sweep(tmp_path: Path) -> None:
+    """A per-day cap is not a rate to wait out, so retrying it is wasted hours.
+
+    CourtListener's free tier allows 125 requests per token per day and a full
+    sweep needs 1,197, so the run stops and says so instead of backing off into
+    a wall. Everything that landed before the wall stays in the checkpoint.
+    """
+    checkpoint = tmp_path / "checkpoint.jsonl"
+    calls: list[int] = []
+
+    class _Capped(_FakeClient):
+        def lookup_citation(self, volume: str, reporter: str, page: str) -> _Response:
+            calls.append(1)
+            if len(calls) > 1:
+                raise CourtListenerError(
+                    "throttled",
+                    failure_type="api_limit",
+                    upstream_status_code=429,
+                    retryable=True,
+                    upstream_detail={"detail": "Request was throttled. Rate limit exceeded: 125/day."},
+                )
+            return _Response("347 U.S. 483", 200, (object(),))
+
+    results = probe_locators(
+        ["347 U.S. 483", "410 U.S. 113", "384 U.S. 436"],
+        client=_Capped({}),
+        max_workers=1,
+        request_interval=0.0,
+        retry_base=0.0,
+        checkpoint=checkpoint,
+    )
+
+    # The first lookup landed; the second hit the cap and ended the sweep rather
+    # than retrying it five times and moving on to the third.
+    assert len(calls) == 2
+    assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
+    assert results["410 U.S. 113"].outcome is LookupOutcome.FAILED
+    assert "347" in checkpoint.read_text()
+
+
 def test_summarize_reports_every_outcome_including_zeroes() -> None:
     """An outcome that never fired still belongs in a table of outcomes."""
     client = _FakeClient({("347", "U.S.", "483"): _Response("347 U.S. 483", 200, (object(),))})
