@@ -1,0 +1,152 @@
+{
+  "label": "smoke-13",
+  "fixture_count": 1,
+  "citation_count": 2,
+  "extraction_seconds": 0.032573375036008656,
+  "validation_seconds": 25.224066957947798,
+  "end_to_end_seconds": 25.25664183299523,
+  "node_seconds": 25.22145008086227,
+  "untracked_seconds": 0.002618377096951008,
+  "nodes": [
+    {
+      "node": "MelleaCaseNameCheckNode",
+      "calls": 1,
+      "elapsed_seconds": 14.035,
+      "average_seconds": 14.035,
+      "statuses": {
+        "succeeded": 1
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "ExactLocatorLookupNode",
+      "calls": 2,
+      "elapsed_seconds": 5.13,
+      "average_seconds": 2.565,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "MelleaCaseNameReextractionNode",
+      "calls": 1,
+      "elapsed_seconds": 3.225,
+      "average_seconds": 3.225,
+      "statuses": {
+        "succeeded": 1
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "DocketCourtRetrievalNode",
+      "calls": 2,
+      "elapsed_seconds": 1.491,
+      "average_seconds": 0.746,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "MelleaReextractedCaseNameCheckNode",
+      "calls": 1,
+      "elapsed_seconds": 1.339,
+      "average_seconds": 1.339,
+      "statuses": {
+        "succeeded": 1
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "LocatorCitationSummaryNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "LocatorCandidateAssessmentNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "ReporterPageRetrievalNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "skipped": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "ExactCaseNameCheckNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "MelleaCitingPropositionExtractionNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "skipped": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "MelleaPinpointCheckNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "skipped": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "CandidateEvaluationNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "CourtCheckNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    },
+    {
+      "node": "YearCheckNode",
+      "calls": 2,
+      "elapsed_seconds": 0.0,
+      "average_seconds": 0.0,
+      "statuses": {
+        "succeeded": 2
+      },
+      "exceptions": 0
+    }
+  ]
+}
