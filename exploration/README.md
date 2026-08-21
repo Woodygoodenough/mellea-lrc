@@ -18,6 +18,7 @@ extraction and validation evaluators).
 | [06-objections.md](06-objections.md) | the reviews we will get, and what has to exist to answer them |
 | [07-architecture-comparison.md](07-architecture-comparison.md) | their implementation read line by line, and where our architecture is and is not better |
 | [08-roadmap.md](08-roadmap.md) | **the plan** — gates, four tracks, the benchmark-scaling pipeline, and the calendar |
+| [09-session-log.md](09-session-log.md) | what was built and measured overnight on 21 August, and what to run next |
 
 Supporting artifacts the analysis reads:
 
