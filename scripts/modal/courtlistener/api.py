@@ -12,6 +12,7 @@ annotations resolvable.
 exercised without Modal, R2, or a CourtListener token.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import Callable
@@ -21,12 +22,22 @@ import httpx
 from fastapi import FastAPI, Request, Response
 
 from scripts.modal.courtlistener.cache import build_envelope, cache_key, should_store
-from scripts.modal.courtlistener.tokens import AllTokensExhausted, TokenPool, is_quota_refusal
+from scripts.modal.courtlistener.tokens import (
+    AllTokensExhausted,
+    TokenPool,
+    burst_wait_seconds,
+    is_burst_refusal,
+    is_quota_refusal,
+)
 
 logger = logging.getLogger(__name__)
 
 UPSTREAM_TIMEOUT_SECONDS = 45
 HTTP_TOO_MANY_REQUESTS = 429
+# How many times a burst refusal may be waited out before giving up on a request.
+BURST_RETRIES = 3
+# A caller asked for an allowance this deployment does not have.
+HTTP_MISCONFIGURED = 503
 
 # A caller opts in to the reserved allowance with this header. It is deliberately
 # opt-in rather than a fallback: the reserved token exists so that a small,
@@ -73,7 +84,17 @@ def build_app(
             data = {key: str(value) for key, value in form.items()}
 
         wants_reserved = request.headers.get(POOL_HEADER, "").strip().lower() == RESERVED_POOL
-        chosen = reserved_pool if (wants_reserved and reserved_pool is not None) else pool
+        if wants_reserved and reserved_pool is None:
+            # Falling back to the main pool would spend the wrong allowance and
+            # report success, so a caller asking for an allowance that does not
+            # exist has to hear about it.
+            return Response(
+                content=json.dumps({"detail": f"no {RESERVED_POOL} pool is configured"}),
+                status_code=HTTP_MISCONFIGURED,
+                media_type="application/json",
+                headers={"x-cache": "miss"},
+            )
+        chosen = reserved_pool if wants_reserved else pool
 
         key = cache_key(request.method, endpoint, params, data)
         cached = cache_get(key)
@@ -138,7 +159,7 @@ async def _send(
     gets `AllTokensExhausted` and can stop rather than retry into a wall.
     """
     async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
-        for _ in range(pool.size):
+        for _ in range(pool.size * (BURST_RETRIES + 1)):
             token = pool.acquire()
             response = await client.request(
                 method,
@@ -147,13 +168,20 @@ async def _send(
                 data=data or None,
                 headers={"Authorization": f"Token {token.value}", "Accept": "application/json"},
             )
-            if not is_quota_refusal(response.status_code, response.text):
-                return (
-                    response.status_code,
-                    response.content,
-                    response.headers.get("content-type", "application/json"),
-                )
-            pool.park(token, response.text)
+            if is_quota_refusal(response.status_code, response.text):
+                pool.park(token, response.text)
+                continue
+            if is_burst_refusal(response.status_code, response.text):
+                # A short-window throttle clears in seconds. Waiting it out
+                # keeps the token; parking it would empty the pool over
+                # something that is not an exhausted allowance at all.
+                await asyncio.sleep(burst_wait_seconds(response.text))
+                continue
+            return (
+                response.status_code,
+                response.content,
+                response.headers.get("content-type", "application/json"),
+            )
     # Every token refused within this request. Asking the pool once more raises
     # AllTokensExhausted carrying the earliest reset, which is what the caller
     # needs in order to stop rather than retry.

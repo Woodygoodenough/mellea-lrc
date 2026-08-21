@@ -21,13 +21,24 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-# CourtListener says so in the 429 body:
-#   "Request was throttled. Rate limit exceeded: 125/day.
-#    Expected available in 53034 seconds."
-DAILY_QUOTA_MARKER = "Rate limit exceeded"
+# CourtListener throttles on more than one window, and the two need opposite
+# handling. It names the window in the 429 body:
+#
+#   "Request was throttled. Rate limit exceeded: 125/day.  Expected available in 53034 seconds."
+#   "Request was throttled. Rate limit exceeded: 60/minute. Expected available in 12 seconds."
+#
+# The first is a spent allowance: the token is done for the day and must leave
+# rotation. The second is a burst limit that clears in seconds and should simply
+# be waited out. Parking a token for the second is how a pool of three empties
+# itself in one burst and then refuses everything.
+_DAILY_WINDOW = re.compile(r"Rate limit exceeded:\s*\d+\s*/\s*day", re.IGNORECASE)
+_THROTTLED = re.compile(r"Rate limit exceeded", re.IGNORECASE)
 _RETRY_SECONDS = re.compile(r"available in (\d+) seconds")
 # Used when the upstream refuses without saying when it will relent.
 DEFAULT_COOLDOWN_SECONDS = 3600.0
+HTTP_TOO_MANY_REQUESTS = 429
+# A burst refusal clears quickly; wait rather than surrendering the token.
+MAX_BURST_WAIT_SECONDS = 90.0
 
 
 class AllTokensExhausted(RuntimeError):
@@ -107,8 +118,28 @@ class TokenPool:
 
 
 def is_quota_refusal(status_code: int, body: str) -> bool:
-    """Whether a refusal is a spent allowance rather than a momentary limit."""
-    return status_code == 429 and DAILY_QUOTA_MARKER in body
+    """Whether a refusal means the token's daily allowance is spent.
+
+    Only a per-day window counts. A per-minute burst limit is also reported as
+    "Rate limit exceeded", and treating that as exhaustion parks a token that is
+    fine seconds later -- enough of them and the whole pool empties in one
+    burst and then refuses every request.
+    """
+    return status_code == HTTP_TOO_MANY_REQUESTS and bool(_DAILY_WINDOW.search(body))
+
+
+def is_burst_refusal(status_code: int, body: str) -> bool:
+    """Whether a refusal is a short-window throttle worth waiting out."""
+    if status_code != HTTP_TOO_MANY_REQUESTS or not _THROTTLED.search(body):
+        return False
+    return not _DAILY_WINDOW.search(body)
+
+
+def burst_wait_seconds(body: str) -> float:
+    """How long to wait out a burst refusal, bounded so a request cannot hang."""
+    match = _RETRY_SECONDS.search(body)
+    named = float(match.group(1)) if match else 5.0
+    return min(named, MAX_BURST_WAIT_SECONDS)
 
 
 def cooldown_seconds(body: str) -> float:

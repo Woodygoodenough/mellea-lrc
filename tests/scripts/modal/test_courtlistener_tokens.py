@@ -6,13 +6,17 @@ import pytest
 
 from scripts.modal.courtlistener.tokens import (
     DEFAULT_COOLDOWN_SECONDS,
+    MAX_BURST_WAIT_SECONDS,
     AllTokensExhausted,
     TokenPool,
+    burst_wait_seconds,
     cooldown_seconds,
+    is_burst_refusal,
     is_quota_refusal,
 )
 
 THROTTLED = "Request was throttled. Rate limit exceeded: 125/day. Expected available in 53034 seconds."
+BURST = "Request was throttled. Rate limit exceeded: 60/minute. Expected available in 12 seconds."
 
 
 def test_numbered_tokens_are_collected_in_order() -> None:
@@ -95,6 +99,30 @@ def test_a_daily_refusal_is_told_apart_from_an_ordinary_one() -> None:
     assert is_quota_refusal(429, THROTTLED) is True
     assert is_quota_refusal(429, "Request was throttled. Try again in 1 second.") is False
     assert is_quota_refusal(500, THROTTLED) is False
+
+
+def test_a_burst_limit_is_not_a_spent_allowance() -> None:
+    """CourtListener reports both windows as "Rate limit exceeded".
+
+    Treating the per-minute one as exhaustion parks a token that is fine
+    seconds later, and enough of those empty the whole pool over something that
+    was never an exhausted allowance. This is the bug that made a sweep fail
+    with 429s while every token still had quota.
+    """
+    assert is_quota_refusal(429, BURST) is False
+    assert is_burst_refusal(429, BURST) is True
+
+    assert is_burst_refusal(429, THROTTLED) is False
+    assert is_quota_refusal(429, THROTTLED) is True
+
+
+def test_a_burst_wait_is_bounded() -> None:
+    """Honour the named wait, but never let one request hang on it."""
+    assert burst_wait_seconds(BURST) == pytest.approx(12.0)
+    assert burst_wait_seconds("Rate limit exceeded: 60/minute.") == pytest.approx(5.0)
+    assert burst_wait_seconds("Rate limit exceeded. available in 99999 seconds") == pytest.approx(
+        MAX_BURST_WAIT_SECONDS
+    )
 
 
 def test_the_cooldown_falls_back_when_no_reset_is_named() -> None:

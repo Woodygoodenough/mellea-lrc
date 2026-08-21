@@ -239,3 +239,20 @@ def test_health_reports_both_pools(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert body["tokens"] == 2
     assert body["reserved_tokens"] == 1
+
+
+def test_asking_for_a_reserved_pool_that_is_not_configured_is_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Silently using the main allowance would spend the wrong budget and pass.
+
+    A run that asked for the reserve and got the bulk pool instead would look
+    successful while draining exactly what it was trying not to touch.
+    """
+    upstream = _Upstream([httpx.Response(200, json=ANSWER)])
+    client, _ = _client(upstream, monkeypatch=monkeypatch)
+
+    response = client.post("/citation-lookup/", data=LOOKUP, headers={"x-cl-pool": "reserved"})
+
+    assert response.status_code == 503
+    assert upstream.requests == []
