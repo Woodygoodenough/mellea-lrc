@@ -15,6 +15,7 @@ coverage.xml
 
 # Local development artifacts
 .env
+.env.bak-*
 .envrc
 .env.deploy
 local/
