@@ -183,6 +183,25 @@ def production_with_recovery(document: str, text: str) -> list[Occurrence]:
     )
 
 
+def layout_tolerant(document: str, text: str) -> list[Occurrence]:
+    r"""The layout-tolerant tokenizer alone, with no model recovery.
+
+    Production collapses runs of whitespace before parsing, which repairs a
+    doubled space but cannot repair a missing one. eyecite's patterns join
+    volume, reporter and page with a literal space, so `846F.2d746` matches
+    nothing at all -- and a citation that matches nothing is absent from the
+    ledger rather than reported as doubtful, which is how a filing full of
+    glued citations earns a clean bill.
+
+    Relaxing those joins to `\s*` covers both directions with one change,
+    because zero spaces and several spaces are the same defect seen from either
+    side. This arm exists to measure that change on its own, since the only
+    layout-tolerant arm until now also ran a model and could not separate the
+    tokenizer's contribution from the recovery pass.
+    """
+    return _from_extracted_document(document, extract_relaxed_citations(text))
+
+
 def layout_tolerant_with_recovery(document: str, text: str) -> list[Occurrence]:
     """The layout-tolerant tokenizer, then model recovery of what it still missed."""
     extracted = extract_relaxed_citations(text)
@@ -207,6 +226,10 @@ class ArmSpec:
 ARMS: dict[str, ArmSpec] = {
     "eyecite": ArmSpec(run=eyecite_as_published, components="eyecite as published"),
     "production": ArmSpec(run=production, components="eyecite + whitespace repair"),
+    "layout-tolerant": ArmSpec(
+        run=layout_tolerant,
+        components="layout-tolerant tokenizer",
+    ),
     "production+recovery": ArmSpec(
         run=production_with_recovery,
         components="production + site hunting + model adjudication",

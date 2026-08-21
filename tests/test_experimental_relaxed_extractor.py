@@ -58,12 +58,17 @@ def test_returns_a_plain_extracted_document_with_usable_spans() -> None:
     assert document.text == extract_from_plain_text(text).text
 
 
-def test_a_page_break_before_margin_line_numbers_yields_a_wrong_page() -> None:
-    """Known limitation, asserted so it cannot regress silently.
+def test_a_page_break_before_margin_line_numbers_no_longer_yields_a_wrong_page() -> None:
+    """The reporter-to-page join stops at a block boundary.
 
-    Relaxing the separator to \\s* also matches newlines, which is what
-    recovers page-break splits. The same behaviour makes PDF margin line
-    numbers look like a page: the real citation is 214 F.3d 1058.
+    Relaxing that join to \\s* let PDF margin line numbers stand in for a page:
+    this read as 214 F.3d 1 when the citation is 214 F.3d 1058. That is not a
+    miss but a wrong page, which sends validation to a different case and
+    reports a confident verdict about it -- the worst outcome available to an
+    extractor, and worse than finding nothing.
+
+    The volume-to-reporter join stays open, because a break there leaves the
+    page adjacent to its own reporter. See the test above, which needs it.
     """
     text = "Advanced Textile , 214 F.3d\n\n1\n\n2\n\n3\n\n4"
-    assert "214 F.3d 1" in _locators(extract_relaxed_citations(text))
+    assert _locators(extract_relaxed_citations(text)) == set()

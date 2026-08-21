@@ -54,9 +54,26 @@ if TYPE_CHECKING:
 # present, so the group still cannot end on whitespace. This works for the
 # alternation-shaped groups too, where lifting the trailing ``\s*`` out by
 # string surgery cannot reach every branch.
+# The two joins are relaxed differently, because a page break falling at one is
+# not the same risk as at the other.
+#
+# Between volume and reporter, a break leaves reporter and page still adjacent
+# on the far side, so the page that gets captured is the citation's own. Blank
+# lines are safe here, and needed: `937\n\nS.W.2d 796` is a real citation split
+# by a page break.
+#
+# Between reporter and page, the page number is what lands beyond the break --
+# next to running heads and PDF margin line numbers. Allowing a blank line there
+# read `214 F.3d\n\n1\n\n2\n\n3` as `214 F.3d 1` when the citation is
+# `214 F.3d 1058`: not a miss but a *wrong page*, which sends validation to the
+# wrong case and reports a confident verdict about it. So this join crosses at
+# most one newline.
+_ACROSS_BLOCKS = r"\s*"
+_WITHIN_BLOCK = r"[^\S\r\n]*(?:\r?\n[^\S\r\n]*)?"
+
 _JOINS: tuple[tuple[str, str], ...] = (
-    (r") (?P<reporter>", r")\s*(?P<reporter>"),
-    (r"),? (?P<page>", r")(?<!\s),?\s*(?P<page>"),
+    (r") (?P<reporter>", rf"){_ACROSS_BLOCKS}(?P<reporter>"),
+    (r"),? (?P<page>", rf")(?<!\s),?{_WITHIN_BLOCK}(?P<page>"),
 )
 
 
