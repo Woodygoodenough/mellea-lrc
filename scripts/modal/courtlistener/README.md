@@ -155,6 +155,46 @@ to tell a cache problem from a quota problem. When every token is spent the
 service answers `429` with `retry-after` set from the reset CourtListener names,
 so a caller can stop rather than retry into a wall.
 
+## The daily warming job
+
+`warm.py` deploys a scheduled function alongside the proxy. Once a day at 06:30
+UTC — just after the tokens reset — it walks a static worklist of the
+evaluation's 1,197 locators, skips whatever the cache already holds, and fetches
+until the day's allowance is gone. At 375 requests a day it takes about three
+days to fill; after that it finishes each run having fetched nothing, which is
+the steady state.
+
+```bash
+uv run --group modal modal deploy scripts/modal/courtlistener/warm.py
+uv run --group modal modal run scripts/modal/courtlistener/warm.py   # one pass now
+```
+
+A run reports what is actually left:
+
+```json
+{"worklist": 1197, "already_cached": 402, "fetched": 0,
+ "remaining": 795, "ended": "quota_exhausted"}
+```
+
+`ended: quota_exhausted` is the expected ending, not a failure.
+
+**It surveys before it spends.** Cache membership costs no quota, so the whole
+worklist is checked first and only the uncached entries are attempted. Walking
+the list and breaking out on the first miss instead reported "2 already cached"
+on a bucket that held 402 — a summary that would have made the job look broken
+while it was working.
+
+**Why this is scheduled here and not as a cloud agent.** The work needs the
+proxy, the API tokens and the R2 credentials, and all three already live in
+Modal. A scheduled agent running elsewhere cannot reach the proxy at all: the
+sandbox's egress policy refuses `*.modal.run` with a 403 on the CONNECT tunnel,
+before any request leaves. Moving the tokens somewhere else to work around that
+would spread the credentials for nothing.
+
+The worklist is a static file of volume/reporter/page triples derived once from
+the benchmark, so the job needs no dataset download, no citation parser, and no
+repository state.
+
 ## Repairing the cache
 
 ```bash
