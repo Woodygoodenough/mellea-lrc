@@ -189,6 +189,13 @@ def probe_locators(
 
 
 def _read_checkpoint(path: Path) -> dict[tuple[str, str, str], LookupResult]:
+    """Read completed lookups, treating a failure as unfinished rather than done.
+
+    A `failed` row is a retry budget that ran out against a rate limit, not an
+    answer about a citation. Resuming past it would freeze infrastructure noise
+    into the result, so those keys are dropped and the next run retries them.
+    A later successful row for the same locator supersedes an earlier failure.
+    """
     if not path.exists():
         return {}
     done: dict[tuple[str, str, str], LookupResult] = {}
@@ -197,9 +204,13 @@ def _read_checkpoint(path: Path) -> dict[tuple[str, str, str], LookupResult]:
             continue
         row = json.loads(line)
         parts = LocatorParts(volume=row["volume"], reporter=row["reporter"], page=row["page"])
+        outcome = LookupOutcome(row["outcome"])
+        if outcome is LookupOutcome.FAILED:
+            done.pop(parts.key, None)
+            continue
         done[parts.key] = LookupResult(
             parts=parts,
-            outcome=LookupOutcome(row["outcome"]),
+            outcome=outcome,
             cluster_count=row["cluster_count"],
             detail=row["detail"],
         )

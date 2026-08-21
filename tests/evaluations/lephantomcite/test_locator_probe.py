@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
 from evaluations.lephantomcite.locator_probe import (
     LocatorParts,
     LookupOutcome,
+    LookupResult,
+    _append_checkpoint,
     _lookup_one,
     names_no_real_reporter,
     parse_locator,
@@ -197,6 +200,42 @@ def test_an_unknown_case_reporter_is_still_refuted_by_the_lookup() -> None:
     looked_up = _lookup_one(client, LocatorParts("446", "Cal. Rptr. 4th", "183"))  # noqa: SLF001
 
     assert looked_up.outcome is LookupOutcome.REFUTED
+
+
+def test_a_checkpointed_failure_is_retried_not_resumed(tmp_path: Path) -> None:
+    """A failure is a retry budget that ran out, not an answer about a citation.
+
+    Resuming past one would freeze a rate limit into the result, so the next run
+    must look it up again.
+    """
+    checkpoint = tmp_path / "checkpoint.jsonl"
+    client = _FakeClient({("347", "U.S.", "483"): _Response("347 U.S. 483", 200, (object(),))})
+    _append_checkpoint(
+        checkpoint,
+        LocatorParts("347", "U.S.", "483"),
+        LookupResult(parts=None, outcome=LookupOutcome.FAILED, detail="api_limit"),
+    )
+
+    results = probe_locators(["347 U.S. 483"], client=client, max_workers=1, checkpoint=checkpoint)
+
+    assert client.calls == [("347", "U.S.", "483")]
+    assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
+
+
+def test_a_checkpointed_result_is_not_looked_up_again(tmp_path: Path) -> None:
+    """A completed lookup is what makes an interrupted run cheap to resume."""
+    checkpoint = tmp_path / "checkpoint.jsonl"
+    client = _FakeClient({})
+    _append_checkpoint(
+        checkpoint,
+        LocatorParts("347", "U.S.", "483"),
+        LookupResult(parts=None, outcome=LookupOutcome.RESOLVED, cluster_count=1),
+    )
+
+    results = probe_locators(["347 U.S. 483"], client=client, max_workers=1, checkpoint=checkpoint)
+
+    assert client.calls == []
+    assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
 
 
 def test_summarize_reports_every_outcome_including_zeroes() -> None:
