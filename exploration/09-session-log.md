@@ -219,11 +219,29 @@ started. Of the 368 sound citations that got a real answer, 309 (84%) were
 decidable and 54 (15%) unresolved, but a number computed over 36% of the set is
 not the number.
 
-A second pass is running. The checkpoint reader now treats a `failed` row as
-unfinished rather than done — resuming past one would freeze infrastructure
-noise into the result — so the retry covers exactly the 819 that need it and
-skips the 378 already answered. Pass one is preserved as
-`locator-probe.pass1.json`.
+**Pass two failed too, and the diagnosis took two steps.**
+
+Pass two ran for four hours at one worker and wrote 78 checkpoint rows, every
+one of them a failure. Meanwhile a single hand-issued lookup against the same
+endpoint succeeded in 0.87 s. That ruled out an outage and pointed at the
+sweep's own behaviour: burst-then-back-off is the wrong shape against a
+steady-rate limiter, because the sweep sends as fast as it can, is refused,
+waits, and retries into a window its own retries are still filling. Requests
+are now spaced by a shared minimum interval instead, one worker, with backoff
+kept for the occasional refusal rather than as the steady state. That was a
+real bug and the fix stands.
+
+It is not the binding constraint, though. A controlled probe — eight uncached
+locators at two-second spacing — returned **one success and seven 429s**. The
+CourtListener quota behind the proxy is exhausted for the period, after roughly
+4,000 requests today. No pacing fixes that; only the window resetting does. The
+project's own evaluation README already says a free-tier token will not carry a
+full run, and this is what that looks like from the inside.
+
+**Where that leaves the probe.** 378 of 1,197 distinct locators are answered
+and cached, so they are instant on the next attempt. The checkpoint reader
+treats a `failed` row as unfinished, so a resume retries exactly the 819 that
+still need it. Pass one is preserved as `locator-probe.pass1.json`.
 
 The pass-one output also predates the `out_of_scope` fix, so reclassify
 `refuted` rows whose `detail` names a non-case source when reading it directly.
