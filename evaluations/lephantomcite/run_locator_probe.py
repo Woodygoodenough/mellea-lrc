@@ -27,6 +27,11 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, required=True, help="path to eval.jsonl")
     parser.add_argument("--output", type=Path, required=True, help="path to write the result JSON")
     parser.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS)
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        help="JSONL of completed lookups; read back on start and appended to as the run proceeds",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -38,7 +43,7 @@ def main() -> None:
         "probing %d citations (%d distinct) from %d excerpts", len(texts), len(set(texts)), len(excerpts)
     )
 
-    results = probe_locators(texts, max_workers=args.max_workers)
+    results = probe_locators(texts, max_workers=args.max_workers, checkpoint=args.checkpoint)
 
     by_label: dict[str, Counter[str]] = {}
     records = []

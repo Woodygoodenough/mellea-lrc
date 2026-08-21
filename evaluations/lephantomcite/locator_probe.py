@@ -24,15 +24,17 @@ reports.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
+from threading import Lock
 from typing import TYPE_CHECKING
 
-from reporters_db import EDITIONS
+from reporters_db import EDITIONS, VARIATIONS_ONLY
 
 from mellea_lrc.core.citations import FullCaseCitation, ShortCaseCitation
 from mellea_lrc.courtlistener import CourtListenerClient, CourtListenerError
@@ -40,6 +42,7 @@ from mellea_lrc.extraction import extract_from_plain_text
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+    from pathlib import Path
 
     from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
 
@@ -62,7 +65,10 @@ DEFAULT_MAX_WORKERS = 3
 # reaches a lookup, and the refusal is itself the finding.
 _LOCATOR_SHAPE = re.compile(r"\b\d+\s+(?P<reporter>[A-Za-z][A-Za-z0-9.'’ ]*?)\s+(?:at\s+)?\d+\b")
 _NON_ALNUM = re.compile(r"[^a-z0-9]")
-_KNOWN_REPORTERS = {_NON_ALNUM.sub("", edition.lower()) for edition in EDITIONS}
+# Variations as well as canonical editions: `Fed. Appx.` is how a filing often
+# spells `F. App'x`, and calling a real reporter fabricated because a brief used
+# its common abbreviation would be the worst error this check could make.
+_KNOWN_REPORTERS = {_NON_ALNUM.sub("", name.lower()) for name in (*EDITIONS, *VARIATIONS_ONLY)}
 
 
 class LookupOutcome(str, Enum):
@@ -123,12 +129,18 @@ def probe_locators(
     *,
     client: CourtListenerServiceClient | None = None,
     max_workers: int = DEFAULT_MAX_WORKERS,
+    checkpoint: Path | None = None,
 ) -> dict[str, LookupResult]:
     """Look up each distinct citation string once and return its result by string.
 
     Lookups are deduplicated on the parsed locator, so a citation repeated
     across excerpts costs one request. Results are keyed by the original string
     because that is what the benchmark's labels are keyed on.
+
+    CourtListener rate-limits this endpoint hard enough that a full split takes
+    hours, so a `checkpoint` path is read back before starting and appended to
+    as each lookup lands. An interrupted run resumes rather than restarting, and
+    the results of one that never finished are still readable.
     """
     service = client or CourtListenerClient()
     texts = list(dict.fromkeys(cited_texts))
@@ -139,19 +151,62 @@ def probe_locators(
         if parts is not None:
             distinct.setdefault(parts.key, parts)
 
+    done = _read_checkpoint(checkpoint) if checkpoint is not None else {}
+    pending = {key: parts for key, parts in distinct.items() if key not in done}
+    logger.info("%d distinct locators, %d already checkpointed", len(distinct), len(distinct) - len(pending))
+
+    lock = Lock()
+
+    def run(parts: LocatorParts) -> tuple[tuple[str, str, str], LookupResult]:
+        result = _lookup_one(service, parts)
+        if checkpoint is not None:
+            with lock:
+                _append_checkpoint(checkpoint, parts, result)
+        return (parts.key, result)
+
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        looked_up = dict(
-            zip(
-                distinct,
-                pool.map(lambda parts: _lookup_one(service, parts), distinct.values()),
-                strict=True,
-            )
-        )
+        for key, result in pool.map(run, pending.values()):
+            done[key] = result
 
     return {
-        text: (looked_up[parts.key] if parts is not None else _unparsed_result(text))
+        text: (
+            done.get(parts.key, LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail="not run"))
+            if parts is not None
+            else _unparsed_result(text)
+        )
         for text, parts in parsed.items()
     }
+
+
+def _read_checkpoint(path: Path) -> dict[tuple[str, str, str], LookupResult]:
+    if not path.exists():
+        return {}
+    done: dict[tuple[str, str, str], LookupResult] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        parts = LocatorParts(volume=row["volume"], reporter=row["reporter"], page=row["page"])
+        done[parts.key] = LookupResult(
+            parts=parts,
+            outcome=LookupOutcome(row["outcome"]),
+            cluster_count=row["cluster_count"],
+            detail=row["detail"],
+        )
+    return done
+
+
+def _append_checkpoint(path: Path, parts: LocatorParts, result: LookupResult) -> None:
+    row = {
+        "volume": parts.volume,
+        "reporter": parts.reporter,
+        "page": parts.page,
+        "outcome": result.outcome.value,
+        "cluster_count": result.cluster_count,
+        "detail": result.detail,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row) + "\n")
 
 
 def names_no_real_reporter(cited_text: str) -> bool:
