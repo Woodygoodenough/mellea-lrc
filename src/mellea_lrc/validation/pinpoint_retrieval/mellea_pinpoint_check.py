@@ -73,7 +73,7 @@ class _PinpointProposal(BaseModel):
 
     verdict: Literal["supports", "inconclusive"]
     reasoning: str = Field(min_length=1)
-    evidence_quote: str | None = None
+    evidence_quote: str | None
 
 
 async def run_mellea_pinpoint_check(

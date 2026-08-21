@@ -30,11 +30,13 @@ def test_negative_pinpoint_verdict_is_not_part_of_the_model_contract() -> None:
     """One reporter page cannot establish a negative citation judgment."""
     with pytest.raises(ValueError, match="Invalid Mellea pinpoint output"):
         mellea_pinpoint_check._parse(  # noqa: SLF001
-            '{"verdict":"does_not_support","reasoning":"This page does not state the proposition."}'
+            '{"verdict":"does_not_support","reasoning":"This page does not state the proposition.",'
+            '"evidence_quote":null}'
         )
 
     proposal = mellea_pinpoint_check._parse(  # noqa: SLF001
-        '{"verdict":"inconclusive","reasoning":"This page does not permit a reliable judgment."}'
+        '{"verdict":"inconclusive","reasoning":"This page does not permit a reliable judgment.",'
+        '"evidence_quote":null}'
     )
 
     assert proposal.verdict == "inconclusive"
