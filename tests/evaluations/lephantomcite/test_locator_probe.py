@@ -7,7 +7,9 @@ from dataclasses import dataclass
 import pytest
 
 from evaluations.lephantomcite.locator_probe import (
+    LocatorParts,
     LookupOutcome,
+    _lookup_one,
     names_no_real_reporter,
     parse_locator,
     probe_locators,
@@ -152,6 +154,49 @@ def test_a_permanent_failure_is_not_a_finding_either() -> None:
     results = probe_locators(["347 U.S. 483"], client=_Broken({}), max_workers=1)
 
     assert results["347 U.S. 483"].outcome is LookupOutcome.FAILED
+
+
+def test_a_regulation_is_out_of_scope_rather_than_refuted() -> None:
+    """The Federal Register is a real publication that is not a case reporter.
+
+    eyecite types its short form as a short case citation, so it reaches a
+    lookup that rejects the reporter. Reading that rejection as fabrication
+    would be the exact false positive this vocabulary exists to prevent.
+    """
+    client = _FakeClient(
+        {
+            ("80", "Fed. Reg.", "64,545"): _Response(
+                citation="",
+                status=400,
+                clusters=(),
+                error_message="Unable to find reporter with abbreviation of 'Fed. Reg.'",
+            )
+        }
+    )
+
+    results = probe_locators(["80 Fed. Reg. at 64,545"], client=client, max_workers=1)
+
+    assert results["80 Fed. Reg. at 64,545"].outcome is LookupOutcome.OUT_OF_SCOPE
+
+
+def test_an_unknown_case_reporter_is_still_refuted_by_the_lookup() -> None:
+    """A rejected reporter that is not a known non-case source is fabrication."""
+    client = _FakeClient(
+        {
+            ("446", "Cal. Rptr. 4th", "183"): _Response(
+                citation="",
+                status=400,
+                clusters=(),
+                error_message="Unable to find reporter with abbreviation of 'Cal. Rptr. 4th'",
+            )
+        }
+    )
+
+    # Reached through _lookup_one directly: extraction declines this string, so
+    # probe_locators would refute it offline before ever sending a request.
+    looked_up = _lookup_one(client, LocatorParts("446", "Cal. Rptr. 4th", "183"))  # noqa: SLF001
+
+    assert looked_up.outcome is LookupOutcome.REFUTED
 
 
 def test_summarize_reports_every_outcome_including_zeroes() -> None:

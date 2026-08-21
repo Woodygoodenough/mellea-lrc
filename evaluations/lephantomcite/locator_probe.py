@@ -56,9 +56,18 @@ _UNKNOWN_REPORTER_STATUS = 400
 # CourtListener rate-limits a burst of lookups. Retry a retryable failure with
 # exponential backoff rather than recording it as a finding: a 429 says nothing
 # about the citation.
-MAX_ATTEMPTS = 5
+MAX_ATTEMPTS = 8
 RETRY_BASE_SECONDS = 2.0
+MAX_RETRY_SECONDS = 60.0
 DEFAULT_MAX_WORKERS = 3
+
+# Serial publications that are real but are not case reporters. The project
+# validates case citations, so a citation to one of these is out of scope
+# rather than fabricated -- reporting `80 Fed. Reg. 64,545` as a defect would
+# be exactly the false positive this vocabulary exists to prevent. They need
+# naming because eyecite types their short forms (`80 Fed. Reg. at 64,545`) as
+# short case citations, so they reach a lookup that then rejects the reporter.
+NON_CASE_SOURCES = frozenset({"fedreg", "congrec", "cfr", "usc", "stat"})
 
 # A citation that states volume, some reporter tokens, and a page, without the
 # reporter being a real series. Extraction refuses such a string, so it never
@@ -78,6 +87,7 @@ class LookupOutcome(str, Enum):
     AMBIGUOUS = "ambiguous"
     REFUTED = "refuted"
     UNRESOLVED = "unresolved"
+    OUT_OF_SCOPE = "out_of_scope"
     UNPARSED = "unparsed"
     FAILED = "failed"
 
@@ -209,6 +219,11 @@ def _append_checkpoint(path: Path, parts: LocatorParts, result: LookupResult) ->
         handle.write(json.dumps(row) + "\n")
 
 
+def is_non_case_source(reporter: str) -> bool:
+    """Whether the reporter names a real publication that is not a case reporter."""
+    return _NON_ALNUM.sub("", reporter.lower()) in NON_CASE_SOURCES
+
+
 def names_no_real_reporter(cited_text: str) -> bool:
     """Whether the string is shaped like a locator but names no real reporter series.
 
@@ -255,7 +270,7 @@ def _lookup_one(
             if not error.retryable or attempt == attempts - 1:
                 logger.warning("lookup failed for %s: %s", parts.key, error.message)
                 return LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail=error.failure_type)
-            delay = RETRY_BASE_SECONDS * (2**attempt)
+            delay = min(RETRY_BASE_SECONDS * (2**attempt), MAX_RETRY_SECONDS)
             logger.info("retrying %s in %.1fs after %s", parts.key, delay, error.failure_type)
             time.sleep(delay)
     if response is None:  # pragma: no cover - the loop either breaks or returns
@@ -267,9 +282,6 @@ def _lookup_one(
     if clusters > 1:
         return LookupResult(parts=parts, outcome=LookupOutcome.AMBIGUOUS, cluster_count=clusters)
     if response.status == _UNKNOWN_REPORTER_STATUS:
-        return LookupResult(
-            parts=parts,
-            outcome=LookupOutcome.REFUTED,
-            detail=response.error_message,
-        )
+        outcome = LookupOutcome.OUT_OF_SCOPE if is_non_case_source(parts.reporter) else LookupOutcome.REFUTED
+        return LookupResult(parts=parts, outcome=outcome, detail=response.error_message)
     return LookupResult(parts=parts, outcome=LookupOutcome.UNRESOLVED, detail=response.error_message)
