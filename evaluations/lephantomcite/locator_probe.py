@@ -53,13 +53,22 @@ logger = logging.getLogger(__name__)
 # in the archive, which is a different finding.
 _UNKNOWN_REPORTER_STATUS = 400
 
-# CourtListener rate-limits a burst of lookups. Retry a retryable failure with
-# exponential backoff rather than recording it as a finding: a 429 says nothing
-# about the citation.
-MAX_ATTEMPTS = 8
-RETRY_BASE_SECONDS = 2.0
+# CourtListener limits this endpoint at a steady rate, and burst-then-back-off
+# is the wrong shape for that: a sweep sends as fast as it can, is refused, waits,
+# and retries into a window its own retries are still filling. A full pass of the
+# eval split spent four hours that way and answered nothing.
+#
+# Pacing fixes it. Requests are spaced by a fixed minimum interval below the
+# limit, so the sweep runs at the rate the service allows instead of discovering
+# that rate by being refused. Backoff stays for the occasional refusal, but it
+# should now be rare rather than the steady state.
+MIN_REQUEST_INTERVAL_SECONDS = 2.0
+MAX_ATTEMPTS = 5
+RETRY_BASE_SECONDS = 5.0
 MAX_RETRY_SECONDS = 60.0
-DEFAULT_MAX_WORKERS = 3
+# One worker, because the throttle sets the pace and concurrency would only
+# bunch requests back up against the limit.
+DEFAULT_MAX_WORKERS = 1
 
 # Serial publications that are real but are not case reporters. The project
 # validates case citations, so a citation to one of these is out of scope
@@ -90,6 +99,24 @@ class LookupOutcome(str, Enum):
     OUT_OF_SCOPE = "out_of_scope"
     UNPARSED = "unparsed"
     FAILED = "failed"
+
+
+class _Throttle:
+    """Space requests by a minimum interval, shared across worker threads."""
+
+    def __init__(self, interval_seconds: float) -> None:
+        self.interval = interval_seconds
+        self._lock = Lock()
+        self._next_allowed = 0.0
+
+    def wait(self) -> None:
+        """Block until the next request may be sent, then claim that slot."""
+        with self._lock:
+            now = time.monotonic()
+            delay = max(0.0, self._next_allowed - now)
+            self._next_allowed = max(now, self._next_allowed) + self.interval
+        if delay:
+            time.sleep(delay)
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +167,8 @@ def probe_locators(
     client: CourtListenerServiceClient | None = None,
     max_workers: int = DEFAULT_MAX_WORKERS,
     checkpoint: Path | None = None,
+    request_interval: float = MIN_REQUEST_INTERVAL_SECONDS,
+    retry_base: float = RETRY_BASE_SECONDS,
 ) -> dict[str, LookupResult]:
     """Look up each distinct citation string once and return its result by string.
 
@@ -166,9 +195,10 @@ def probe_locators(
     logger.info("%d distinct locators, %d already checkpointed", len(distinct), len(distinct) - len(pending))
 
     lock = Lock()
+    throttle = _Throttle(request_interval)
 
     def run(parts: LocatorParts) -> tuple[tuple[str, str, str], LookupResult]:
-        result = _lookup_one(service, parts)
+        result = _lookup_one(service, parts, throttle=throttle, retry_base=retry_base)
         if checkpoint is not None:
             with lock:
                 _append_checkpoint(checkpoint, parts, result)
@@ -271,9 +301,13 @@ def _lookup_one(
     parts: LocatorParts,
     *,
     attempts: int = MAX_ATTEMPTS,
+    throttle: _Throttle | None = None,
+    retry_base: float = RETRY_BASE_SECONDS,
 ) -> LookupResult:
     response = None
     for attempt in range(attempts):
+        if throttle is not None:
+            throttle.wait()
         try:
             response = client.lookup_citation(parts.volume, parts.reporter, parts.page)
             break
@@ -281,7 +315,7 @@ def _lookup_one(
             if not error.retryable or attempt == attempts - 1:
                 logger.warning("lookup failed for %s: %s", parts.key, error.message)
                 return LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail=error.failure_type)
-            delay = min(RETRY_BASE_SECONDS * (2**attempt), MAX_RETRY_SECONDS)
+            delay = min(retry_base * (2**attempt), MAX_RETRY_SECONDS)
             logger.info("retrying %s in %.1fs after %s", parts.key, delay, error.failure_type)
             time.sleep(delay)
     if response is None:  # pragma: no cover - the loop either breaks or returns

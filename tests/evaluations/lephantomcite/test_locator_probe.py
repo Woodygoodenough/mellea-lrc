@@ -96,7 +96,7 @@ def test_absence_from_the_archive_is_not_refutation() -> None:
     """A real series with no case at that page is unresolved, not a defect."""
     client = _FakeClient({})
 
-    results = probe_locators(["999 U.S. 9999"], client=client, max_workers=1)
+    results = probe_locators(["999 U.S. 9999"], client=client, max_workers=1, request_interval=0.0)
 
     assert results["999 U.S. 9999"].outcome is LookupOutcome.UNRESOLVED
 
@@ -110,7 +110,7 @@ def test_a_single_cluster_resolves_and_several_are_ambiguous() -> None:
         }
     )
 
-    results = probe_locators(["347 U.S. 483", "1 F. 1"], client=client, max_workers=1)
+    results = probe_locators(["347 U.S. 483", "1 F. 1"], client=client, max_workers=1, request_interval=0.0)
 
     assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
     assert results["1 F. 1"].outcome is LookupOutcome.AMBIGUOUS
@@ -121,7 +121,9 @@ def test_a_repeated_citation_costs_one_lookup() -> None:
     """One authority cited many times in a corpus must not be fetched many times."""
     client = _FakeClient({("347", "U.S.", "483"): _Response("347 U.S. 483", 200, (object(),))})
 
-    probe_locators(["347 U.S. 483", "347 U.S. 483", "347 U.S. 483"], client=client, max_workers=1)
+    probe_locators(
+        ["347 U.S. 483", "347 U.S. 483", "347 U.S. 483"], client=client, max_workers=1, request_interval=0.0
+    )
 
     assert client.calls == [("347", "U.S.", "483")]
 
@@ -141,7 +143,9 @@ def test_a_rate_limit_is_retried_rather_than_recorded_as_a_finding() -> None:
 
     client = _Limited({})
 
-    results = probe_locators(["347 U.S. 483"], client=client, max_workers=1)
+    results = probe_locators(
+        ["347 U.S. 483"], client=client, max_workers=1, request_interval=0.0, retry_base=0.0
+    )
 
     assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
     assert len(attempts) == 2
@@ -154,7 +158,7 @@ def test_a_permanent_failure_is_not_a_finding_either() -> None:
         def lookup_citation(self, volume: str, reporter: str, page: str) -> _Response:
             raise CourtListenerError("bad request", failure_type="upstream_rejected", retryable=False)
 
-    results = probe_locators(["347 U.S. 483"], client=_Broken({}), max_workers=1)
+    results = probe_locators(["347 U.S. 483"], client=_Broken({}), max_workers=1, request_interval=0.0)
 
     assert results["347 U.S. 483"].outcome is LookupOutcome.FAILED
 
@@ -177,7 +181,7 @@ def test_a_regulation_is_out_of_scope_rather_than_refuted() -> None:
         }
     )
 
-    results = probe_locators(["80 Fed. Reg. at 64,545"], client=client, max_workers=1)
+    results = probe_locators(["80 Fed. Reg. at 64,545"], client=client, max_workers=1, request_interval=0.0)
 
     assert results["80 Fed. Reg. at 64,545"].outcome is LookupOutcome.OUT_OF_SCOPE
 
@@ -216,7 +220,9 @@ def test_a_checkpointed_failure_is_retried_not_resumed(tmp_path: Path) -> None:
         LookupResult(parts=None, outcome=LookupOutcome.FAILED, detail="api_limit"),
     )
 
-    results = probe_locators(["347 U.S. 483"], client=client, max_workers=1, checkpoint=checkpoint)
+    results = probe_locators(
+        ["347 U.S. 483"], client=client, max_workers=1, request_interval=0.0, checkpoint=checkpoint
+    )
 
     assert client.calls == [("347", "U.S.", "483")]
     assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
@@ -232,7 +238,9 @@ def test_a_checkpointed_result_is_not_looked_up_again(tmp_path: Path) -> None:
         LookupResult(parts=None, outcome=LookupOutcome.RESOLVED, cluster_count=1),
     )
 
-    results = probe_locators(["347 U.S. 483"], client=client, max_workers=1, checkpoint=checkpoint)
+    results = probe_locators(
+        ["347 U.S. 483"], client=client, max_workers=1, request_interval=0.0, checkpoint=checkpoint
+    )
 
     assert client.calls == []
     assert results["347 U.S. 483"].outcome is LookupOutcome.RESOLVED
@@ -242,7 +250,7 @@ def test_summarize_reports_every_outcome_including_zeroes() -> None:
     """An outcome that never fired still belongs in a table of outcomes."""
     client = _FakeClient({("347", "U.S.", "483"): _Response("347 U.S. 483", 200, (object(),))})
 
-    results = probe_locators(["347 U.S. 483"], client=client, max_workers=1)
+    results = probe_locators(["347 U.S. 483"], client=client, max_workers=1, request_interval=0.0)
     counts = summarize(list(results.values()))
 
     assert counts["resolved"] == 1

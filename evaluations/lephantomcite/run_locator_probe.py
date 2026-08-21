@@ -16,7 +16,12 @@ from collections import Counter
 from pathlib import Path
 
 from evaluations.lephantomcite.dataset import iter_labelled_citations, load_excerpts
-from evaluations.lephantomcite.locator_probe import DEFAULT_MAX_WORKERS, probe_locators, summarize
+from evaluations.lephantomcite.locator_probe import (
+    DEFAULT_MAX_WORKERS,
+    MIN_REQUEST_INTERVAL_SECONDS,
+    probe_locators,
+    summarize,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,12 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, required=True, help="path to eval.jsonl")
     parser.add_argument("--output", type=Path, required=True, help="path to write the result JSON")
     parser.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS)
+    parser.add_argument(
+        "--request-interval",
+        type=float,
+        default=MIN_REQUEST_INTERVAL_SECONDS,
+        help="minimum seconds between requests; pace below the service limit",
+    )
     parser.add_argument(
         "--checkpoint",
         type=Path,
@@ -43,7 +54,12 @@ def main() -> None:
         "probing %d citations (%d distinct) from %d excerpts", len(texts), len(set(texts)), len(excerpts)
     )
 
-    results = probe_locators(texts, max_workers=args.max_workers, checkpoint=args.checkpoint)
+    results = probe_locators(
+        texts,
+        max_workers=args.max_workers,
+        checkpoint=args.checkpoint,
+        request_interval=args.request_interval,
+    )
 
     by_label: dict[str, Counter[str]] = {}
     records = []
