@@ -259,3 +259,24 @@ class CourtListenerClientTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_a_named_pool_is_sent_as_a_header() -> None:
+    """A caching proxy can offer several request allowances; this picks one.
+
+    It is how a small targeted run reaches an allowance a bulk sweep has not
+    spent. Against CourtListener directly the header means nothing, so sending
+    it is harmless.
+    """
+    client = CourtListenerClient(CourtListenerConfig(base_url="https://proxy.test/", pool="reserved"))
+
+    headers = client._headers()  # noqa: SLF001
+
+    assert headers["x-cl-pool"] == "reserved"
+
+
+def test_no_pool_header_is_sent_by_default() -> None:
+    """An ordinary run must not reach a reserved allowance by accident."""
+    client = CourtListenerClient(CourtListenerConfig(base_url="https://proxy.test/"))
+
+    assert "x-cl-pool" not in client._headers()  # noqa: SLF001

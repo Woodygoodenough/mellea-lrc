@@ -33,12 +33,24 @@ class CourtListenerConfig:
 
     base_url: str = DEFAULT_BASE_URL
     token: str | None = None
+    pool: str | None = None
 
     @classmethod
     def from_env(cls) -> CourtListenerConfig:
-        """Load the API base URL and single API token from the environment."""
+        """Load the API base URL, token, and request pool from the environment.
+
+        `MELLEA_LRC_COURTLISTENER_POOL` selects a named request allowance on a
+        caching proxy that offers one. It is how a small targeted run reaches an
+        allowance a bulk sweep has not spent; against CourtListener directly it
+        is inert, because the header means nothing there.
+        """
         token = os.getenv("COURTLISTENER_API_TOKEN", "").strip() or None
-        return cls(base_url=os.getenv("COURTLISTENER_BASE_URL", DEFAULT_BASE_URL), token=token)
+        pool = os.getenv("MELLEA_LRC_COURTLISTENER_POOL", "").strip() or None
+        return cls(
+            base_url=os.getenv("COURTLISTENER_BASE_URL", DEFAULT_BASE_URL),
+            token=token,
+            pool=pool,
+        )
 
 
 class CourtListenerError(RuntimeError):
@@ -289,6 +301,8 @@ class CourtListenerClient(CourtListenerServiceClient):
         headers = {"Accept": "application/json", "User-Agent": DEFAULT_USER_AGENT}
         if self.config.token:
             headers["Authorization"] = f"Token {self.config.token}"
+        if self.config.pool:
+            headers["x-cl-pool"] = self.config.pool
         return headers
 
 
