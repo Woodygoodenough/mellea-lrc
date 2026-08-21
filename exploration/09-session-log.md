@@ -185,10 +185,22 @@ overall it is a broadly applicable capability rather than a niche one.
 
 ## 6. Infrastructure
 
-**The Modal cache proxy works and matters.** After the R2 secret fix, a cold
-lookup takes ~9s and a repeat ~0.6s. Every lookup the probe makes populates the
-cache, so a re-run is cheap. That is what will make the pincite experiment
-affordable.
+**The Modal cache proxy works and matters more than ever.** After the R2 secret
+fix, a cold lookup takes ~9s and a repeat ~0.6s. 3,930 responses are cached and
+are now the project's real asset: at 375 lookups a day, the cache is the only
+reason any of this is repeatable.
+
+**The cache had five poisoned entries, now removed.** A full scan of all 3,935
+objects found five whose stored payload was a bare status code with
+`response: null` — two 429s, a 401, a 404 and a 400. Each one would have
+returned that error forever for its citation, never retrying; the 401 is the
+worst, since an auth failure has nothing to do with the citation. They are
+backed up to `results/cache-poisoned-entries-removed.json` and deleted, so those
+lookups re-fetch.
+
+The proxy writing them in the first place is a proxy-side bug: a cache should
+store answers, not failures. It needs the same source-level fix as token
+rotation.
 
 **CourtListener rate-limits hard.** Roughly 7 lookups a minute sustained,
 whatever the worker count. The probe now retries with capped exponential backoff
@@ -231,12 +243,38 @@ are now spaced by a shared minimum interval instead, one worker, with backoff
 kept for the occasional refusal rather than as the steady state. That was a
 real bug and the fix stands.
 
-It is not the binding constraint, though. A controlled probe — eight uncached
-locators at two-second spacing — returned **one success and seven 429s**. The
-CourtListener quota behind the proxy is exhausted for the period, after roughly
-4,000 requests today. No pacing fixes that; only the window resetting does. The
-project's own evaluation README already says a free-tier token will not carry a
-full run, and this is what that looks like from the inside.
+It is not the binding constraint, though, and the real one is worse than
+expected. Hitting CourtListener directly with each of the three tokens in turn,
+bypassing the proxy entirely:
+
+```
+token_1: 429 - Rate limit exceeded: 125/day. Expected available in 53034 seconds.
+token_2: 429 - Rate limit exceeded: 125/day. Expected available in 53174 seconds.
+token_3: 429 - Rate limit exceeded: 125/day. Expected available in 53163 seconds.
+```
+
+**125 requests per token per day.** Three tokens is 375. The eval split needs
+1,197 distinct locators, so the identity probe alone is a three-day job at this
+quota, and the pincite sweep needs opinion pages on top of it. This is a budget,
+not a rate, and no pacing makes it fit.
+
+The probe now recognises a per-day refusal, stops the sweep, and reports how
+many lookups landed and when the allowance returns. `pool.map` submits eagerly,
+so an exception alone does not stop the tasks queued behind it — a flag does,
+and no further request is sent once the allowance is spent.
+
+**Token rotation does not currently work and needs you.** The deployed proxy's
+own README says the reusable client handles rotation and lists
+`COURTLISTENER_API_TOKEN_2` as supported. I put all three tokens into the Modal
+`courtlistener` secret and measured no change, and the proxy also ignores a
+client-supplied `Authorization` header. Its source is not in any local
+repository — only an older `scripts/modal/courtlistener/` variant in this repo's
+history — so fixing it is not something I could do from here. Three tokens is
+3x throughput and worth wiring up.
+
+**Ask CourtListener for a research quota.** It is an email, this is exactly the
+use case they grant them for, and nothing else on the roadmap matters as much
+while 375 lookups a day is the ceiling.
 
 **Where that leaves the probe.** 378 of 1,197 distinct locators are answered
 and cached, so they are instant on the next attempt. The checkpoint reader
