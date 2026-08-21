@@ -45,6 +45,7 @@ def _client(
     *,
     cache: dict[str, Any] | None = None,
     tokens: dict[str, str] | None = None,
+    reserved: str | None = None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[TestClient, dict[str, Any]]:
     store = {} if cache is None else cache
@@ -57,12 +58,18 @@ def _client(
 
     monkeypatch.setattr("scripts.modal.courtlistener.api.httpx.AsyncClient", patched)
 
+    reserved_pool = (
+        TokenPool.from_environment({"RESERVED": reserved}, prefix="RESERVED")
+        if reserved is not None
+        else None
+    )
     app = build_app(
         base_url="https://upstream.test/api/rest/v4/",
         pool=TokenPool.from_environment(tokens or {"COURTLISTENER_API_TOKEN_1": "t1"}),
         cache_get=lambda key: store.get(key, {}).get("response"),
         cache_put=lambda key, envelope: store.__setitem__(key, envelope),
         describe=lambda: {"app": "test"},
+        reserved_pool=reserved_pool,
     )
     return TestClient(app), store
 
@@ -173,3 +180,62 @@ def test_health_reports_the_token_count(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert body["status"] == "ok"
     assert body["tokens"] == 3
+
+
+def test_the_reserved_allowance_is_only_used_when_asked_for(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pool that drains automatically is not reserved at all.
+
+    Its purpose is that a targeted experiment can still run on a day the bulk
+    sweeps have spent everything else, so an ordinary request must never reach
+    it -- not even when the main pool is exhausted.
+    """
+    upstream = _Upstream([httpx.Response(429, text=THROTTLED)])
+    client, _ = _client(upstream, reserved="reserved-token", monkeypatch=monkeypatch)
+
+    response = client.post("/citation-lookup/", data=LOOKUP)
+
+    assert response.status_code == 429
+    assert upstream.tokens_used == ["t1"]
+    assert "reserved-token" not in upstream.tokens_used
+
+
+def test_a_caller_can_ask_for_the_reserved_allowance(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Asking by header routes the request to the held-back token."""
+    upstream = _Upstream([httpx.Response(200, json=ANSWER)])
+    client, store = _client(upstream, reserved="reserved-token", monkeypatch=monkeypatch)
+
+    response = client.post("/citation-lookup/", data=LOOKUP, headers={"x-cl-pool": "reserved"})
+
+    assert response.status_code == 200
+    assert response.headers["x-cl-pool"] == "reserved"
+    assert upstream.tokens_used == ["reserved-token"]
+    assert len(store) == 1
+
+
+def test_the_reserved_pool_shares_the_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A reserved lookup must not pay twice for what a sweep already stored."""
+    upstream = _Upstream([httpx.Response(200, json=ANSWER)])
+    client, _ = _client(upstream, reserved="reserved-token", monkeypatch=monkeypatch)
+
+    client.post("/citation-lookup/", data=LOOKUP)
+    second = client.post("/citation-lookup/", data=LOOKUP, headers={"x-cl-pool": "reserved"})
+
+    assert second.headers["x-cache"] == "hit"
+    assert upstream.tokens_used == ["t1"]
+
+
+def test_health_reports_both_pools(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The two numbers say whether rotation and the reserve are both live."""
+    client, _ = _client(
+        _Upstream([httpx.Response(200, json={})]),
+        tokens={"COURTLISTENER_API_TOKEN_1": "t1", "COURTLISTENER_API_TOKEN_2": "t2"},
+        reserved="reserved-token",
+        monkeypatch=monkeypatch,
+    )
+
+    body = client.get("/health").json()
+
+    assert body["tokens"] == 2
+    assert body["reserved_tokens"] == 1

@@ -64,6 +64,25 @@ Five objects violating that rule were found in the live bucket — two 429s, a
 401, a 404 and a 400, each stored as a bare status code with a null response —
 and removed.
 
+## The reserved allowance
+
+`COURTLISTENER_API_TOKEN_RESERVED` is held out of the rotating pool and is
+reachable only by a caller that asks for it:
+
+```bash
+curl -H "x-cl-pool: reserved" ... # uses the reserved allowance
+```
+
+It is opt-in rather than a fallback, and that is the whole point. A pool the
+sweeps drain automatically once the others are spent is not reserved at all;
+this one exists so a small targeted experiment can still run on a day a bulk
+sweep has used everything else. `TokenPool.from_environment` collects only the
+bare name and numbered suffixes, so `_RESERVED` cannot be picked up by accident.
+
+Both pools share the cache, so a reserved lookup never pays for something a
+sweep already stored. Responses carry `x-cl-pool: main` or `x-cl-pool: reserved`
+so you can see which allowance a request actually spent.
+
 ## Why the routes are not inside the Modal function
 
 FastAPI resolves a handler's annotations against the handler's **module
@@ -128,7 +147,7 @@ Then check it, and confirm it sees every token:
 
 ```bash
 curl -s "$COURTLISTENER_BASE_URL/health"
-# {"status":"ok","app":"courtlistener-access","tokens":3,"bucket":"cl-cache"}
+# {"status":"ok","tokens":3,"reserved_tokens":1,"app":"courtlistener-access",...}
 ```
 
 A response carries `x-cache: hit` or `x-cache: miss`, which is the cheapest way

@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 UPSTREAM_TIMEOUT_SECONDS = 45
 HTTP_TOO_MANY_REQUESTS = 429
 
+# A caller opts in to the reserved allowance with this header. It is deliberately
+# opt-in rather than a fallback: the reserved token exists so that a small,
+# targeted experiment can still run after a bulk sweep has spent the rest, and a
+# pool that is drained automatically would not be reserved at all.
+POOL_HEADER = "x-cl-pool"
+RESERVED_POOL = "reserved"
+
 
 def build_app(
     *,
@@ -36,14 +43,25 @@ def build_app(
     cache_get: Callable[[str], Any | None],
     cache_put: Callable[[str, dict[str, Any]], None],
     describe: Callable[[], dict[str, Any]],
+    reserved_pool: TokenPool | None = None,
 ) -> FastAPI:
-    """Assemble the proxy around its cache and token pool."""
+    """Assemble the proxy around its cache and token pools.
+
+    `reserved_pool` holds an allowance the bulk sweeps never touch, reachable
+    only by a caller that asks for it by header. Its purpose is that a targeted
+    experiment can still run on a day the sweeps have spent everything else.
+    """
     api = FastAPI(title="CourtListener access", version="2")
 
     @api.get("/health")
     def health() -> dict[str, Any]:
         """Report that the service is up, and what it is configured with."""
-        return {"status": "ok", "tokens": pool.size, **describe()}
+        return {
+            "status": "ok",
+            "tokens": pool.size,
+            "reserved_tokens": reserved_pool.size if reserved_pool is not None else 0,
+            **describe(),
+        }
 
     @api.api_route("/{endpoint:path}", methods=["GET", "POST"])
     async def forward(endpoint: str, request: Request) -> Response:
@@ -53,6 +71,9 @@ def build_app(
         if request.method == "POST":
             form = await request.form()
             data = {key: str(value) for key, value in form.items()}
+
+        wants_reserved = request.headers.get(POOL_HEADER, "").strip().lower() == RESERVED_POOL
+        chosen = reserved_pool if (wants_reserved and reserved_pool is not None) else pool
 
         key = cache_key(request.method, endpoint, params, data)
         cached = cache_get(key)
@@ -65,14 +86,18 @@ def build_app(
 
         url = base_url.rstrip("/") + "/" + endpoint
         try:
-            status, payload_bytes, content_type = await _send(pool, request.method, url, params, data)
+            status, payload_bytes, content_type = await _send(chosen, request.method, url, params, data)
         except AllTokensExhausted as exhausted:
             retry_after = round(exhausted.retry_after_seconds)
             return Response(
                 content=json.dumps({"detail": str(exhausted), "retry_after_seconds": retry_after}),
                 status_code=HTTP_TOO_MANY_REQUESTS,
                 media_type="application/json",
-                headers={"x-cache": "miss", "retry-after": str(retry_after)},
+                headers={
+                    "x-cache": "miss",
+                    "x-cl-pool": RESERVED_POOL if chosen is reserved_pool else "main",
+                    "retry-after": str(retry_after),
+                },
             )
 
         try:
@@ -90,7 +115,10 @@ def build_app(
             content=payload_bytes,
             status_code=status,
             media_type=content_type,
-            headers={"x-cache": "miss"},
+            headers={
+                "x-cache": "miss",
+                "x-cl-pool": RESERVED_POOL if chosen is reserved_pool else "main",
+            },
         )
 
     return api

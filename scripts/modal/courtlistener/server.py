@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 APP_NAME = "courtlistener-access"
 DEFAULT_BASE_URL = "https://www.courtlistener.com/api/rest/v4/"
 DEFAULT_PREFIX = "courtlistener/v4"
+# Held out of the bulk pool on purpose. `TokenPool.from_environment` collects
+# only the bare name and numbered suffixes, so this one cannot be drained by a
+# sweep; a caller reaches it by asking for it.
+RESERVED_TOKEN_NAME = "COURTLISTENER_API_TOKEN_RESERVED"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -72,8 +76,16 @@ def web() -> Any:
         aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
         region_name=os.environ.get("R2_REGION", "auto"),
     )
-    pool = TokenPool.from_environment(dict(os.environ))
-    logger.info("token pool holds %d tokens", pool.size)
+    environ = dict(os.environ)
+    pool = TokenPool.from_environment(environ)
+    reserved_pool = None
+    if environ.get(RESERVED_TOKEN_NAME, "").strip():
+        reserved_pool = TokenPool.from_environment(environ, prefix=RESERVED_TOKEN_NAME)
+    logger.info(
+        "token pools: %d bulk, %d reserved",
+        pool.size,
+        reserved_pool.size if reserved_pool is not None else 0,
+    )
 
     def cache_get(key: str) -> Any | None:
         try:
@@ -110,4 +122,5 @@ def web() -> Any:
         cache_get=cache_get,
         cache_put=cache_put,
         describe=lambda: {"app": APP_NAME, "bucket": bucket, "prefix": prefix},
+        reserved_pool=reserved_pool,
     )
