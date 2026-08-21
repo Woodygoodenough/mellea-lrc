@@ -263,14 +263,31 @@ many lookups landed and when the allowance returns. `pool.map` submits eagerly,
 so an exception alone does not stop the tasks queued behind it — a flag does,
 and no further request is sent once the allowance is spent.
 
-**Token rotation does not currently work and needs you.** The deployed proxy's
-own README says the reusable client handles rotation and lists
-`COURTLISTENER_API_TOKEN_2` as supported. I put all three tokens into the Modal
-`courtlistener` secret and measured no change, and the proxy also ignores a
-client-supplied `Authorization` header. Its source is not in any local
-repository — only an older `scripts/modal/courtlistener/` variant in this repo's
-history — so fixing it is not something I could do from here. Three tokens is
-3x throughput and worth wiring up.
+**The limit is daily, verified three ways.** The 429 body says `125/day`
+outright. Two measurements seven hours apart imply the same reset instant, so
+the window has a fixed boundary rather than sliding like an hourly cap would.
+And every endpoint — `search/`, `opinions/`, `dockets/`, `courts/` — returns the
+same counter and the same reset, so the cap is account-wide rather than specific
+to citation lookup.
+
+**Each token has its own counter.** Measured within seconds of each other, the
+three tokens resolve to reset instants about two and a half minutes apart, which
+a shared counter could not produce. Each window is roughly 24 hours from that
+token's own first request. So rotation genuinely multiplies the budget.
+
+**And the budget was already being used in full.** Exactly 375 objects were
+written to the cache on 21 August — 3 x 125, to the request. The tokens were not
+idle; all three allowances were spent. That means an earlier note here was
+wrong: adding tokens 2 and 3 to the Modal secret and measuring no improvement
+did not show that the proxy ignores them, because by then every token was
+already exhausted and no configuration could have improved the result. The
+inference was unsound even though the rewritten proxy is worth having on its own
+terms.
+
+One figure remains unexplained: 2 August shows 510 writes, more than three
+tokens allow in a day. Either more tokens were in play then, or some of those
+writes came from another project calling CourtListener directly. Worth knowing
+before quoting a per-day ceiling in a paper.
 
 **Ask CourtListener for a research quota.** It is an email, this is exactly the
 use case they grant them for, and nothing else on the roadmap matters as much

@@ -15,6 +15,20 @@ every evaluation this project runs. One sweep of the LePhantomCite eval split
 needs 1,197 distinct locator lookups. At one token that is ten days; at three,
 a little over three.
 
+It is worth being precise about the shape of the limit, because "throttled" can
+mean several things:
+
+- **Daily, not hourly.** The 429 body says `125/day`, and two measurements seven
+  hours apart imply the same reset instant. An hourly window would put the reset
+  under an hour out and slide continuously.
+- **Account-wide, not per endpoint.** `search/`, `opinions/`, `dockets/` and
+  `courts/` all report the same counter and the same reset as
+  `citation-lookup/`, so a sweep cannot route around it.
+- **Per token, independently.** Three tokens measured seconds apart resolve to
+  reset instants two and a half minutes apart, which one shared counter could
+  not produce. Each window runs roughly 24 hours from that token's first
+  request, so rotation multiplies the budget rather than sharing it.
+
 Two consequences follow, and both are this service's whole purpose:
 
 - **The cache is the corpus.** Once a response is stored it costs nothing
