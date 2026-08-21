@@ -73,8 +73,8 @@ class _DocketProposal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     is_docket_citation: bool
-    docket: str | None = None
-    court: str | None = None
+    docket: str | None
+    court: str | None
 
 
 @dataclass(frozen=True, slots=True)
