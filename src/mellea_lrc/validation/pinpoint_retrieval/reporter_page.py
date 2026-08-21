@@ -27,7 +27,25 @@ if TYPE_CHECKING:
     from mellea_lrc.validation.types import CitationValidation
 
 
-_NUMERIC_PIN = re.compile(r"(?P<page>\d+)(?:[-\N{EN DASH}\N{EM DASH}]\d+)?")
+# A pin cite names where the cited material begins, and a citation may carry
+# more after that: further pages (`1319, 1323`), a footnote (`678 n.4`), a range
+# (`570-71`). The first page is the one to retrieve in every case.
+#
+# Requiring the whole string to be a bare page instead discards all but the
+# simplest form. On the LePhantomCite pincite excerpts that was the single
+# largest reason the pinpoint check never ran: eleven citations reported "no
+# supported numeric reporter pin cite" while carrying a perfectly ordinary one.
+#
+# What follows the first page still has to look like a continuation, so that a
+# number is never lifted out of unrelated text.
+_NUMERIC_PIN = re.compile(
+    r"""^\s*
+    (?P<page>\d+)
+    (?:[-\N{EN DASH}\N{EM DASH}]\d+)?          # a range: 570-71
+    (?:\s*(?:[,;&]|\bn\.|\bnn\.|\band\b).*)?  # more pages, or a footnote
+    \s*$""",
+    re.VERBOSE,
+)
 
 # MVE scope: select one controlling/base opinion for a uniquely resolved
 # cluster. Concurrences, dissents, and procedural opinions are deliberately

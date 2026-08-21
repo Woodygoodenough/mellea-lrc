@@ -114,10 +114,16 @@ class TypeScore:
 
 
 def node_outcomes(validated: dict[str, object]) -> dict[str, list[tuple[str, str]]]:
-    """Map each citation id to the (node type, outcome) pairs it produced."""
+    """Map each citation id to the (node type, outcome) pairs it produced.
+
+    A serialized `CitationValidation` carries `citation_id` at its top level;
+    the citation's own record lives under `source`. Reading it as a nested
+    object silently yields nothing, which is why this is pinned by a test built
+    from a real artifact rather than an assumed shape.
+    """
     by_citation: dict[str, list[tuple[str, str]]] = {}
     for citation in validated.get("citations", []):
-        citation_id = str(citation["citation"]["citation_id"])
+        citation_id = str(citation["citation_id"])
         by_citation[citation_id] = [
             (str(node["node_type"]), str(node["outcome"])) for node in citation.get("nodes", [])
         ]

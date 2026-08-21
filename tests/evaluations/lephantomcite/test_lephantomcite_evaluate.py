@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from evaluations.lephantomcite.evaluate import score_run
+from evaluations.lephantomcite.evaluate import node_outcomes, score_run
 
 
 def _write_run(tmp_path: Path, citations: list[dict[str, object]], labels: dict[str, list[str]]) -> Path:
@@ -24,7 +24,7 @@ def _write_run(tmp_path: Path, citations: list[dict[str, object]], labels: dict[
             },
             "citations": [
                 {
-                    "citation": {"citation_id": item["citation_id"]},
+                    "citation_id": item["citation_id"],
                     "nodes": [{"node_type": node, "outcome": outcome} for node, outcome in item["nodes"]],
                 }
                 for item in citations
@@ -157,3 +157,21 @@ def test_labels_match_a_citation_by_its_locator(tmp_path: Path) -> None:
     score = score_run(run_dir)["by_type"]["case_name_mismatch"]
 
     assert score["true_positive"] == 1
+
+
+def test_the_scorer_reads_a_real_run_artifact() -> None:
+    """Pinned to a file the runner actually wrote, not to an assumed shape.
+
+    The first version of the scorer looked for `citation.citation_id` while the
+    serializer writes `citation_id` at the top level, so it read every node list
+    as empty and would have scored a whole sweep as total abstention without
+    failing anything.
+    """
+    artifact = json.loads((Path(__file__).parent / "real_run_artifact.json").read_text(encoding="utf-8"))
+
+    outcomes = node_outcomes(artifact["validated"])
+
+    assert outcomes, "no citations were read out of a real artifact"
+    assert any(pairs for pairs in outcomes.values()), "every node list came back empty"
+    node_types = {node for pairs in outcomes.values() for node, _ in pairs}
+    assert "ExactLocatorLookupNode" in node_types

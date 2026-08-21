@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+import pytest
+
 from mellea_lrc.core.citations import FullCaseCitation
 from mellea_lrc.core.spans import Span
 from mellea_lrc.courtlistener.opinion_models import (
@@ -10,7 +12,7 @@ from mellea_lrc.courtlistener.opinion_models import (
     CourtListenerOpinionClusterCitation,
 )
 from mellea_lrc.extraction import ExtractedCitation
-from mellea_lrc.validation.pinpoint_retrieval import run_reporter_page_retrieval
+from mellea_lrc.validation.pinpoint_retrieval import reporter_page, run_reporter_page_retrieval
 from mellea_lrc.validation.pinpoint_retrieval.reporter_page import extract_reporter_page
 from mellea_lrc.validation.types import (
     CandidateEvaluationNode,
@@ -254,3 +256,32 @@ def test_reporter_page_retrieval_skips_non_numeric_pin_cites() -> None:
     assert node.status is ValidationNodeStatus.SKIPPED
     assert node.outcome is ReporterPageRetrievalOutcome.UNAVAILABLE
     assert "numeric reporter pin cite" in (node.outcome_message or "")
+
+
+@pytest.mark.parametrize(
+    ("pin_cite", "expected"),
+    [
+        ("678", "678"),
+        ("570-71", "570"),
+        ("570–71", "570"),
+        ("1319, 1323", "1319"),
+        ("1319,1323", "1319"),
+        ("678 n.4", "678"),
+        ("66 & 70", "66"),
+        ("12 and 15", "12"),
+    ],
+)
+def test_the_first_page_is_recovered_from_a_compound_pin_cite(pin_cite: str, expected: str) -> None:
+    """A pin cite names where the cited material begins; the rest may follow.
+
+    Requiring the whole string to be a bare page discards every ordinary
+    Bluebook form but the simplest. On the LePhantomCite pincite excerpts that
+    was the single largest reason the pinpoint check never ran.
+    """
+    assert reporter_page._numeric_pin_page(pin_cite) == expected
+
+
+@pytest.mark.parametrize("pin_cite", ["at 231", "see 231", "1319 blah", "n.4", "", None])
+def test_a_number_is_never_lifted_out_of_unrelated_text(pin_cite: str | None) -> None:
+    """Retrieving the wrong page is worse than retrieving none."""
+    assert reporter_page._numeric_pin_page(pin_cite) is None

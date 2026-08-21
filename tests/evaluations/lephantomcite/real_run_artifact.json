@@ -1,0 +1,213 @@
+{
+  "excerpt_id": "amador-county-california-v-department-of-the-interior_1287628_part25.pdf:36",
+  "filename": "amador-county-california-v-department-of-the-interior_1287628_part25.pdf",
+  "labels": {
+    "534 F.3d 676 (D.C. Cir. 2008)": [
+      "case_name_mismatch"
+    ],
+    "982 N.E.4th 701, 702 (1st Cir. 1981)": [
+      "non_existent_citation"
+    ],
+    "406 So. 2d 66 (Fla. 4th DCA 1981)": [
+      "case_name_mismatch"
+    ],
+    "112 F.3d 1207, 1210 (D.C. Cir. 1997)": [
+      "wrong_pincite"
+    ]
+  },
+  "validated": {
+    "source": {
+      "citations": [
+        {
+          "citation_id": "47d4c34c",
+          "matched_text": "461 F. Supp. 1314"
+        },
+        {
+          "citation_id": "3610d34d",
+          "matched_text": "406 So. 2d 66"
+        },
+        {
+          "citation_id": "9776b81e",
+          "matched_text": "112 F.3d 1207"
+        }
+      ]
+    },
+    "citations": [
+      {
+        "citation_id": "47d4c34c",
+        "nodes": [
+          {
+            "node_type": "ExactLocatorLookupNode",
+            "outcome": "found"
+          },
+          {
+            "node_type": "CandidateEvaluationNode",
+            "outcome": "ready"
+          },
+          {
+            "node_type": "ExactCaseNameCheckNode",
+            "outcome": "mismatch"
+          },
+          {
+            "node_type": "YearCheckNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "DocketCourtRetrievalNode",
+            "outcome": "found"
+          },
+          {
+            "node_type": "CourtCheckNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "MelleaCaseNameCheckNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "LocatorCandidateAssessmentNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "ReporterPageRetrievalNode",
+            "outcome": "found"
+          },
+          {
+            "node_type": "QuotationCheckNode",
+            "outcome": "not_on_page"
+          },
+          {
+            "node_type": "MelleaCitingPropositionExtractionNode",
+            "outcome": "failed"
+          },
+          {
+            "node_type": "MelleaPinpointCheckNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "LocatorCitationSummaryNode",
+            "outcome": "complete"
+          }
+        ]
+      },
+      {
+        "citation_id": "3610d34d",
+        "nodes": [
+          {
+            "node_type": "ExactLocatorLookupNode",
+            "outcome": "found"
+          },
+          {
+            "node_type": "CandidateEvaluationNode",
+            "outcome": "ready"
+          },
+          {
+            "node_type": "ExactCaseNameCheckNode",
+            "outcome": "mismatch"
+          },
+          {
+            "node_type": "YearCheckNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "DocketCourtRetrievalNode",
+            "outcome": "failed"
+          },
+          {
+            "node_type": "CourtCheckNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "MelleaCaseNameCheckNode",
+            "outcome": "mismatch"
+          },
+          {
+            "node_type": "MelleaCaseNameReextractionNode",
+            "outcome": "not_found"
+          },
+          {
+            "node_type": "LocatorCandidateAssessmentNode",
+            "outcome": "mismatch"
+          },
+          {
+            "node_type": "ReporterPageRetrievalNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "QuotationCheckNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "MelleaCitingPropositionExtractionNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "MelleaPinpointCheckNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "LocatorCitationSummaryNode",
+            "outcome": "complete"
+          }
+        ]
+      },
+      {
+        "citation_id": "9776b81e",
+        "nodes": [
+          {
+            "node_type": "ExactLocatorLookupNode",
+            "outcome": "found"
+          },
+          {
+            "node_type": "CandidateEvaluationNode",
+            "outcome": "ready"
+          },
+          {
+            "node_type": "ExactCaseNameCheckNode",
+            "outcome": "mismatch"
+          },
+          {
+            "node_type": "YearCheckNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "DocketCourtRetrievalNode",
+            "outcome": "failed"
+          },
+          {
+            "node_type": "CourtCheckNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "MelleaCaseNameCheckNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "LocatorCandidateAssessmentNode",
+            "outcome": "match"
+          },
+          {
+            "node_type": "ReporterPageRetrievalNode",
+            "outcome": "failed"
+          },
+          {
+            "node_type": "QuotationCheckNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "MelleaCitingPropositionExtractionNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "MelleaPinpointCheckNode",
+            "outcome": "unavailable"
+          },
+          {
+            "node_type": "LocatorCitationSummaryNode",
+            "outcome": "complete"
+          }
+        ]
+      }
+    ]
+  }
+}
