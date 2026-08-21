@@ -121,3 +121,35 @@ a single category is measured without paying for the rest:
 | `case_name_mismatch` | 42 |
 | `misquote` | 36 |
 | `non_existent_citation` | 29 |
+
+## Scoring a sweep
+
+```bash
+uv run python -m evaluations.lephantomcite.evaluate \
+  --run-dir run-lephantomcite --output evaluation.json
+```
+
+Two rules govern the scoring, and they are why this is not an F1 script.
+
+**An abstention is not a prediction.** The confusion matrix is computed over
+covered citations only; the uncovered ones are counted, named by the outcome
+that abstained, and reported next to it. Folding them into either label is the
+error the outcome vocabulary exists to prevent, and doing it silently would
+make a coverage problem look like an accuracy result.
+
+**A finding is typed.** Each injected defect is answered by a different node, so
+a prediction is credited against the type it speaks to rather than a single
+hallucinated bit:
+
+| benchmark type | node | finding |
+|---|---|---|
+| `non_existent_citation` | exact locator lookup | the series does not exist |
+| `case_name_mismatch` | locator candidate assessment | `mismatch` |
+| `wrong_pincite` | pinpoint check | `absent_from_page` |
+| `content_misrepresentation` | pinpoint check | `absent_from_page` |
+| `misquote` | quotation check | `altered` |
+
+`wrong_pincite` and `content_misrepresentation` share a node — both are the
+claim that the cited page does not carry what it is cited for — but are scored
+separately, because the benchmark labels them separately and their difficulty
+differs.
