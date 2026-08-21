@@ -1,0 +1,220 @@
+"""Resolve every LePhantomCite citation against CourtListener, and nothing more.
+
+This isolates the identity layer. No model is called: each citation is parsed
+to volume, reporter and page, looked up once, and classified by what the lookup
+alone establishes. What the probe measures is how much of the benchmark is
+decidable before any semantic judgement is attempted, and at what cost in
+abstention.
+
+The outcome vocabulary is the point. A lookup can fail in two ways that a
+binary benchmark records identically:
+
+- **refuted** -- the reporter series named does not exist. `446 Cal. Rptr. 4th`
+  is not a reporter, so no volume or page of it can be. This is established
+  offline against the reporter database, before any request is sent, and it is
+  positive evidence of fabrication rather than an absence.
+- **unresolved** -- the reporter is real and the archive holds no case at that
+  volume and page. The citation may be sound and simply unindexed, so the only
+  honest answer is that the lookup could not decide.
+
+Collapsing the second into a defect verdict is the error this project exists to
+avoid, and the rate at which it would fire is one of the numbers this probe
+reports.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from enum import Enum
+from typing import TYPE_CHECKING
+
+from reporters_db import EDITIONS
+
+from mellea_lrc.core.citations import FullCaseCitation, ShortCaseCitation
+from mellea_lrc.courtlistener import CourtListenerClient, CourtListenerError
+from mellea_lrc.extraction import extract_from_plain_text
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+    from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
+
+logger = logging.getLogger(__name__)
+
+# CourtListener answers an unknown reporter abbreviation with a 400 and says so.
+# A 404 or an empty cluster list means the series is real and the case is not
+# in the archive, which is a different finding.
+_UNKNOWN_REPORTER_STATUS = 400
+
+# CourtListener rate-limits a burst of lookups. Retry a retryable failure with
+# exponential backoff rather than recording it as a finding: a 429 says nothing
+# about the citation.
+MAX_ATTEMPTS = 5
+RETRY_BASE_SECONDS = 2.0
+DEFAULT_MAX_WORKERS = 3
+
+# A citation that states volume, some reporter tokens, and a page, without the
+# reporter being a real series. Extraction refuses such a string, so it never
+# reaches a lookup, and the refusal is itself the finding.
+_LOCATOR_SHAPE = re.compile(r"\b\d+\s+(?P<reporter>[A-Za-z][A-Za-z0-9.'’ ]*?)\s+(?:at\s+)?\d+\b")
+_NON_ALNUM = re.compile(r"[^a-z0-9]")
+_KNOWN_REPORTERS = {_NON_ALNUM.sub("", edition.lower()) for edition in EDITIONS}
+
+
+class LookupOutcome(str, Enum):
+    """What one exact locator lookup established, and only that."""
+
+    RESOLVED = "resolved"
+    AMBIGUOUS = "ambiguous"
+    REFUTED = "refuted"
+    UNRESOLVED = "unresolved"
+    UNPARSED = "unparsed"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class LocatorParts:
+    """The three parts of a reporter locator, as extraction read them."""
+
+    volume: str
+    reporter: str
+    page: str
+
+    @property
+    def key(self) -> tuple[str, str, str]:
+        """A hashable identity for deduplicating lookups across excerpts."""
+        return (self.volume, self.reporter, self.page)
+
+
+@dataclass(frozen=True, slots=True)
+class LookupResult:
+    """One locator, what the lookup said, and how many clusters came back."""
+
+    parts: LocatorParts | None
+    outcome: LookupOutcome
+    cluster_count: int = 0
+    detail: str | None = None
+
+
+def parse_locator(cited_text: str) -> LocatorParts | None:
+    """Read volume, reporter and page out of a citation string via extraction.
+
+    The benchmark's citation strings are run through the project's own
+    extractor rather than a bespoke parser, so a locator is read here exactly
+    as it would be read in a document.
+    """
+    document = extract_from_plain_text(cited_text)
+    for item in document.citations:
+        citation = item.citation
+        if not isinstance(citation, FullCaseCitation | ShortCaseCitation):
+            continue
+        volume, reporter, page = citation.volume, citation.reporter, citation.page
+        if volume and reporter and page:
+            return LocatorParts(volume=volume, reporter=reporter, page=page)
+    return None
+
+
+def probe_locators(
+    cited_texts: Iterable[str],
+    *,
+    client: CourtListenerServiceClient | None = None,
+    max_workers: int = DEFAULT_MAX_WORKERS,
+) -> dict[str, LookupResult]:
+    """Look up each distinct citation string once and return its result by string.
+
+    Lookups are deduplicated on the parsed locator, so a citation repeated
+    across excerpts costs one request. Results are keyed by the original string
+    because that is what the benchmark's labels are keyed on.
+    """
+    service = client or CourtListenerClient()
+    texts = list(dict.fromkeys(cited_texts))
+    parsed = {text: parse_locator(text) for text in texts}
+
+    distinct: dict[tuple[str, str, str], LocatorParts] = {}
+    for parts in parsed.values():
+        if parts is not None:
+            distinct.setdefault(parts.key, parts)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        looked_up = dict(
+            zip(
+                distinct,
+                pool.map(lambda parts: _lookup_one(service, parts), distinct.values()),
+                strict=True,
+            )
+        )
+
+    return {
+        text: (looked_up[parts.key] if parts is not None else _unparsed_result(text))
+        for text, parts in parsed.items()
+    }
+
+
+def names_no_real_reporter(cited_text: str) -> bool:
+    """Whether the string is shaped like a locator but names no real reporter series.
+
+    A citation stating `446 Cal. Rptr. 4th 183` has a volume, a page and a
+    reporter that does not exist. Extraction declines it for that reason, so the
+    decline carries a finding rather than a failure.
+    """
+    for match in _LOCATOR_SHAPE.finditer(cited_text):
+        if _NON_ALNUM.sub("", match["reporter"].lower()) in _KNOWN_REPORTERS:
+            return False
+    return bool(_LOCATOR_SHAPE.search(cited_text))
+
+
+def summarize(results: Sequence[LookupResult]) -> dict[str, int]:
+    """Count results by outcome, with every outcome present even at zero."""
+    counts = dict.fromkeys((outcome.value for outcome in LookupOutcome), 0)
+    for result in results:
+        counts[result.outcome.value] += 1
+    return counts
+
+
+def _unparsed_result(cited_text: str) -> LookupResult:
+    if names_no_real_reporter(cited_text):
+        return LookupResult(
+            parts=None,
+            outcome=LookupOutcome.REFUTED,
+            detail="no such reporter series",
+        )
+    return LookupResult(parts=None, outcome=LookupOutcome.UNPARSED)
+
+
+def _lookup_one(
+    client: CourtListenerServiceClient,
+    parts: LocatorParts,
+    *,
+    attempts: int = MAX_ATTEMPTS,
+) -> LookupResult:
+    response = None
+    for attempt in range(attempts):
+        try:
+            response = client.lookup_citation(parts.volume, parts.reporter, parts.page)
+            break
+        except CourtListenerError as error:
+            if not error.retryable or attempt == attempts - 1:
+                logger.warning("lookup failed for %s: %s", parts.key, error.message)
+                return LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail=error.failure_type)
+            delay = RETRY_BASE_SECONDS * (2**attempt)
+            logger.info("retrying %s in %.1fs after %s", parts.key, delay, error.failure_type)
+            time.sleep(delay)
+    if response is None:  # pragma: no cover - the loop either breaks or returns
+        return LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail="no response")
+
+    clusters = len(response.clusters)
+    if clusters == 1:
+        return LookupResult(parts=parts, outcome=LookupOutcome.RESOLVED, cluster_count=1)
+    if clusters > 1:
+        return LookupResult(parts=parts, outcome=LookupOutcome.AMBIGUOUS, cluster_count=clusters)
+    if response.status == _UNKNOWN_REPORTER_STATUS:
+        return LookupResult(
+            parts=parts,
+            outcome=LookupOutcome.REFUTED,
+            detail=response.error_message,
+        )
+    return LookupResult(parts=parts, outcome=LookupOutcome.UNRESOLVED, detail=response.error_message)
