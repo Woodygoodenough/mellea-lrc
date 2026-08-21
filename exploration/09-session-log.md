@@ -196,10 +196,37 @@ and **checkpoints every lookup to JSONL**, so an interrupted run resumes and a
 run that never finishes is still readable. The first attempt wrote nothing until
 the end and lost its work; that is fixed.
 
-**A run is in flight.** `local/exploration/results/locator-probe.checkpoint.jsonl`
-is filling at ~7/min against 1,197 distinct locators. It should finish overnight.
-Note that it started before the `out_of_scope` fix, so reclassify `refuted` rows
-whose `detail` names a non-case source when you read it.
+**The first full sweep finished at 06:59, and one of its two numbers is
+unusable.** All 1,197 distinct locators were attempted. The result:
+
+| label | resolved | ambiguous | refuted | unresolved | failed | total |
+|---|---:|---:|---:|---:|---:|---:|
+| sound | 269 | 40 | **0** | 54 | 655 | 1,023 |
+| `non_existent_citation` | 0 | 0 | **31** | 0 | 0 | 31 |
+| `content_misrepresentation` | 13 | 3 | 0 | 0 | 113 | 129 |
+| `case_name_mismatch` | 10 | 3 | 0 | 1 | 43 | 57 |
+| `wrong_pincite` | 11 | 3 | 0 | 3 | 36 | 53 |
+| `misquote` | 14 | 0 | 0 | 0 | 27 | 41 |
+
+**What holds: 31 of 31 fabricated citations refuted, 0 of 1,023 sound ones,
+confirmed at full scale.** Refutation happens offline against the reporter
+database and never reaches a request, so the rate limit cannot touch it.
+
+**What does not: the abstention rate.** 655 of 1,023 sound citations (64%) came
+back `failed` — a retry budget exhausted against a sustained 429, which says
+nothing about any citation. The retry-budget increase landed after this run
+started. Of the 368 sound citations that got a real answer, 309 (84%) were
+decidable and 54 (15%) unresolved, but a number computed over 36% of the set is
+not the number.
+
+A second pass is running. The checkpoint reader now treats a `failed` row as
+unfinished rather than done — resuming past one would freeze infrastructure
+noise into the result — so the retry covers exactly the 819 that need it and
+skips the 378 already answered. Pass one is preserved as
+`locator-probe.pass1.json`.
+
+The pass-one output also predates the `out_of_scope` fix, so reclassify
+`refuted` rows whose `detail` names a non-case source when reading it directly.
 
 ---
 
