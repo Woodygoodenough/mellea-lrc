@@ -50,6 +50,19 @@ Five objects violating that rule were found in the live bucket — two 429s, a
 401, a 404 and a 400, each stored as a bare status code with a null response —
 and removed.
 
+## Why the routes are not inside the Modal function
+
+FastAPI resolves a handler's annotations against the handler's **module
+globals**. A route defined inside the Modal function cannot see names imported
+into that function's locals, so `request: Request` resolves to nothing and every
+request fails with a 422 asking for a query parameter called `request`. The
+first deployment did exactly that while every unit test passed, because nothing
+ran the assembled app.
+
+So [`api.py`](api.py) builds the app at module scope and takes its cache and
+token pool as arguments, and [`server.py`](server.py) is deployment wiring only.
+The tests run the real app against a stubbed upstream.
+
 ## Two envelope formats, both readable
 
 The bucket contains records in two shapes, and the older one is not garbage:
@@ -60,9 +73,14 @@ The bucket contains records in two shapes, and the older one is not garbage:
 | 1 (older) | `{status_code, content: <base64 body>, content_type}` | 718 |
 
 Every version-1 object holds a real 200 response whose content decodes to valid
-JSON. `read_envelope` reads both. Treating the older shape as unreadable would
-discard 718 answers and spend roughly six days of quota re-fetching what is
-already stored.
+JSON, and `read_envelope` reads both shapes.
+
+One caveat worth recording: the version-1 objects were written under a **different
+key derivation**, which cannot be reconstructed from them because they store no
+request metadata. Nothing looks them up under the current key, so they are
+already unreachable and reading their envelope does not recover them. Handling
+the shape costs nothing and is the right default; it is not what keeps those 718
+answers alive, because nothing does.
 
 ## Secrets
 
