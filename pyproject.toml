@@ -49,6 +49,8 @@ build-backend = "uv_build"
 [dependency-groups]
 modal = [
     "boto3>=1.35",
+    "fastapi[standard]>=0.115",
+    "httpx>=0.28",
     "modal>=1.0",
 ]
 preprocessing = [
