@@ -26,8 +26,45 @@ from mellea_lrc.validation.types import (
 )
 
 
+def test_absence_from_the_page_is_a_verdict_and_requires_a_quote() -> None:
+    """A retrieved page can establish that it does not carry the proposition.
+
+    The claim is about the page, not the citation. It still has to be grounded:
+    the quote shows the page was read and is on the proposition's subject, which
+    is what separates an absence from a failure to judge.
+    """
+    page = "The statute bars retroactive application to pending claims."
+
+    proposal = mellea_pinpoint_check._parse(  # noqa: SLF001
+        '{"verdict":"absent_from_page","reasoning":"The page addresses retroactivity, not tolling.",'
+        '"evidence_quote":"The statute bars retroactive application"}'
+    )
+
+    assert proposal.verdict == "absent_from_page"
+    assert resolve_evidence_quote(page, proposal.evidence_quote) is not None
+
+
+def test_an_absence_without_a_quote_is_rejected_for_repair() -> None:
+    """An ungrounded absence asserts a defect nothing demonstrates."""
+    ctx = SimpleNamespace(
+        last_output=lambda: SimpleNamespace(
+            value=('{"verdict":"absent_from_page","reasoning":"Not on the page.","evidence_quote":null}')
+        )
+    )
+
+    result = mellea_pinpoint_check._validate_grounding(ctx, "Some page text.")  # noqa: SLF001
+
+    assert not bool(result)
+    assert "absent_from_page" in str(result.reason)
+
+
 def test_negative_pinpoint_verdict_is_not_part_of_the_model_contract() -> None:
-    """One reporter page cannot establish a negative citation judgment."""
+    """No verdict asserts that the cited authority fails to support the proposition.
+
+    `absent_from_page` reports what one page does not carry. A verdict about the
+    citation as a whole would need pages this operation never retrieved, so the
+    schema still refuses one.
+    """
     with pytest.raises(ValueError, match="Invalid Mellea pinpoint output"):
         mellea_pinpoint_check._parse(  # noqa: SLF001
             '{"verdict":"does_not_support","reasoning":"This page does not state the proposition.",'

@@ -101,9 +101,17 @@ class ReporterPageRetrievalOutcome(str, Enum):
 
 
 class MelleaPinpointCheckOutcome(str, Enum):
-    """Semantic support findings from one retrieved reporter page."""
+    """Semantic support findings from one retrieved reporter page.
+
+    `absent_from_page` is a finding about the page, never about the citation.
+    It says the cited page was retrieved, is on the proposition's subject, and
+    does not carry it -- which is what a wrong pinpoint looks like. Whether the
+    authority supports the proposition somewhere else is a question one page
+    cannot answer, so no outcome here asserts it.
+    """
 
     SUPPORTS = "supports"
+    ABSENT_FROM_PAGE = "absent_from_page"
     INCONCLUSIVE = "inconclusive"
     UNAVAILABLE = "unavailable"
     FAILED = "failed"
