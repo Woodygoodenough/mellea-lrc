@@ -7,12 +7,20 @@ from mellea_lrc.preprocessing.plain_text import preprocess_plain_text
 from mellea_lrc.preprocessing.types import PreprocessedDocument
 
 
-def preprocess(path: Path | str) -> PreprocessedDocument:
-    """Preprocess a document using the backend appropriate for its format."""
+def preprocess(
+    path: Path | str,
+    *,
+    drop_margin_line_numbers: bool = False,
+) -> PreprocessedDocument:
+    """Preprocess a document using the backend appropriate for its format.
+
+    ``drop_margin_line_numbers`` applies only to the Docling backend, since it
+    reads the page geometry that identifies a margin. Plain text has none.
+    """
     source_path = Path(path)
     if source_path.suffix.lower() == ".txt":
         return preprocess_plain_text(source_path)
     if not is_docling_supported_format(source_path):
         msg = f"Unsupported document format: {source_path.suffix or '<none>'}"
         raise ValueError(msg)
-    return preprocess_with_docling(source_path)
+    return preprocess_with_docling(source_path, drop_margin_line_numbers=drop_margin_line_numbers)
