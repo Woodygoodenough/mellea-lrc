@@ -168,6 +168,19 @@ It is wired into the found-locator route as a node, serializes and round-trips,
 and adds no model call. It has not yet been run against the benchmark — that
 needs reporter pages, and therefore CourtListener.
 
+Its **reachability** is measured, though, and it is favourable:
+
+| | |
+|---|---:|
+| quoted passages across the 390 excerpts | 1,523 |
+| long enough to locate on a page | 1,048 |
+| excerpts carrying at least one checkable quotation | 262 (67%) |
+| **`misquote` excerpts carrying one** | **36 / 36 (100%)** |
+
+So the check can render a verdict on every record in the category it targets,
+given the pages — the ceiling is not the constraint. And at 67% of excerpts
+overall it is a broadly applicable capability rather than a niche one.
+
 ---
 
 ## 6. Infrastructure
