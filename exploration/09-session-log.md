@@ -219,6 +219,27 @@ whose `detail` names a non-case source when you read it.
 
 ---
 
+## 7b. The scoring path is complete
+
+`evaluate.py` reads a validation sweep and scores it per defect type, with
+**abstentions held out of the confusion matrix** rather than folded into either
+label. Coverage is reported next to accuracy, and every uncovered citation is
+named by the outcome that abstained. So the morning run is two commands:
+
+```bash
+uv run --env-file .env python -m evaluations.lephantomcite.run_validation \
+  --dataset <dir>/eval.jsonl --output-dir run-pincite --label wrong_pincite
+
+uv run python -m evaluations.lephantomcite.evaluate \
+  --run-dir run-pincite --output pincite-evaluation.json
+```
+
+A finding is credited only against the type it speaks to: a quotation finding
+cannot answer a case-name label. `wrong_pincite` and `content_misrepresentation`
+share a node but are scored apart, because the benchmark labels them apart.
+
+---
+
 ## 8. What I would do next, in order
 
 1. **Let the probe finish**, then read `locator-probe.json`. The number to look
