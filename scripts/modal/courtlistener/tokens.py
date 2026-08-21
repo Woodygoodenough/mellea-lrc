@@ -1,0 +1,119 @@
+"""Rotate CourtListener API tokens and respect their daily allowance.
+
+CourtListener's free tier allows **125 requests per token per day**, and a
+single sweep of one evaluation split needs an order of magnitude more. Rotation
+is therefore not an optimization; it is the difference between one day's budget
+and three.
+
+The rule that makes rotation work is knowing when to stop. A daily cap is not a
+rate to wait out: once a token's allowance is gone it stays gone until the reset
+the upstream names, so the pool parks that token and moves to the next, and
+reports exhaustion once every token is parked. Retrying instead is how a sweep
+spends hours writing nothing but failures.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import time
+from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
+
+# CourtListener says so in the 429 body:
+#   "Request was throttled. Rate limit exceeded: 125/day.
+#    Expected available in 53034 seconds."
+DAILY_QUOTA_MARKER = "Rate limit exceeded"
+_RETRY_SECONDS = re.compile(r"available in (\d+) seconds")
+# Used when the upstream refuses without saying when it will relent.
+DEFAULT_COOLDOWN_SECONDS = 3600.0
+
+
+class AllTokensExhausted(RuntimeError):
+    """Every token's allowance is spent, so no request can succeed right now."""
+
+    def __init__(self, retry_after_seconds: float) -> None:
+        """Record how long until the earliest token becomes usable again."""
+        super().__init__(f"all CourtListener tokens are exhausted for {retry_after_seconds:.0f}s")
+        self.retry_after_seconds = retry_after_seconds
+
+
+@dataclass
+class _Token:
+    value: str
+    label: str
+    available_at: float = 0.0
+
+
+@dataclass
+class TokenPool:
+    """A rotating pool of API tokens that parks each one when its quota is gone."""
+
+    tokens: list[_Token] = field(default_factory=list)
+    _cursor: int = 0
+
+    @classmethod
+    def from_environment(
+        cls, environ: dict[str, str], *, prefix: str = "COURTLISTENER_API_TOKEN"
+    ) -> TokenPool:
+        """Collect `PREFIX`, `PREFIX_1`, `PREFIX_2`, ... in that order.
+
+        Numbering is open-ended rather than fixed at two, so adding a token is a
+        secret change and not a code change.
+        """
+        found: list[_Token] = []
+        bare = environ.get(prefix, "").strip()
+        if bare:
+            found.append(_Token(value=bare, label=prefix))
+        index = 1
+        misses = 0
+        while misses < 3:
+            name = f"{prefix}_{index}"
+            value = environ.get(name, "").strip()
+            if value:
+                found.append(_Token(value=value, label=name))
+                misses = 0
+            else:
+                misses += 1
+            index += 1
+        return cls(tokens=found)
+
+    def __post_init__(self) -> None:
+        if not self.tokens:
+            msg = "No CourtListener API token is configured"
+            raise RuntimeError(msg)
+
+    def acquire(self, *, now: float | None = None) -> _Token:
+        """Return the next usable token, or raise if every one is parked."""
+        moment = time.monotonic() if now is None else now
+        for offset in range(len(self.tokens)):
+            token = self.tokens[(self._cursor + offset) % len(self.tokens)]
+            if token.available_at <= moment:
+                self._cursor = (self._cursor + offset + 1) % len(self.tokens)
+                return token
+        raise AllTokensExhausted(min(token.available_at for token in self.tokens) - moment)
+
+    def park(self, token: _Token, body: str, *, now: float | None = None) -> None:
+        """Take a refused token out of rotation until the upstream says it is back."""
+        moment = time.monotonic() if now is None else now
+        token.available_at = moment + cooldown_seconds(body)
+        logger.warning("parked %s for %.0fs after a quota refusal", token.label, token.available_at - moment)
+
+    @property
+    def size(self) -> int:
+        """How many tokens the pool holds."""
+        return len(self.tokens)
+
+
+def is_quota_refusal(status_code: int, body: str) -> bool:
+    """Whether a refusal is a spent allowance rather than a momentary limit."""
+    return status_code == 429 and DAILY_QUOTA_MARKER in body
+
+
+def cooldown_seconds(body: str) -> float:
+    """Read the reset the upstream names, or fall back to an hour."""
+    match = _RETRY_SECONDS.search(body)
+    if match is None:
+        return DEFAULT_COOLDOWN_SECONDS
+    return float(match.group(1))

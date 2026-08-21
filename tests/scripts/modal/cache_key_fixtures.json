@@ -1,0 +1,112 @@
+[
+  {
+    "key": "79bd9b28f9efd7484c6528c3dd5ef5a25fba2095d3ac4427deacd47ee7fcc1d5",
+    "method": "POST",
+    "endpoint": "citation-lookup/",
+    "params": {},
+    "data": {
+      "volume": "695",
+      "reporter": "F.Supp.2d",
+      "page": "1149"
+    }
+  },
+  {
+    "key": "e7178a5b8a7459dbfcd45fb9d36ae9926680820153ba5c3558f036b6f77b3d55",
+    "method": "GET",
+    "endpoint": "opinions/9420472/",
+    "params": {},
+    "data": {}
+  },
+  {
+    "key": "e4b89b950373ed241bbaf99ed7b42c1323106e92b18ab2252715dcddd75f6b7d",
+    "method": "POST",
+    "endpoint": "citation-lookup/",
+    "params": {},
+    "data": {
+      "volume": "534",
+      "reporter": "F.3d",
+      "page": "1290"
+    }
+  },
+  {
+    "key": "f677b8d784bd45694364fe0e879701952951bb84187142df9575e04bfe11bf96",
+    "method": "GET",
+    "endpoint": "dockets/66054397/",
+    "params": {},
+    "data": {}
+  },
+  {
+    "key": "7c75dbd18129c758d7f6fd28653d99c4d2cf6a89f1b5efa797cd5d801c8cecfa",
+    "method": "GET",
+    "endpoint": "search/",
+    "params": {
+      "q": "caseName:(Deptula AND Rosen)",
+      "type": "r"
+    },
+    "data": {}
+  },
+  {
+    "key": "797a65b991f2ec928cb30383f63f4cc0b0598f925326defbafee059260a8cca9",
+    "method": "POST",
+    "endpoint": "citation-lookup/",
+    "params": {},
+    "data": {
+      "volume": "118",
+      "reporter": "U.S.",
+      "page": "425"
+    }
+  },
+  {
+    "key": "8723d92d9988af532b1a8cdc708013abf2eff1bf9520096f1e34b1069a69a56f",
+    "method": "GET",
+    "endpoint": "search/",
+    "params": {
+      "q": "caseName:(\"Kramer\" AND \"Trans-Lux Corporation\") AND court_id:ca7",
+      "type": "r"
+    },
+    "data": {}
+  },
+  {
+    "key": "e425d94e9f29e25cc38f6ea3e80a70e5340a7dfed33ce1b9d156d2dc419a86ec",
+    "method": "POST",
+    "endpoint": "citation-lookup/",
+    "params": {},
+    "data": {
+      "volume": "554",
+      "reporter": "F.3d",
+      "page": "731"
+    }
+  },
+  {
+    "key": "9e12298e67ac23f44357c589e7ead0d320ee2431d927e06eebe483aa35f9c131",
+    "method": "GET",
+    "endpoint": "dockets/441245/",
+    "params": {},
+    "data": {}
+  },
+  {
+    "key": "318380dd1a1398d8f49131064dab70192ba8c916447ad50bae2f1ab0ff6f499d",
+    "method": "GET",
+    "endpoint": "opinions/9427564/",
+    "params": {},
+    "data": {}
+  },
+  {
+    "key": "2ff084aca5fbd4f97f5244e0854f58a01dad1ce2302113e9d5047cfcbd1aa430",
+    "method": "POST",
+    "endpoint": "citation-lookup/",
+    "params": {},
+    "data": {
+      "volume": "823",
+      "reporter": "F.3d",
+      "page": "11"
+    }
+  },
+  {
+    "key": "87f57ab0d928a926adfb936a2ee323257fc269ccf585cbd1a5049541305f05a4",
+    "method": "GET",
+    "endpoint": "opinions/9423000/",
+    "params": {},
+    "data": {}
+  }
+]
