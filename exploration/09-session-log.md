@@ -9,21 +9,51 @@ its own branch `fix/strict-structured-output`.
 ## 1. The model switch was not clean, and is now
 
 `openai/gpt-5.6-luna` via OpenRouter answers, and reports itself as that model.
-But **3 of 8 live evaluations failed** on a real incompatibility, not on
-judgement.
+But **3 of 8 live evaluations failed**. The cause is not the model, and it is
+worth stating precisely because the first version of this note got it wrong.
 
-OpenAI-compatible providers in strict mode reject a `response_format` schema
-whose `required` array omits any key in `properties`. Pydantic drops a field
-from `required` as soon as it carries a default, so
+Mellea sets `"strict": True` on every `response_format` it sends -- both its
+OpenAI branch and its non-OpenAI branch, unconditionally, with no option to
+disable it (`backends/openai.py:880` and `:892`). Strict mode is an **API-level
+contract, not a model capability**: the request is validated before the model
+sees it, and the validator requires every key in `properties` to appear in
+`required`. Optionality is expressed as a nullable type instead.
+
+Pydantic drops a field from `required` as soon as it carries a default, so
 
 ```python
 evidence_quote: str | None = None
 ```
 
-produced a schema the provider refused outright: the call came back
-`invalid_json_schema` and the node recorded a failure. The previous endpoint was
-lenient about this; Azure and OpenAI are not. Mellea even logs a warning that it
-assumes you are *not* on the OpenAI platform.
+produced a schema the API refused outright with `invalid_json_schema`, and the
+node recorded a failure.
+
+Sending the **same schema** three ways settles where the fault lies:
+
+| schema | strict | result |
+|---|---|---|
+| defaulted field | `true` | rejected before reaching the model |
+| defaulted field | `false` | accepted, correct answer |
+| all-required + nullable | `true` | accepted, correct answer |
+
+The identical schema succeeds without strict, so the model's JSON-schema support
+is not what fails. The previous endpoint was a local vLLM, which accepts
+`strict: true` and applies guided decoding rather than OpenAI's request
+validator -- which is why the switch surfaced this and nothing in the pipeline
+had changed.
+
+**Keeping strict is the right trade.** It buys guaranteed conformance to the
+schema, which is worth more to a project built on grounded, checkable output
+than the convenience of a Python default. The fix is therefore the documented
+idiom for strict mode, not a workaround.
+
+**Two dead knobs in `.env`.** `MELLEA_LRC_LLM_RESPONSE_FORMAT` (commented
+"json_schema or json_object") and `MELLEA_LRC_LLM_CERT_REQUIRED` are read
+nowhere in the codebase -- zero references across `src/`, `evaluations/`,
+`scripts/` and `tests/`. Neither appears in `.env.example` or the docs, so they
+are private leftovers rather than a documented interface. The response-format
+one is misleading in particular: there is no switch, because Mellea does not
+expose one.
 
 Four models carried defaults — the party proposal, the citing-proposition
 proposal, the pinpoint proposal, and the experimental docket proposal. An absent

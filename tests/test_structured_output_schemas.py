@@ -1,14 +1,21 @@
 """Tests that every structured-output schema satisfies strict JSON-schema mode.
 
-OpenAI-compatible providers running in strict mode reject a `response_format`
-schema whose `required` array omits any key in `properties`. Pydantic omits a
-field from `required` as soon as it carries a default, so `field: str | None =
-None` produces a schema the provider refuses outright -- the call fails with
-`invalid_json_schema` rather than returning a worse answer.
+Mellea sets `"strict": True` on every `response_format` it sends, in both its
+OpenAI and non-OpenAI branches, and exposes no way to turn that off. Strict mode
+is an API-level contract rather than a model capability: the request is
+validated before the model sees it, and it requires every key in `properties` to
+appear in `required`. Optionality is expressed as a nullable type.
 
-An absent value is therefore expressed as a required key whose type admits
-null, not as a key the model may leave out. These tests pin that shape for
-every model the pipeline hands to Mellea as `output_format`.
+Pydantic drops a field from `required` as soon as it carries a default, so
+`field: str | None = None` produces a schema the API refuses outright with
+`invalid_json_schema`. The same schema sent with `strict: false` is accepted and
+answered correctly, which is the evidence that the model's schema support is not
+what fails here.
+
+Keeping strict is the right trade for this project: it buys guaranteed
+conformance to the schema, which is worth more than the convenience of a default.
+So an absent value is a required key whose type admits null, and these tests pin
+that shape for every model the pipeline hands to Mellea as `output_format`.
 """
 
 from __future__ import annotations
