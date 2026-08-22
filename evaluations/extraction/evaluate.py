@@ -104,10 +104,31 @@ def _matches(expected: dict[str, Any], observed: dict[str, Any]) -> bool:
     )
 
 
-def evaluate(benchmark_path: Path, artifact_path: Path) -> tuple[Counter[str], list[dict[str, Any]]]:
-    """Score one run artifact and return counts plus every disagreeing occurrence."""
+def evaluate(
+    benchmark_path: Path,
+    artifact_path: Path,
+    *,
+    kinds: frozenset[str] | None = None,
+) -> tuple[Counter[str], list[dict[str, Any]]]:
+    """Score one run artifact and return counts plus every disagreeing occurrence.
+
+    ``kinds`` restricts the task to occurrences of those kinds, on both sides.
+    Restricting it is not the same as ignoring the rest: a prediction of an
+    excluded kind is dropped rather than counted as a false positive, because
+    the system is no longer being asked that question.
+
+    This matters for the two kinds this benchmark holds. A ``locator`` is a
+    volume, reporter and page, which is what a citation tokenizer exists to
+    find. A ``docket`` is a docket number, which eyecite does not model at all,
+    so an eyecite-based arm scores zero on every one of them by construction.
+    Leaving the eleven docket records in the denominator lowers every such
+    arm's recall by a constant that says nothing about the arm.
+    """
     expected = _prepare(_read_jsonl(benchmark_path), source="benchmark")
     observed = _prepare(_read_jsonl(artifact_path), source="artifact")
+    if kinds is not None:
+        expected = [record for record in expected if identity(record, source="benchmark")[0] in kinds]
+        observed = [record for record in observed if identity(record, source="artifact")[0] in kinds]
     if not expected:
         raise ValueError("benchmark has no occurrences")
 
@@ -141,6 +162,19 @@ def evaluate(benchmark_path: Path, artifact_path: Path) -> tuple[Counter[str], l
     return counts, disagreements
 
 
+def _kind_breakdown(benchmark_path: Path, artifact_path: Path) -> str:
+    """Score each kind on its own, so a headline number names its own task."""
+    all_kinds = sorted({identity(record, source="benchmark")[0] for record in _read_jsonl(benchmark_path)})
+    rows = ["| Kind | Expected | True positives | Precision | Recall |", "|---|---:|---:|---:|---:|"]
+    for kind in all_kinds:
+        counts, _ = evaluate(benchmark_path, artifact_path, kinds=frozenset({kind}))
+        true_positive = counts["true_positive"]
+        precision = true_positive / counts["predicted"] if counts["predicted"] else 0.0
+        recall = true_positive / counts["expected"] if counts["expected"] else 0.0
+        rows.append(f"| {kind} | {counts['expected']} | {true_positive} | {precision:.1%} | {recall:.1%} |")
+    return "\n".join(rows)
+
+
 def _format(counts: Counter[str]) -> str:
     """Render precision, recall, and F1 over matched occurrences."""
     true_positive = counts["true_positive"]
@@ -169,13 +203,27 @@ def main() -> None:
     parser.add_argument("--benchmark", type=Path, required=True, help="Extraction bench JSONL file.")
     parser.add_argument("--artifact", type=Path, required=True, help="One JSONL run artifact.")
     parser.add_argument("--output-dir", type=Path, default=Path("evaluation-result"))
+    parser.add_argument(
+        "--kind",
+        action="append",
+        help=(
+            "Score only this occurrence kind; repeatable. Predictions of other "
+            "kinds are dropped rather than counted against the run."
+        ),
+    )
     args = parser.parse_args()
 
-    counts, disagreements = evaluate(args.benchmark, args.artifact)
+    kinds = frozenset(args.kind) if args.kind else None
+    counts, disagreements = evaluate(args.benchmark, args.artifact, kinds=kinds)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     output = args.output_dir / "non_agreements.json"
     output.write_text(json.dumps(disagreements, indent=2) + "\n", encoding="utf-8")
+    if kinds is not None:
+        print(f"Scoring only: {', '.join(sorted(kinds))}\n")
     print(_format(counts))
+    if kinds is None:
+        print()
+        print(_kind_breakdown(args.benchmark, args.artifact))
     print(f"Details: {output}")
 
 
