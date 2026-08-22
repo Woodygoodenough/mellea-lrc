@@ -91,23 +91,27 @@ def _joins(*, cross_blank_lines: bool) -> tuple[tuple[str, str], ...]:
 
 
 # Inside a reporter, eyecite already allows whitespace *after* each period --
-# `N\.\s*Y\.\s*2d` matches `N.Y.2d` and `N.Y. 2d`. It does not allow any
-# before one, so `N.Y .2d` and `N .Y.2d` match nothing at all. Extraction puts
-# a space on that side as readily as the other: `58  N.Y .2d  916` is a real
-# citation on this corpus, and it was the last one no tokenizer could reach.
+# `N\.\s*Y\.\s*2d` matches `N.Y.2d` and `N.Y. 2d`. It allows none before one,
+# and none at all around an apostrophe, so `N.Y .2d` and `F. App ' x` match
+# nothing. Extraction produces both: `58  N.Y .2d  916` in document 008 of
+# false-citation-bench, and `777 F. App ' x 516` in a filing from the random
+# sample, printed `777 F. App'x 516` on the page. Both are real citations that
+# no tokenizer could reach.
 _REPORTER_GROUP = re.compile(r"\(\?P<reporter>((?:[^()\\]|\\.)*)\)")
-_PERIOD = re.compile(r"(?<!\\s\*)\\\.")
+# What a reporter is written with, inside eyecite's own pattern: the escaped
+# period it emits, and the apostrophes it leaves bare.
+_TIGHT_PUNCTUATION = re.compile(r"\\\.|['\u2019]")
 
 
 def _relax(regex: str, joins: tuple[tuple[str, str], ...]) -> str:
     for old, new in joins:
         regex = regex.replace(old, new)
-    return _REPORTER_GROUP.sub(_relax_reporter_periods, regex)
+    return _REPORTER_GROUP.sub(_relax_reporter_punctuation, regex)
 
 
-def _relax_reporter_periods(match: re.Match[str]) -> str:
-    """Let whitespace sit on either side of a period inside the reporter."""
-    body = _PERIOD.sub(r"\\s*\\.", match.group(1))
+def _relax_reporter_punctuation(match: re.Match[str]) -> str:
+    """Let whitespace sit on either side of the punctuation inside a reporter."""
+    body = _TIGHT_PUNCTUATION.sub(lambda found: rf"\s*{found.group()}\s*", match.group(1))
     return f"(?P<reporter>{body})"
 
 

@@ -115,12 +115,37 @@ def test_a_space_before_a_period_inside_the_reporter_is_tolerated(text: str, exp
     assert citation.matched_text == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("See 777 F. App ' x 516 (Fed. Cir. 2019).", "777 F. App ' x 516"),
+        ("See 777 F. App'x 516 (Fed. Cir. 2019).", "777 F. App'x 516"),
+    ],
+)
+def test_spaces_around_an_apostrophe_in_the_reporter_are_tolerated(text: str, expected: str) -> None:
+    """eyecite writes `App'x` with the apostrophe tight and allows nothing around it.
+
+    Extraction spaces it out. `777 F. App ' x 516` appears in a filing from the
+    random sample and is printed `777 F. App'x 516` on the page -- a real
+    citation that no tokenizer reached. It is the same defect as the period,
+    so it takes the same relaxation rather than a rule of its own.
+    """
+    (citation,) = [
+        item
+        for item in extract_relaxed_citations(text).citations
+        if type(item.citation).__name__ == "FullCaseCitation"
+    ]
+
+    assert citation.matched_text == expected
+
+
 def test_an_ordinary_reporter_is_unaffected_by_that() -> None:
     """The relaxation must not change what already worked."""
     for text, expected in (
         ("See 206 F. Supp. 3d 1304 (2016).", "206 F. Supp. 3d 1304"),
         ("See 206 F.Supp.3d 1304 (2016).", "206 F.Supp.3d 1304"),
         ("See 58 N.Y.2d 916 (1983).", "58 N.Y.2d 916"),
+        ("See 473 F. App'x 160 (2012).", "473 F. App'x 160"),
     ):
         (citation,) = [
             item
