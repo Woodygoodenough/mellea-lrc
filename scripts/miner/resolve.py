@@ -46,8 +46,13 @@ _REFERENCE = re.compile(
 # Language a court uses when saying *this filing* was the defective one. The
 # words that describe the misconduct in general -- sanctions, Rule 11 -- are
 # deliberately absent: they appear throughout an order that names many entries.
+# Court PDFs do not all use an ASCII hyphen. One order in the harvest writes
+# "non\u2010existent" with a Unicode hyphen (U+2010), which an ASCII `-` in this
+# pattern does not match -- so the order read as making no accusation at all.
+# Every dash variant seen in this text is accepted instead.
+_DASHES = "[-\u2010\u2011\u2012\u2013\u2014\u2212]"
 _ATTRIBUTION = re.compile(
-    r"(citation errors?|errant citations?|fabricated|nonexistent|non-existent"
+    r"(citation errors?|errant citations?|fabricated|nonexistent|non" + _DASHES + r"?existent"
     r"|hallucinat\w*|fictitious|do(?:es)? not exist|no such case|could not be located"
     r"|miscit\w*|inaccurate citations?)",
     re.IGNORECASE,
@@ -93,11 +98,22 @@ _ABBREVIATIONS = (
 )
 _MARK = "\x00"
 _SENTENCE = re.compile(r"[^.!?]*[.!?]")
+# An ellipsis marks text a court left out of a quotation, and courts quote each
+# other constantly. Its periods are not sentence ends, and leaving them as such
+# cut the accusation away from the entry it named: in Hilts v. Bellevue Womans
+# Center the order writes `(Dkt. No. 75, at 14; see Dkt. No. 81, at 8
+# (Defendants explaining that "[u]pon thorough review ... no such case
+# exists"))`, and the `...` split `Dkt. No. 75` into a different fragment from
+# `no such case exists`, so a real finding resolved to no entry at all. Spaced
+# and unspaced forms and the single-character ellipsis all occur.
+_ELLIPSES = ("....", ". . . .", "...", ". . .", "\u2026")
 
 
 def _split_sentences(flat: str) -> list[str]:
-    """Split on sentence ends, without letting an abbreviation end one."""
+    """Split on sentence ends, without letting an abbreviation or ellipsis end one."""
     protected = flat
+    for run in _ELLIPSES:
+        protected = protected.replace(run, run.replace(".", _MARK))
     for abbreviation in _ABBREVIATIONS:
         protected = protected.replace(abbreviation, abbreviation.replace(".", _MARK))
     return [sentence.replace(_MARK, ".") for sentence in _SENTENCE.findall(protected)]
