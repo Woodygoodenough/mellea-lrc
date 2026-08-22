@@ -17,28 +17,45 @@ asked. A lookup asks "is there a case at page 691?"; this index asks "what
 covers page 691?", and a page that falls inside a case rather than starting one
 is positive evidence that the locator is wrong.
 
-Swept over all 2,007 case citations in this project's two document sets, the
-index could answer for 1,149 of them, and **27 name a page inside a case rather
-than the page it begins on**.
+Swept over the 3,138 case citations in the 1,300 annotated excerpts, the index
+could answer for 2,622 of them (84%), and **109 name a page inside a case rather
+than the page it begins on**. Against the human annotations, 66 of those 109
+(61%) carry a defect label, against a corpus base rate of 10% -- and every one
+of the 66 is labelled `case_name_mismatch`, none `wrong_pincite` or `misquote`.
 
-**What those 27 turn out to be is not what was expected.** The first guess was a
-pin cite written where a first page belongs, which would leave the case name
-agreeing. It does not: in all 27, including the 14 whose page is within three of
-the real first page, the name the filing wrote disagrees with the case that
-covers the page. `Schum v. Bailey, 578 F.2d 411` sits inside *Laminators Safety
-Glass Ass'n v. CPSC*, which runs 406 to 412. So this finds a locator that lands
-inside some unrelated real case -- a wrong citation wearing a plausible page --
-rather than a misplaced pin cite. One case does have the shape originally
-guessed at: `481 F. 2d 946` sits inside *Sherar v. Cullen*, which starts at 945,
-and the filing's own text names *Sherar v. Cullen*. It is one, not the pattern.
+**Two things stop that from being a precision figure, and both matter.**
 
-**And a lookup service does not simply miss these.** For 17 of the 24 that could
-be cross-checked, CourtListener resolved the citation -- to exactly the case the
-archive says covers the page. `491 F.2d 56` came back as *United States v.
-Melton*, whose own citation is `491 F.2d 45`. The service normalises a mid-case
-page to its covering case and reports the citation sound, so these defects are
-invisible to it rather than merely unanswered by it. That is a stronger reason
-to have this index, and a different one than the module was first written with.
+*The corpus is defect-injected, and the check may be detecting the injector.*
+A `case_name_mismatch` there appears to have been made by pairing a case name
+with a wrong page number, and a wrong page number lands mid-case at whatever
+rate mid-case pages occur -- which is what this detects. Of the 160 labelled
+occurrences that could be joined, 66 sit inside a case, 47 fall in a gap, and 39
+start a case. A borrowed real citation would always start a case, so the
+injection is perturbing digits rather than borrowing. This therefore measures
+the index against that generator, not against organic citation error.
+
+*A short form written without "at" is indistinguishable from a wrong first
+page.* `*Chevron*, 467 U.S. 842-43` and `Kimbrough, 552 U.S. 101-02` are pin
+cites into cases the brief introduced earlier; eyecite reads them as full
+citations because no `at` separates the page. The index then correctly reports
+a mid-case page, and it is not a defect. Roughly half the 15 findings whose
+case name *agrees* with the covering case are this. **Anything built on this
+outcome has to establish that the citation is not a short form of a case
+already introduced, which is a document-level question the index cannot see.**
+
+**What survives is real, and it is unlabelled.** The other half of those 15 are
+genuine first-page errors in real briefs that no annotator marked:
+`Brady v. United States, 397 U.S. 757` (the case starts at 742),
+`Medtronic v. Lohr, 518 U.S. 480` (470), `City of Canton v. Harris, 489 U.S.
+379` (378), `Sherar v. Cullen, 481 F. 2d 946` (945). The name agrees, both
+parties are present, and the page is simply wrong.
+
+**And a lookup service does not simply miss these.** For 17 of 24 cross-checked
+on another corpus, CourtListener resolved the citation -- to exactly the case
+the archive says covers the page. `491 F.2d 56` came back as *United States v.
+Melton*, whose own citation is `491 F.2d 45`. It normalises a mid-case page to
+its covering case and reports the citation sound, so these are invisible to it
+rather than unanswered by it.
 
 Two limits, both structural rather than incidental:
 
@@ -122,8 +139,15 @@ class PageOutcome(str, Enum):
     NO_CASE_COVERS_IT = "no_case_covers_it"
     """Nothing in the volume covers this page.
 
-    Not evidence of fabrication. This index is one archive with a known end
-    date, so its silence means what a CourtListener miss means: nothing.
+    Not evidence of fabrication, as a matter of logic: a gap can be a case the
+    archive is missing, and this index is one archive with a known end date.
+
+    Empirically it is not silent, and the gap between those two facts should be
+    treated with care. On the annotated corpus 46% of the citations landing in
+    a gap carry a defect label, against a base rate of 10% -- nearly as
+    predictive as sitting inside a case. That is a reason to look, and not a
+    licence to report: the same injection artefact described in the module
+    docstring explains it just as well.
     """
 
     VOLUME_UNAVAILABLE = "volume_unavailable"
@@ -232,6 +256,8 @@ SLUG_ALIASES = {
     "N.C.App.": "nc-app",
     "Fed. Appx.": "f-appx",
     "Fed. App'x": "f-appx",
+    "Fed.Appx.": "f-appx",
+    "Fed.App.": "f-appx",
 }
 
 

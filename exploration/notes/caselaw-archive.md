@@ -141,3 +141,91 @@ that were previously either unanswerable or rate-limited.
 3. Check the parallel citations against the duplicate-merging problem in
    `candidate-cardinality.md`. A record giving both `139 A.D.3d 695` and
    `32 N.Y.S.3d 201` settles a parallel-citation clash directly.
+
+## 7. What the annotated corpus says
+
+Run over all 3,138 case citations in the 1,300 annotated LePhantomCite
+excerpts. The archive could answer for **2,622, or 84%** — much better than the
+57% on the unannotated filings, because those cite Westlaw heavily and these
+cite reporters.
+
+| outcome | count | share |
+|---|---:|---:|
+| starts a case | 2,403 | 76.6% |
+| reporter not in the archive | 318 | 10.1% |
+| volume not published | 198 | 6.3% |
+| no case covers the page | 110 | 3.5% |
+| **inside a case** | **109** | **3.5%** |
+| page claimed by two cases | 0 | 0% |
+
+**66 of the 109 carry a defect label, against a corpus base rate of 10%.** Every
+one of the 66 is `case_name_mismatch` — not one `wrong_pincite`, `misquote` or
+`content_misrepresentation`. That is roughly a twelve-fold lift on that label.
+
+### 7.1 Two reasons that is not a precision figure
+
+**The corpus is defect-injected, and this may be detecting the injector.** A
+`case_name_mismatch` there looks to have been made by pairing a real case name
+with a wrong page, and a wrong page lands mid-case at whatever rate mid-case
+pages occur — which is exactly what this finds. Of the 160 labelled occurrences
+that joined, 66 sit inside a case, 47 fall in a gap and 39 start one. If the
+injector had borrowed another real citation, all 160 would start a case. It did
+not; it perturbed digits. So this measures the index against that generator.
+
+**A short form written without "at" reads as a wrong first page.**
+`*Chevron*, 467 U.S. 842-43` and `Kimbrough, 552 U.S. 101-02` are pin cites into
+cases the brief introduced earlier. eyecite reads them as full citations because
+no `at` separates the page, so the index correctly reports a mid-case page and
+it is not a defect. About half the 15 findings whose case name *agrees* with the
+covering case are this shape, and they share a signal: eyecite recovers only one
+party, because a short form names only one.
+
+**So anything built on this outcome must first establish that the citation is
+not a short form of a case already introduced in the document.** That is a
+document-level question the index cannot see, and the citation tree already
+computes exactly it — a short form resolves to the full citation that
+introduced the case. Wiring the two together is the next step, and until it is
+done this outcome is a lead rather than a finding.
+
+### 7.2 What survives, and it is unlabelled
+
+The other half of the name-agreeing findings are genuine first-page errors in
+real briefs that no annotator marked, and eyecite recovered both parties for
+each:
+
+| as written | the case actually starts at |
+|---|---|
+| `Brady v. United States, 397 U.S. 757` | 742 |
+| `Medtronic v. Lohr, 518 U.S. 480` | 470 |
+| `Abbey v. United States, 99 Fed. Cl. 441` | 430 |
+| `Day v. AT&T Corp., 63 Cal. App.4th 325` | 319 |
+| `City of Canton v. Harris, 489 U.S. 379` | 378 |
+| `Sherar v. Cullen, 481 F. 2d 946` | 945 |
+| `Haines v. Kerner, 404 U.S. 520` | 519 |
+
+These are not injected — they are what the source documents contain. They are
+the real-world signal, and the annotations are silent on all of them.
+
+### 7.3 Two other results
+
+**`non_existent_citation` never reaches the index at all.** All 150 use an
+invented reporter series (`F.6th`, `Mass. App. 4th`, `P.4th`), and eyecite has
+no pattern for any of them, so nothing is extracted and there is nothing to look
+up. The invented-reporter check is the right tool there and this is not.
+
+**A pin-cite range check is much weaker.** Of 1,548 citations that start a case
+and carry a numeric pin, 16 name a pin outside the case's pages; 6 are labelled
+`wrong_pincite` and 8 of the other 10 are artefacts of the archive recording a
+one-page span. Six of 121 joined `wrong_pincite` labels is not a usable check.
+
+### 7.4 Coverage
+
+Of the 516 citations the archive could not speak for, the shape is different
+from the unannotated corpus. 318 name a reporter with no directory — 258 of
+those are Westlaw or LEXIS, which are not reporters. **The 198 unavailable
+volumes are mostly too _early_, not too late**: 108 `S. Ct.` and 36 `L. Ed. 2d`
+citations fall before the archive's first published volume of those reporters,
+which run only 134–140 and 176–181. Only 18 fall after a reporter's last
+volume. So "the archive ends around 2020" is a minor limit here; the real one is
+that its static files carry a narrow slice of the parallel Supreme Court
+reporters.
