@@ -1,8 +1,8 @@
-# The margin line-number gutter
+# The pleading-paper margin
 
 ## The case that started it
 
-`022__chelsea-montes...reply`, offset 17610:
+`022__chelsea-montes...reply`, at the page 7/8 boundary:
 
 ```
 Defendant misinterprets the Ninth Circuit's decision in Advanced Textile , 214 F.3d
@@ -19,67 +19,83 @@ Defendant misinterprets the Ninth Circuit's decision in Advanced Textile , 214 F
 
 The citation is `214 F.3d 1058` — *Does I thru XXIII v. Advanced Textile Corp.*
 Every character of it survived PDF extraction. What sits between the halves is
-the left-margin line-number column of California/Nevada pleading paper, which
-Docling emits as a block of its own; when the page broke mid-sentence, the block
-landed inside the citation.
+the left-margin line-number column of California, Nevada and Arizona pleading
+paper: Docling reads it as a block of its own, and when the page broke
+mid-sentence the block landed inside the citation.
 
-This is why the relaxed tokenizer's two joins are relaxed **asymmetrically**. An
-unbounded `\s*` on the reporter→page join reads the page as `1` and then hands
-the pipeline a confident verdict about a page nobody cited — worse than a miss.
+Nothing about the citation is damaged. It is **interrupted**, by material that
+is not part of the sentence and is not part of the document's running text at
+all.
 
 ## It is systematic, not incidental
 
 | | |
 |---|---:|
-| documents with a gutter | 8 of 26 |
-| total runs | 104 |
-| runs that are a full `1..28` | 50 |
-| runs ending at 23 or 28 (the two pleading-paper line counts) | ~all sampled |
-| runs detected in the 18 non-pleading documents | 0 |
-
-Short integers, alone on their lines, counting up by one, terminating at the
-page's line count. Prose does not look like that. This is a layout artifact with
-a signature, which is why a rule can have it.
+| documents with a margin | 8 of 26 |
+| margin numbers | 4,854 |
+| documents in the corpus with none | 18 |
 
 ## The rule
 
-`src/mellea_lrc/experimental/line_number_gutter.py`. Runs are **blanked, not
-deleted** — replaced by spaces of equal length, so no offset moves and every
-span already measured against the text stays valid. The same choice the
-benchmark makes when masking captions. What remains between the citation's
-halves is ordinary horizontal whitespace, which the layout-tolerant tokenizer
-already crosses.
+`src/mellea_lrc/preprocessing/margin_line_numbers.py`, working on the
+`DoclingDocument` rather than on exported text.
 
-Effect on the eight affected documents: 309 → 310 occurrences.
+Docling classifies page headers and footers as `furniture`, and
+`export_to_text` keeps only the body — so headers and footers are already
+dropped. The margin numbers are read correctly, one item per number with its
+own bounding box, but filed under `body`. **That single misclassification is
+the only reason they reach the text at all.** So the fix is not a filter but a
+correction: reclassify them as the furniture they are, and the existing export
+needs no change.
 
-- `214 F.3d 1058` recovered at its true offset, with the correct page.
-- `556 U.S. 662` gained both its pin cite (`678`) and its case name
-  (`Ashcroft v. Iqbal`) — the gutter had been sitting between `See Ashcroft v.`
-  and `Iqbal , 556 U.S. 662, 678 (2009)`, truncating the antecedent scan.
-- `654 F.3d at 408` gained `Doe v. Megless` as its antecedent.
+The margin is a column, and the object says so plainly:
 
-Nothing was lost.
+| | margin right edge | prose left edge |
+|---|---:|---:|
+| document 022, page 7 | 60.0 | 72.0 |
+| document 011, page 1 | 87.8 | 104.4 |
 
-## Scored on false-citation-bench
+A run of numbers is a margin when it is a column of bare integers, aligned on
+the right, at least five of them, sitting left of where the page's prose
+begins. All three conditions carry weight: alignment separates a margin from
+numbers that merely happen to be short, the count separates it from a stray
+figure, and the position separates it from a numeric column inside a table.
 
-| arm | predicted | TP | FP | FN | precision | recall |
-|---|---:|---:|---:|---:|---:|---:|
-| eyecite | 526 | 526 | 0 | 68 | 100.0% | 88.6% |
-| production | 563 | 563 | 0 | 31 | 100.0% | 94.8% |
-| layout-tolerant | 581 | 581 | 0 | 13 | 100.0% | 97.8% |
-| layout-tolerant+degutter | 582 | 581 | 1 | 13 | 99.8% | 97.8% |
+The prose edge is a **median** rather than a minimum. Docling does not always
+separate the margin cleanly — on some pages it absorbs the first few line
+numbers into the text item beside them, as `1 JULIE A. TOTTEN (STATE BAR NO.
+166470)`, and that item's box starts out in the margin. One such item drags a
+minimum across the column boundary and defeats the test for the whole page. It
+does not move a median.
 
-Recall does not move, and precision falls. **The one extra occurrence is the
-recovered `214 F.3d 1058`, and it scores as a false positive because the gold
-set does not contain it.** Gold records that citation once in document 022, at
-offset 10652 — the table of authorities — and not at 17482 where the brief
-actually argues from it.
+## The result: preprocessing is what makes the tokenizer safe
 
-## What the benchmark says about it
+The relaxed tokenizer joins volume to reporter across a blank line, but bounds
+the reporter-to-page join to a single newline. That bound is not arbitrary — it
+exists because of this exact artifact. Removing it and removing the margin are
+each useless alone, and together they are the fix:
+
+| | bounded join | symmetric join |
+|---|---|---|
+| **margin present** | 1 site (table of authorities only) | `214 F.3d` **`1`** — *the wrong page* |
+| **margin removed** | 1 site (table of authorities only) | `214 F.3d` **`1058`** — correct, 2 sites |
+
+The top-right cell is the whole argument. A more permissive tokenizer applied
+to margin-bearing text does not miss the citation; it reports a **confident
+verdict about a page nobody cited**, which is worse than silence and is why the
+bound was there. Correct the rendering and the same relaxation becomes right.
+
+This is the general claim the project makes, in one measurable instance:
+**structure-aware preprocessing is what lets the downstream stage be simpler
+and safer at once.** The alternative — a tokenizer defending itself against
+artifacts of its own input — pays for that defence in recall on every document,
+including the ones with no margin at all.
+
+## What the benchmark says, and why it should change
 
 The gold set does not contain the recovered occurrence, and that is not an
-oversight. `derived/extraction.md` names this exact citation among the
-deliberate exclusions:
+oversight. `derived/extraction.md` names this citation among its deliberate
+exclusions:
 
 | document | what the text has | what is missing |
 |---|---|---|
@@ -87,38 +103,52 @@ deliberate exclusions:
 | `022` | `WL9137645` | the volume `2016`, which sits in a separate table cell |
 | `025` | `WL6200979` | the volume, absent from the source entirely |
 
-The stated rule is that a citation is recorded only when the text states its
-identifier **completely in one run**. Read against the plain text, that is a
-correct reading and the exclusion is honest.
+The stated rule is that an identifier is recorded only when the text states it
+**completely in one run**. Read against the plain text, that is correct and the
+exclusion is honest.
 
-But two of the three exclusions are artifacts of the plain-text serialization
-rather than of the filing. Document 022 does state `214 F.3d 1058` completely:
-the two halves are consecutive on the page, and what separates them in the
-*rendering* is a margin the rendering should not have contained. The rule is
-sound; the coordinate space it is applied to is what loses the citation.
+But the first two exclusions are artifacts of the **rendering**, not of the
+filing. Document 022 does state `214 F.3d 1058` completely: the halves are
+consecutive on the page, and what separates them in the rendering is a margin
+the rendering should never have contained. The rule is sound; the coordinate
+space it was applied to is what loses the citation.
 
-That is the argument for working from the structured document, and it is
-sharper than a recall delta: **the plain-text rendering is what makes the
-exclusion necessary.** Change the rendering and the citation qualifies under
-the benchmark's own existing rule, unamended.
+That is the case for treating the corpus as revisable. A benchmark whose
+exclusions encode one converter's failures will keep encoding them, and every
+system measured on it inherits the same blind spot — including the systems that
+have fixed the underlying problem. *Stated completely in one run* is a good
+rule. It is not a reason to keep a rendering that interleaves a page margin
+into the middle of sentences.
 
 The third exclusion does not benefit. `2016 WL 9137645` is split across two
-rows of a table Docling parsed badly -- badly enough that other rows merge
-text from different entries outright (`2023 WL 3568691, at 3 - 4 (W.D. Wash.
-May Doe v. Bell Atl. Bus. Sys. Servs., Inc. ,`). Structure does not help when
-the structure itself is wrong, and table parsing is where these conversions
-are least reliable.
+rows of a table Docling parsed badly — badly enough that other rows merge text
+from different entries outright (`2023 WL 3568691, at 3 - 4 (W.D. Wash. May Doe
+v. Bell Atl. Bus. Sys. Servs., Inc. ,`). Structure does not help when the
+structure is itself wrong, and table parsing is where these conversions are
+least reliable.
 
-## Two implementations, and why both exist
+## Re-deriving the corpus
 
-`experimental/line_number_gutter.py` works on the exported text and blanks each
-run in place, preserving every offset. `preprocessing/margin_line_numbers.py`
-works on the `DoclingDocument` and reclassifies the margin items as furniture,
-which is what they are.
+Offsets move when the margin goes, and that is a cost of the fix rather than an
+argument against it: the offsets in question address a rendering that is wrong
+about the document. The corpus is regenerated from the cached conversions with
+the margin dropped, and the gold spans are re-derived by aligning the old text
+against the new and projecting each span through the equal blocks.
 
-Measured across all 26 documents, the two rules agree exactly on *which*
-filings are pleading paper -- the same eight, with no disagreement in either
-direction -- and not at all on how much of the margin they can see:
+Two causes of movement have to be told apart, so each document is rendered
+twice — once with the margin rule and once without — and both are aligned
+against the shipped text. Failures present in *both* are Docling version drift;
+only the difference is attributable to the rule.
+
+## The text rule, and why it was removed
+
+An earlier version of this work inferred the margin from the exported text: a
+run of short integers, alone on their lines, ascending by one. Measured against
+the geometry across all 26 documents, the comparison ended it.
+
+The two rules agree exactly on *which* filings are pleading paper — the same
+eight, no disagreement in either direction — and not at all on how much of the
+margin they see:
 
 | doc | pages | items | geometry | text rule |
 |---|---:|---:|---:|---:|
@@ -132,81 +162,49 @@ direction -- and not at all on how much of the margin they can see:
 | 023 | 12 | 453 | 334 | 274 |
 | **total** | | | **4854** | **2273** |
 
-The text rule misses 53% of the margin. Where the rendering is clean the two
-agree closely (018: 277 vs 275; 019: 391 vs 390). Where it is not, the text
-rule collapses, and document 020 shows why in one line. Its margin arrives in
-the text as::
+The text rule misses 53%. Where the rendering is clean the two agree closely
+(018: 277 vs 275). Where it is not, the text rule collapses, and document 020
+shows why in one line — its margin reaches the text as
 
-    1  2  3  4  5  6  7  8  9  10  12  13  14  ...
+```
+1  2  3  4  5  6  7  8  9  10  12  13  14  ...
+```
 
-`11` is missing -- Docling dropped or absorbed it. The text rule requires a run
-ascending by exactly one, so a single absent number ends the run, and 864
-margin numbers are seen as 17. In the object the column is untouched at
-`l=59.8, r=67.3`; a gap in a column is still a column.
+with `11` missing, and a rule requiring a run ascending by exactly one sees 864
+margin numbers as 17.
 
-That is the general shape of it. The text rule has to reconstruct the margin
-from properties that are *consequences* of being a margin -- consecutive
-integers, isolated on their lines -- and every one of those consequences is
-destroyed by ordinary rendering noise. The geometric rule reads the property
-that *defines* a margin, which the rendering is what destroys in the first
-place.
+That is the general shape of the failure. The text rule reconstructs the margin
+from properties that are *consequences* of being one — consecutive integers,
+isolated on their lines — and every one of those is destroyed by ordinary
+rendering noise, worst in exactly the documents where the margin does the most
+damage. The geometric rule reads the property that *defines* a margin, which is
+what the rendering discards.
 
-Three specific advantages:
-
-- **It reads the column instead of inferring it.** Line numbers share a right
-  edge and sit left of the prose. Nothing about the digits has to be guessed.
-- **It tolerates gaps and non-numeric noise.** Missing numbers, `- 4 -` styling
-  and absorbed items all leave the column intact.
-- **It cannot mistake a numbered list for a margin**, because a list sits in
-  the text column, whatever its numbers do.
-
-The text rule remains useful for one reason: the benchmark ships text, and its
-gold spans address that text. Blanking preserves those offsets; reclassifying
-does not, because dropping the margin moves everything after it.
-
-## Reproducibility, and why the dataset ships text
-
-Re-converting document 022 with Docling 2.115 does not reproduce the shipped
-rendering byte for byte -- 99.86% similar, and the differences are almost
-entirely **table cell boundaries** in the table of authorities. Text-item
-geometry, which is all the margin rule reads, is far more stable than table
-structure inference.
-
-So shipping the text rather than the conversion was the right call, and the
-structural path carries an obligation with it: regenerating the corpus means
-pinning the Docling version, and re-deriving every gold span against the new
-rendering.
+A rule whose recall depends on whether the converter happened to drop a number
+is not one to defend, so it was removed rather than kept as a fallback.
 
 ## Why not an LLM here
 
 A model would read this page correctly — the margin is obvious to a reader. But
 it is not a judgement call. In the structured document the margin is a column
-with its own coordinates, recurring 104 times across 26 documents, and removing
-it is a reclassification. Paying for a model call per site would buy no accuracy
-and would put a generative step underneath the span arithmetic that everything
+with its own coordinates, recurring thousands of times, and removing it is a
+reclassification. Paying for a model call per site would buy no accuracy and
+would put a generative step underneath the span arithmetic that everything
 downstream depends on.
 
 The model earns its place on the *unsystematic* residue — damage with no
-repeatable shape — which is what `grounded_adjudication` already handles through
-the `production+recovery` and `layout-tolerant+recovery` arms. Structured
+repeatable shape — which is what `grounded_adjudication` handles through the
+`production+recovery` and `layout-tolerant+recovery` arms. Structured
 decomposition first; adjudication for what structure cannot reach.
 
+## Reproducibility
 
-## Where this leaves things
+Re-converting document 022 with Docling 2.115 does not reproduce the shipped
+rendering byte for byte — 99.86% similar, with the differences almost entirely
+**table cell boundaries** in the table of authorities. Text-item geometry, which
+is all the margin rule reads, is far more stable than table structure
+inference.
 
-1. Neither rule is on by default. The text rule is an evaluation arm; the
-   structural rule is an opt-in flag on the Docling backend, because it moves
-   offsets and the shipped gold spans address the current rendering.
-2. The next step is the benchmark, not the extractor: regenerate the corpus
-   with the margin dropped, re-derive the gold spans, and admit the two
-   citations the plain-text rendering currently forces out. The exclusion rule
-   does not need to change — the same rule admits them once the rendering stops
-   interleaving a margin into the sentences.
-3. Only then is it meaningful to promote the layout-tolerant tokenizer, and to
-   ask whether its reporter-to-page join still needs its one-newline bound. That
-   bound exists to defend against exactly the margin junk this removes; with the
-   margin gone structurally, the defence may be redundant. Removing the margin
-   alone does *not* recover the citation — a blank line still separates
-   `214 F.3d` from `1058` — so the two changes only pay off together, and that
-   pairing is the result worth reporting: **structure-aware preprocessing is
-   what makes the simpler, more permissive tokenizer safe.**
+Regenerating the corpus therefore means pinning the Docling version and
+recording it with the corpus, so that the rendering the gold spans address is
+reproducible from the PDFs.
