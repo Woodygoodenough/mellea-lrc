@@ -130,3 +130,53 @@ def test_a_vendor_identifier_is_not_a_reporter() -> None:
 
 def test_the_volume_url_matches_the_archive_layout() -> None:
     assert volume_metadata_url("ad3d", "139") == "https://static.case.law/ad3d/139/CasesMetadata.json"
+
+
+def test_a_scanned_page_number_is_corrected_to_the_printed_one(tmp_path: Path) -> None:
+    """In a few volumes `first_page` holds the page of the scan, not of the book.
+
+    Volume 377 of the United States Reports is one: every case is offset by a
+    constant 132, so `Missouri Pacific Railroad v. Elmore & Stahl` carries
+    `first_page` 266 while its own citation is `377 U.S. 134`.
+
+    Uncorrected this is not a missed answer but a confident wrong one --
+    `377 U.S. 408` was reported as sitting inside a different case entirely.
+    Anchoring on the page in the case's own citation for the volume fixes it,
+    and across 686 volumes it removed four false findings and created none.
+    """
+    index = CapIndex(cache_dir=tmp_path, allow_fetch=False)
+    index.load_file("us", "377", _FIXTURES / "us-377-slice.json")
+
+    verdict = index.page("us", "377", "408")
+
+    assert verdict.outcome is PageOutcome.STARTS_A_CASE
+    assert verdict.case is not None
+    assert verdict.case.name == "Donovan v. City of Dallas"
+    assert not verdict.contradicts_locator
+
+
+def test_the_span_length_survives_the_correction(tmp_path: Path) -> None:
+    """Only the origin is wrong, so the number of pages is kept as recorded."""
+    index = CapIndex(cache_dir=tmp_path, allow_fetch=False)
+    index.load_file("us", "377", _FIXTURES / "us-377-slice.json")
+
+    verdict = index.page("us", "377", "135")
+
+    assert verdict.outcome is PageOutcome.INSIDE_A_CASE
+    assert verdict.case is not None
+    assert verdict.case.first_page == 134
+    assert verdict.case.last_page > verdict.case.first_page
+
+
+@pytest.mark.parametrize(
+    ("reporter", "expected"),
+    [("N.Y.2d", "ny-2d"), ("N.C.App.", "nc-app"), ("Fed. Appx.", "f-appx")],
+)
+def test_a_reporter_the_rule_cannot_predict_is_listed(reporter: str, expected: str) -> None:
+    """The archive's own naming is not fully consistent, so three are aliased.
+
+    `N.Y.2d` takes a dash the rule cannot derive, `N.C.App.` written closed up
+    gives `ncapp`, and `Fed. Appx.` is filed under the modern `f-appx`. Each
+    was checked against the published directory listing rather than guessed.
+    """
+    assert reporter_slug(reporter, {"ny-2d", "nc-app", "f-appx", "f2d"}) == expected
