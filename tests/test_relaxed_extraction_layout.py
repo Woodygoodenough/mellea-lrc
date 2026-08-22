@@ -87,3 +87,44 @@ def test_an_ordinary_citation_is_unaffected() -> None:
     text = "See Ashcroft v. Iqbal, 556 U.S. 662, 678 (2009)."
 
     assert _matched(text) == _baseline(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # The extractor collapses whitespace runs before parsing, so the
+        # matched text is reported in that collapsed space.
+        ("See 58  N.Y .2d  916 (1983).", "58 N.Y .2d 916"),
+        ("See 58 N .Y.2d 916 (1983).", "58 N .Y.2d 916"),
+    ],
+)
+def test_a_space_before_a_period_inside_the_reporter_is_tolerated(text: str, expected: str) -> None:
+    """eyecite allows whitespace after a period inside a reporter, not before it.
+
+    Its generated pattern is `N\\.\\s*Y\\.\\s*2d`, so `N.Y.2d` and `N.Y. 2d`
+    both match and `N.Y .2d` matches nothing at all. Extraction puts a space on
+    that side as readily as the other, and `58  N.Y .2d  916` is a real
+    citation on false-citation-bench -- the last one no tokenizer reached.
+    """
+    (citation,) = [
+        item
+        for item in extract_relaxed_citations(text).citations
+        if type(item.citation).__name__ == "FullCaseCitation"
+    ]
+
+    assert citation.matched_text == expected
+
+
+def test_an_ordinary_reporter_is_unaffected_by_that() -> None:
+    """The relaxation must not change what already worked."""
+    for text, expected in (
+        ("See 206 F. Supp. 3d 1304 (2016).", "206 F. Supp. 3d 1304"),
+        ("See 206 F.Supp.3d 1304 (2016).", "206 F.Supp.3d 1304"),
+        ("See 58 N.Y.2d 916 (1983).", "58 N.Y.2d 916"),
+    ):
+        (citation,) = [
+            item
+            for item in extract_relaxed_citations(text).citations
+            if type(item.citation).__name__ == "FullCaseCitation"
+        ]
+        assert citation.matched_text == expected

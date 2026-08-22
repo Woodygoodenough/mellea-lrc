@@ -90,10 +90,25 @@ def _joins(*, cross_blank_lines: bool) -> tuple[tuple[str, str], ...]:
     )
 
 
+# Inside a reporter, eyecite already allows whitespace *after* each period --
+# `N\.\s*Y\.\s*2d` matches `N.Y.2d` and `N.Y. 2d`. It does not allow any
+# before one, so `N.Y .2d` and `N .Y.2d` match nothing at all. Extraction puts
+# a space on that side as readily as the other: `58  N.Y .2d  916` is a real
+# citation on this corpus, and it was the last one no tokenizer could reach.
+_REPORTER_GROUP = re.compile(r"\(\?P<reporter>((?:[^()\\]|\\.)*)\)")
+_PERIOD = re.compile(r"(?<!\\s\*)\\\.")
+
+
 def _relax(regex: str, joins: tuple[tuple[str, str], ...]) -> str:
     for old, new in joins:
         regex = regex.replace(old, new)
-    return regex
+    return _REPORTER_GROUP.sub(_relax_reporter_periods, regex)
+
+
+def _relax_reporter_periods(match: re.Match[str]) -> str:
+    """Let whitespace sit on either side of a period inside the reporter."""
+    body = _PERIOD.sub(r"\\s*\\.", match.group(1))
+    return f"(?P<reporter>{body})"
 
 
 class _RelaxedTokenizer(AhocorasickTokenizer):
