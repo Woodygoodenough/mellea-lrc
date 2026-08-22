@@ -343,6 +343,16 @@ def is_non_case_source(reporter: str) -> bool:
     return _NON_ALNUM.sub("", reporter.lower()) in NON_CASE_SOURCES
 
 
+def names_a_non_case_source(cited_text: str) -> bool:
+    """Whether the string names a real publication that reports no cases.
+
+    The Federal Register and the Congressional Record are cited the same way a
+    reporter is, and neither is one. Declining them is right; calling them
+    invented is not.
+    """
+    return any(is_non_case_source(match["reporter"]) for match in _LOCATOR_SHAPE.finditer(cited_text))
+
+
 def names_no_real_reporter(cited_text: str) -> bool:
     """Whether the string is shaped like a locator but names no real reporter series.
 
@@ -381,6 +391,17 @@ def _quota_detail(error: CourtListenerError) -> str:
 
 
 def _unparsed_result(cited_text: str) -> LookupResult:
+    # A known publication that is not a case reporter is checked first. It is
+    # locator-shaped and its name is not in the reporter list, so the refuted
+    # branch below would otherwise report the Federal Register as a reporter
+    # series that does not exist -- a false accusation of exactly the kind this
+    # project exists to avoid making.
+    if names_a_non_case_source(cited_text):
+        return LookupResult(
+            parts=None,
+            outcome=LookupOutcome.OUT_OF_SCOPE,
+            detail="a real publication that is not a case reporter",
+        )
     if names_no_real_reporter(cited_text):
         return LookupResult(
             parts=None,

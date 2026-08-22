@@ -13,6 +13,7 @@ from evaluations.lephantomcite.locator_probe import (
     LookupResult,
     _append_checkpoint,
     _lookup_one,
+    is_short_form,
     names_no_real_reporter,
     parse_locator,
     probe_locators,
@@ -48,7 +49,6 @@ class _FakeClient:
     ("cited", "expected"),
     [
         ("556 U.S. 662", ("556", "U.S.", "662")),
-        ("755 N.E.2d at 598", ("755", "N.E.2d", "598")),
         ("798 F. Supp. 2d 1215", ("798", "F. Supp. 2d", "1215")),
     ],
 )
@@ -58,6 +58,19 @@ def test_locators_are_parsed_by_the_project_extractor(cited: str, expected: tupl
 
     assert parts is not None
     assert parts.key == expected
+
+
+def test_a_short_forms_pin_cite_is_not_read_as_a_first_page() -> None:
+    """`755 N.E.2d at 598` was previously parsed as the locator `755 N.E.2d 598`.
+
+    It is not one. 598 is a pin cite into a case that begins somewhere else, so
+    the lookup asked whether a case *starts* at 598, got no, and recorded a
+    sound citation as unresolved. The production pipeline never asks that --
+    `validation/citation_lookup/exact.py` skips a non-full citation as
+    unsupported -- so this was measuring something the pipeline does not do.
+    """
+    assert parse_locator("755 N.E.2d at 598") is None
+    assert is_short_form("755 N.E.2d at 598")
 
 
 @pytest.mark.parametrize(
