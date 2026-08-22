@@ -10,7 +10,7 @@ from mellea_lrc.preprocessing.types import PreprocessedDocument
 def preprocess(
     path: Path | str,
     *,
-    drop_margin_line_numbers: bool = False,
+    drop_margin_line_numbers: bool = True,
 ) -> PreprocessedDocument:
     """Preprocess a document using the backend appropriate for its format.
 

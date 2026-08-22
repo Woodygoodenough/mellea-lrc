@@ -25,7 +25,6 @@ from mellea_lrc.experimental.grounded_adjudication import (
     suspected_dockets,
     suspected_locators,
 )
-from mellea_lrc.experimental.line_number_gutter import blank_line_number_gutters
 from mellea_lrc.experimental.relaxed_eyecite_extractor import extract_relaxed_citations
 from mellea_lrc.extraction import extract_from_plain_text
 from mellea_lrc.extraction.types import ExtractedDocument
@@ -203,27 +202,6 @@ def layout_tolerant(document: str, text: str) -> list[Occurrence]:
     return _from_extracted_document(document, extract_relaxed_citations(text))
 
 
-def layout_tolerant_deguttered(document: str, text: str) -> list[Occurrence]:
-    """The layout-tolerant tokenizer over text whose margin gutters are blanked.
-
-    Pleading paper numbers every line in a left margin, and PDF extraction reads
-    that margin as a block that lands wherever the page broke -- routinely
-    between the halves of a citation, so that `214 F.3d` and `1058` are
-    separated by the integers 1 through 28. Eight of the twenty-six documents on
-    false-citation-bench are laid out this way.
-
-    The tokenizer alone cannot cross that, and must not: the number sitting
-    where the page belongs is `1`, and joining to it would produce a confident
-    verdict about a page nobody cited. Removing the gutter first is what makes
-    the citation ordinary, and it is removable because it is recognisable --
-    short integers, alone on their lines, counting up by one.
-
-    This arm exists to price that preprocessing step separately from the
-    tokenizer it feeds.
-    """
-    return _from_extracted_document(document, extract_relaxed_citations(blank_line_number_gutters(text)))
-
-
 def layout_tolerant_with_recovery(document: str, text: str) -> list[Occurrence]:
     """The layout-tolerant tokenizer, then model recovery of what it still missed."""
     extracted = extract_relaxed_citations(text)
@@ -251,10 +229,6 @@ ARMS: dict[str, ArmSpec] = {
     "layout-tolerant": ArmSpec(
         run=layout_tolerant,
         components="layout-tolerant tokenizer",
-    ),
-    "layout-tolerant+degutter": ArmSpec(
-        run=layout_tolerant_deguttered,
-        components="line-number gutter blanking + layout-tolerant tokenizer",
     ),
     "production+recovery": ArmSpec(
         run=production_with_recovery,

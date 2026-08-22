@@ -41,19 +41,21 @@ def _source_format(path: Path) -> SourceFormat:
 def preprocess_with_docling(
     path: Path | str,
     *,
-    drop_margin_line_numbers: bool = False,
+    drop_margin_line_numbers: bool = True,
 ) -> PreprocessedDocument:
     """Convert a raw document to plain text using Docling.
 
-    Set ``drop_margin_line_numbers`` to remove the numbered left margin of
-    pleading paper before the text is written out. Docling reads that margin
-    correctly but files it under the body layer, so it otherwise survives into
-    the text as a column of integers landing wherever the page broke -- often
-    inside a citation. See :mod:`mellea_lrc.preprocessing.margin_line_numbers`.
+    ``drop_margin_line_numbers`` removes the numbered left margin of pleading
+    paper before the text is written out. Docling reads that margin correctly
+    but files it under the body layer, so it otherwise survives into the text
+    as a column of integers landing wherever the page broke -- often inside a
+    citation. See :mod:`mellea_lrc.preprocessing.margin_line_numbers`.
 
-    This is off by default because it moves offsets. Text rendered with it is a
-    different coordinate space from text rendered without it, and spans
-    measured against one do not address the other.
+    It is on by default. The margin is not part of the document's text, and a
+    rendering that interleaves it into the middle of sentences is wrong about
+    the document. Removing it moves the offsets of everything after it, so text
+    rendered with and without it are different coordinate spaces; that is a
+    reason to record which was used, not a reason to keep the margin.
     """
     try:
         from docling.document_converter import DocumentConverter
