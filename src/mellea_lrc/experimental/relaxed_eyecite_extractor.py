@@ -103,9 +103,39 @@ _REPORTER_GROUP = re.compile(r"\(\?P<reporter>((?:[^()\\]|\\.)*)\)")
 _TIGHT_PUNCTUATION = re.compile(r"\\\.|['\u2019]")
 
 
+# Statute patterns are generated the same way and are brittle in the same three
+# places. A statute that misses is not reported imperfectly: it produces a bare
+# section symbol typed as unknown, and no law citation at all, so nothing
+# downstream can check it.
+#
+# 1. The section group admits `1983`, `1-101` and `636(b)(1)(A)`, and refuses a
+#    letter fixed to the digits -- `2000e-2`, `1681g`, `794a`, `77l`, `668dd`.
+#    Those are Title VII, the Fair Credit Reporting Act, the Rehabilitation Act,
+#    the Securities Act and the National Wildlife Refuge System Administration
+#    Act. Two letters occur (`668dd`, `300gg`), so the allowance is two.
+# 2. Most law patterns join the reporter to the section symbol with a literal
+#    space and allow at most one after it (`) §§? ?`), which is the same
+#    single-space brittleness the case joins have.
+# 3. Every reporter branch requires its final period. `42 U.S.C § 12132` and
+#    `29 U.S.C.A § 2612` are both written that way in the sampled filings and
+#    match nothing.
+_IS_LAW_PATTERN = "(?P<section>"
+_SECTION_DIGITS = r"(?:\d+(?:[\-.:]\d+){,3})"
+_SECTION_DIGITS_WITH_LETTER = r"(?:\d+[a-zA-Z]{,2}(?:[\-.:]\d+[a-zA-Z]{,2}){,3})"
+_SECTION_SYMBOL_JOIN = (") §§? ?", r")\s*§§?\s*")
+# The closing period of one reporter branch, as it reads after the punctuation
+# relaxation above has already put `\s*` on either side of it.
+_FINAL_PERIOD = re.compile(r"\\s\*\\\.(?:\\s\*)*$")
+_FINAL_PERIOD_OPTIONAL = r"(?:\s*\.)?\s*"
+
+
 def _relax(regex: str, joins: tuple[tuple[str, str], ...]) -> str:
     for old, new in joins:
         regex = regex.replace(old, new)
+    if _IS_LAW_PATTERN in regex:
+        regex = regex.replace(*_SECTION_SYMBOL_JOIN)
+        regex = regex.replace(_SECTION_DIGITS, _SECTION_DIGITS_WITH_LETTER)
+        return _REPORTER_GROUP.sub(_relax_law_reporter, regex)
     return _REPORTER_GROUP.sub(_relax_reporter_punctuation, regex)
 
 
@@ -113,6 +143,23 @@ def _relax_reporter_punctuation(match: re.Match[str]) -> str:
     """Let whitespace sit on either side of the punctuation inside a reporter."""
     body = _TIGHT_PUNCTUATION.sub(lambda found: rf"\s*{found.group()}\s*", match.group(1))
     return f"(?P<reporter>{body})"
+
+
+def _relax_law_reporter(match: re.Match[str]) -> str:
+    """Relax the punctuation, then let each branch end without its closing period.
+
+    Done for law patterns only. A case reporter's closing period is what
+    separates it from the page in `410 U.S. 113`; making it optional there
+    would let the reporter run into the number after it. A statute has a
+    section symbol in that position instead, so nothing is riding on the
+    period, and `42 U.S.C § 12132` and `29 U.S.C.A § 2612` are both written
+    without one in the sampled filings.
+    """
+    body = _TIGHT_PUNCTUATION.sub(lambda found: rf"\s*{found.group()}\s*", match.group(1))
+    # A plain replacement string would be read as a template, and the `\s` in it
+    # is not a valid template escape.
+    branches = (_FINAL_PERIOD.sub(lambda _: _FINAL_PERIOD_OPTIONAL, branch) for branch in body.split("|"))
+    return f"(?P<reporter>{'|'.join(branches)})"
 
 
 class _RelaxedTokenizer(AhocorasickTokenizer):
@@ -156,11 +203,26 @@ def relaxed_tokenizer(*, cross_blank_lines: bool = False) -> Tokenizer:
                 constructor=extractor.constructor,
                 extra=extractor.extra,
                 flags=extractor.flags,
-                strings=extractor.strings,
+                strings=_prefilter_strings(extractor),
             )
             for extractor in EXTRACTORS
         ]
     )
+
+
+def _prefilter_strings(extractor: TokenExtractor) -> list[str]:
+    """The literals the prefilter admits this extractor on.
+
+    The prefilter is what decides whether an extractor's regex runs at all, so
+    relaxing a law reporter's closing period accomplishes nothing unless the
+    period-less spelling is admitted here too. Without this, `42 U.S.C § 12132`
+    is found only in a document that happens to write `U.S.C.` correctly
+    somewhere else, which is luck rather than a rule.
+    """
+    if _IS_LAW_PATTERN not in extractor.regex:
+        return extractor.strings
+    without_period = [s.removesuffix(".") for s in extractor.strings if s.endswith(".")]
+    return list(dict.fromkeys([*extractor.strings, *without_period]))
 
 
 def _tokenizer_for(preprocessed: PreprocessedDocument) -> Tokenizer:
