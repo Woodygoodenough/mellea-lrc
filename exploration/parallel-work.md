@@ -47,6 +47,19 @@ whose shape was already decided.
 A git branch can only be checked out in one worktree, so the second agent needs
 its own branch.
 
+**Check what you branched from before doing anything.** A subagent given an
+isolated worktree by the Agent tool is branched from the repository's default
+branch, not from whatever the parent agent has checked out. The first subagent
+run on this project was handed instructions referring to a module and a
+function parameter that exist on `experiment/lephantomcite` and not on `main`;
+it was working from `main` and correctly reported both as missing. It adapted
+and the work was still usable, but only because it said so rather than guessing.
+
+    git merge-base --is-ancestor experiment/lephantomcite HEAD && echo ok
+
+If that fails, rebase or branch again from `experiment/lephantomcite` before
+starting, and say in your report which base you used.
+
 ```bash
 git fetch woody-fork
 git worktree add ../mellea-lrc-b -b experiment/lephantomcite-b experiment/lephantomcite

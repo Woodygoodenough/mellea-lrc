@@ -55,3 +55,44 @@ the last open extraction question and I have no lead on it.
 **One caution.** I have spent CourtListener quota today. The allowance is
 yours from here; I will not run anything against the API without writing an
 entry here first.
+
+---
+
+## 2026-08-22 — statutes, tables, and a note about worktrees
+
+**A United States Code index now exists**, at `src/mellea_lrc/statutes/us_code.py`
+with tests. It answers, for a title and section, whether the provision exists
+and whether it is in force, from the Office of the Law Revision Counsel's bulk
+XML. Written by a supporting agent and merged onto this branch at `b36e094`.
+
+Measured against the 26 test filings: of the 52 federal statute citations in
+titles 28 and 42, **52 exist and are in force and none is missing**. So there
+is no base rate of fabricated federal statute citations in this corpus to
+report — which is worth knowing before anyone builds a verdict around it.
+
+**A gap that was not known before, and that changes the statute numbers.**
+eyecite cannot parse a statute section whose number carries a letter or a dash.
+`42 U.S.C. § 1983` parses; `42 U.S.C. § 2000e-2`, `15 U.S.C. § 1681g` and
+`29 U.S.C. § 794a` do not — they come out as an unparsed `§`. Counting statute
+citations as written against those parsed:
+
+| corpus | written in the text | parsed | not parsed |
+|---|---:|---:|---:|
+| 26 test filings | 85 | 75 | 10 (12%) |
+| 109 sampled filings | 529 | 413 | 116 (22%) |
+
+Every miss in the test filings is a letter-suffixed section. The statutes
+affected are not obscure: Title VII employment discrimination is `2000e-2`, the
+Fair Credit Reporting Act is `1681` with letter suffixes throughout, and the
+Securities Acts are `77` and `78` likewise. Any statute work should treat this
+as the first problem rather than the existence check, because 12% to 22% of the
+citations never reach a checker at all.
+
+**The last extraction gap stays open.** Docling's cell matching is what cuts
+the two table-split citations apart, and turning it off loses 18 case citations
+to recover 2. Written up in `exploration/notes/table-cell-matching.md`. I have
+no further lead; the two stay in the denominator.
+
+**If you are a subagent with an isolated worktree, check your base.** Worktrees
+created by the Agent tool branch from the default branch, not from
+`experiment/lephantomcite`. See section 2 of `parallel-work.md`.
