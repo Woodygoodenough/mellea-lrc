@@ -78,9 +78,10 @@ Cullen*, and the archive puts *Sherar v. Cullen* at 481 F.2d 945. Nothing was
 invented; a page is off by one. That citation had no verdict at all before.
 
 This is a new outcome and it deserves its own name: **the citation names a real
-case at a page inside it rather than the page it begins on.** It is positive
-evidence about a specific defect, and it is the commonest way a pin cite gets
-written where a first page belongs.
+case at a page inside it rather than the page it begins on.** Section 7
+measures it over the annotated corpus, and both of the guesses in this
+paragraph's first draft turned out to need qualifying — read that section
+before building on this one.
 
 Implemented in `caselaw/cap_index.py`.
 
@@ -130,15 +131,18 @@ that were previously either unanswerable or rate-limited.
 
 ## 6. Next
 
-1. Run the archive over every locator in both corpora, not just the unresolved
-   ones, and count how many citations name a page inside a case rather than its
-   start. That is a defect class nobody has measured.
-2. Use it as the case-name reference for the annotation in
+1. **Done, and section 7 has the result.** Run the archive over every citation
+   in both corpora and count how many name a page inside a case.
+2. **The first thing to build.** Join this outcome to the citation tree, so a
+   short form of a case the brief already introduced stops being reported as a
+   wrong first page. Section 7.1 says that is about half the findings whose
+   case name agrees, and the tree already resolves exactly this.
+3. Use it as the case-name reference for the annotation in
    `case-name-extraction.md`. It gives a name for every page of every volume it
    holds, offline, which is exactly what that annotation needs — with the same
    caution recorded there: it is a reference to check the annotation against,
    never the value written into it.
-3. Check the parallel citations against the duplicate-merging problem in
+4. Check the parallel citations against the duplicate-merging problem in
    `candidate-cardinality.md`. A record giving both `139 A.D.3d 695` and
    `32 N.Y.S.3d 201` settles a parallel-citation clash directly.
 
