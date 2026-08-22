@@ -366,6 +366,14 @@ class CandidateSelectionNode:
     depends_on: tuple[str, ...]
     status_message: str | None = None
     outcome_message: str | None = None
+    distinct_case_count: int | None = None
+    """How many separate cases the returned records amount to, when known.
+
+    A citation lookup often returns the same decision more than once, so
+    `total_candidate_count` counts records rather than cases. The limit is
+    applied to this figure where it is available, and both are kept so the
+    difference between them is visible in the record rather than inferred.
+    """
 
 
 @dataclass(frozen=True, slots=True)

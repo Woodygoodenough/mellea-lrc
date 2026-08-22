@@ -1097,10 +1097,41 @@ def test_ambiguous_lookup_defers_candidate_selection_over_the_limit() -> None:
     assert selection.outcome is CandidateSelectionOutcome.DEFERRED_OVER_LIMIT
     assert selection.total_candidate_count == 4
     assert selection.selected_candidate_count == 0
+    assert selection.distinct_case_count == 4
     assert selection.outcome_message == (
-        "Candidate validation is deferred because 4 returned candidates exceed the current scope of 3; "
-        "further refinement is needed before selecting candidates."
+        "Candidate validation is deferred because 4 returned candidates (4 distinct after merging "
+        "duplicates) exceed the current scope of 3; further refinement is needed before selecting "
+        "candidates."
     )
+
+
+def test_records_of_one_decision_do_not_count_as_separate_candidates() -> None:
+    """A lookup returning four records for one page is usually one case.
+
+    CourtListener holds the same decision more than once, so counting records
+    treats an unambiguous citation as contested and the limit then defers it.
+    Merging first is what stops four copies of one case looking like four
+    cases; on the ambiguous citations in the last probe it turns 53 of 68 into
+    a single candidate and halves how many exceed the limit.
+    """
+    extracted = _document(FullCaseCitation(volume="1", reporter="F.2d", page="2"))
+    clusters = tuple(
+        CourtListenerOpinionCluster(case_name=name, date_filed="1995-06-09")
+        for name in (
+            "Grasty v. Amalgamated Clothing & Textile Workers Union",
+            "Grasty v. Amalgamated Clothing And Textile Workers U",
+            "",
+            "Grasty v. Amalgamated",
+        )
+    )
+    client = LookupClient(CourtListenerCitationLookup(citation="1 F.2d 2", status=300, clusters=clusters))
+
+    nodes = _validate(extracted, client).citations[0].nodes
+    selection = next(node for node in nodes if isinstance(node, CandidateSelectionNode))
+
+    assert selection.total_candidate_count == 4
+    assert selection.distinct_case_count == 1
+    assert selection.outcome is CandidateSelectionOutcome.ALL_SELECTED
 
 
 def test_unsupported_citation_is_skipped_without_service_access() -> None:
