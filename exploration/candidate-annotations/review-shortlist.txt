@@ -1,0 +1,131 @@
+[1] 015:29263-29285  score=12  doc=015  locator='2025 Bankr. LEXIS 2284'
+    candidate : 'In  re  Calpine  Corp.'  (span 29049-29071, backward_scan_in_re)
+    archive   : None  status=404 clusters=0
+    flags     : candidate shares no party with the extractor; text between name and locator: 'showing of irreparable harm is the singl'; name span shared with another citation in the document
+    context   : ... Giftcraft , 2025 Bankr. LEXIS 1350, at *17.\n26. In evaluating these factors, courts take a ' flexible approach and no one factor is determinative. ' In  re  Calpine  Corp. ,  365  B.R.  401,  409  (S.D.N.Y.  2007). ' A  showing  of irreparable  harm  is ' the  single  most  important  prerequisite  for  the  issuance  of  a  preliminary injunction. '' Iovate , 2025 Bankr. LEXIS 2284, at *25 (quoting Faiveley Transp. Malmo AB v. Wabtec Corp. , 559 F.3d 110, 118 (2d Cir. 2...
+
+[2] 021:36635-36651  score=9  doc=021  locator='958 F. Supp. 456'
+    candidate : "Loos v. Lowe's"  (span 36316-36330, backward_scan)
+    archive   : 'Spratt v. Northern Automotive Corp.'  status=200 clusters=1
+    flags     : text between name and locator: 'for example the plaintiff alleged isolat'; name span shared with another citation in the document; disagrees with archive record 'Spratt v. Northern Automotive Corp.'
+    context   : ...ated the discrimination through formal discipline and public marginalization.\n\nMoreover, the cases Defendant cites are materially distinguishable. In Loos v. Lowe's , for example, the plaintiff alleged isolated incidents of inappropriate language. 796 F. Supp. 2d 1013, 1023 (D. Ariz. 2011). In Spratt , the allegations concerned internal justification for  termination  and  not  gender-based  sexual  harassment,  ethnic  marginalization,  or cumulative retaliation. 958 F. Supp. 456, 462 (D. Ariz. 1996). And in Lindvall , the conduct, while degrading, was limited to a fe...
+
+[3] 006:2226-2238  score=6  doc=006  locator='950 F.3d 754'
+    candidate : 'Rivero  v.  Bd.  of  Regents  of  Univ.  of  New  Mexico'  (span 2084-2140, backward_scan)
+    archive   : 'Rivero v. Univ. N.M. Board of Regents'  status=200 clusters=1
+    flags     : text between name and locator: 'JB SCY'; name span shared with another citation in the document
+    context   : ...e standard for relevancy is particularly  loose  under  rule  401,  because  '[a]ny  more  stringent  requirement  is  unworkable  and unrealistic.'' Rivero  v.  Bd.  of  Regents  of  Univ.  of  New  Mexico ,  No.  CIV  16-0318  JB\SCY,  2019 WL 1085179, at *78 (D.N.M. Mar. 7, 2019), aff'd, 950 F.3d 754 (10th Cir. 2020) (internal citations omitted).\n\n'Relevant  evidence  is  inherently  prej...
+
+[4] 022:10272-10289  score=6  doc=022  locator='85 F. Supp. 3d 89'
+    candidate : 'Roe v. Bernabei & Wachtel'  (span 10195-10220, backward_scan)
+    archive   : 'Roe v. Bernabei & Wachtel Pllc'  status=200 clusters=1
+    flags     : text between name and locator: 'passim'; table-of-authorities row
+    context   : ...                | ……………………………….10                   |\n| Does I thru XXIII v. Advanced Textile Corp. 214 F.3d 1058 (9th Cir. 2000) …………………………………………….… Roe v. Bernabei & Wachtel            | passim                            |\n| 85 F. Supp. 3d 89 (D.D.C. 2015) ……………………………………………………….7 Sealed Plaintiff v. Sealed Defendant               ...
+
+[5] 013:11212-11227  score=5  doc=013  locator='137 S. Ct. 1285'
+    candidate : 'Lewis v. Clarke'  (span 11195-11210, backward_scan)
+    archive   : None  status=300 clusters=2
+    flags     : candidate shares no party with the extractor
+    context   : ...ished federal law, clearly protected under federal statutes and judicial precedents including Santa Clara Pueblo v. Martinez, 436 U.S. 49 (1978), and Lewis v. Clarke, 137 S. Ct. 1285 (2017). Plaintiff explicitly preserves and asserts this sovereign immunity protection to ...
+
+[6] 015:22701-22723  score=5  doc=015  locator='2025 Bankr. LEXIS 2284'
+    candidate : "In re Iovate Health Scis. Int ' l Inc."  (span 22641-22679, backward_scan_in_re)
+    archive   : None  status=404 clusters=0
+    flags     : candidate shares no party with the extractor
+    context   : ...-extensive with section 362 of the Bankruptcy Code and order similar relief to maintain the status quo pending a decision on recognition. See, e.g. , In re Iovate Health Scis. Int ' l Inc. , No. 25-11958 (MG), 2025 Bankr. LEXIS 2284 (Bankr. S.D.N.Y. Sep. 12, 2025) (granting interim relief in the form of a stay to preserv...
+
+[7] 015:30138-30153  score=5  doc=015  locator='2023 WL 1428572'
+    candidate : "In re Team Sys. Int ' l, LLC"  (span 30087-30115, backward_scan_in_re)
+    archive   : None  status=404 clusters=0
+    flags     : candidate shares no party with the extractor
+    context   : ...factors and determines in its sound discretion if all four factors, taken together, balance in favor of granting the requested preliminary relief. '' In re Team Sys. Int ' l, LLC , No. 22-10066 (CTG), 2023 WL 1428572, at *10 (quoting Reilly v. City of Harrisburg , 858 F.3d 173, 179 (3d Cir. 2017)); see al...
+
+[8] 022:9759-9779  score=5  doc=022  locator='164 F. Supp. 3d 1140'
+    candidate : 'Doe v. Townes'  (span 9588-9601, backward_scan)
+    archive   : 'Doe v. UNUM Life Insurance Co. of America'  status=200 clusters=1
+    flags     : candidate shares no party with the extractor; table-of-authorities row; name span shared with another citation in the document
+    context   : ...--------------------------------------------------------------------------------------------------------------|-----------------------------------|\n| Doe v. Townes , No. 19 Civ. 8034, 2020 WL 2395159                                                                                  | (S.D.N.Y. May 12, 2020) ………………….6 |\n| 164 F. Supp. 3d 1140, 1144 (N.D. Cal. 2016) ……………………………………11 Doe v. Washington Univ. , 2023)                  ...
+
+[9] 025:14336-14348  score=5  doc=025  locator='550 U.S. 544'
+    candidate : 'Bell Atlantic Corp. v. Twombly'  (span 14303-14333, backward_scan)
+    archive   : 'Bell Atlantic Corp. v. Twombly'  status=200 clusters=1
+    flags     : candidate shares no party with the extractor
+    context   : ...ig ., 763 F. Supp. 2d 423, 581 (S.D.N.Y. 2011).\n\nGiven this evidentiary record, Brown's attempt to invoke Ashcroft v. Iqbal, 556 U.S. 662 (2009), and Bell Atlantic Corp. v. Twombly , 550 U.S. 544 (2007) as a basis for dismissal is legally and factually moot. Those cases bar only specu...
+
+[10] 006:17356-17368  score=4  doc=006  locator='742 F.3d 104'
+    candidate : 'Hassan'  (span 17348-17354, backward_scan_single_party)
+    archive   : 'United States v. Mohammad Hassan'  status=200 clusters=1
+    flags     : only one party found
+    context   : ...ited States  v.  Hassan ,  holding  that  social  media  posts  are  admissible  when  adequately authenticated  and  relevant  to  material  issues. Hassan, 742 F.3d 104, 133 (10th Cir.  2014).  Here,  Mr. Coomer  does  not  dispute  the  authenticity  of  hi...
+
+[11] 007:2173-2185  score=4  doc=007  locator='768 F.3d 122'
+    candidate : 'Gucci America'  (span 2157-2170, backward_scan_single_party)
+    archive   : 'Gucci America, Inc. v. Bank of China'  status=200 clusters=1
+    flags     : only one party found; table-of-authorities row
+    context   : ...…………….                        | 7      |\n| Donovan v. City of Dallas , 377 U.S. 408 (1964)………………………………...                                | 6      |\n| Gucci America , 768 F.3d 122 (2 nd Cir. 2014)……………………………………...                                | 7      |\n| In re Amica...
+
+[12] 007:9418-9430  score=4  doc=007  locator='571 F.3d 238'
+    candidate : 'Zino Davidoff'  (span 9402-9415, backward_scan_single_party)
+    archive   : 'Zino Davidoff SA v. CVS Corp.'  status=200 clusters=1
+    flags     : only one party found
+    context   : ...d at 655 (Equity will not aid a contemnor.); Perfect Fit Industries , 673 F.2d at 57  (A party who violates an injunction cannot seek to modify it.); Zino Davidoff , 571 F.3d 238 (Failure to control enjoined goods warrants contempt.) Shore Realty , 759\n\nF.2d 1032 (Par...
+
+[13] 007:9501-9515  score=4  doc=007  locator='759\n\nF.2d 1032'
+    candidate : 'Shore Realty'  (span 9486-9498, backward_scan_single_party)
+    archive   : 'The State of New York v. Shore Realty Corp. And Donald Leogrande'  status=200 clusters=1
+    flags     : only one party found
+    context   : ...  (A party who violates an injunction cannot seek to modify it.); Zino Davidoff , 571 F.3d 238 (Failure to control enjoined goods warrants contempt.) Shore Realty , 759\n\nF.2d 1032 (Party must maintain dominion over regulated property.); Gucci America , 768 F.3d 122 (Lo...
+
+[14] 022:19418-19441  score=4  doc=022  locator='375  F.  Supp.  3d  401'
+    candidate : 'Skyline  Automobiles'  (span 19394-19414, backward_scan_single_party)
+    archive   : 'Jane Doe v. Skyline Automobiles Inc.'  status=200 clusters=1
+    flags     : only one party found
+    context   : ...ymity to protect a plaintiff who feared career-ending retaliation after harassment in a competitive industry.\n\nIronically,  Defendant's  citation  of Skyline  Automobiles ,  375  F.  Supp.  3d  401, confirms the sensitive nature of harassment claims. There, the court recognized allegati...
+
+[15] 007:2291-2305  score=3  doc=007  locator='85 A.D.3d 1510'
+    candidate : 'In re Amica Mut. Ins. Co.'  (span 2264-2289, backward_scan_in_re)
+    archive   : 'Leto v. Amrex Chemical Co.'  status=200 clusters=1
+    flags     : table-of-authorities row; disagrees with archive record 'Leto v. Amrex Chemical Co.'
+    context   : ...                              | 6      |\n| Gucci America , 768 F.3d 122 (2 nd Cir. 2014)……………………………………...                                | 7      |\n| In re Amica Mut. Ins. Co., 85 A.D.3d 1510 (3 rd Dept. 2011)……………………                           | 5, 6   |\n| In re Marcus , 491 F.2d ...
+
+[16] 007:2386-2397  score=3  doc=007  locator='491 F.2d 56'
+    candidate : 'In re Marcus'  (span 2371-2383, backward_scan_in_re)
+    archive   : 'United States v. Thomas Melton, Jr.'  status=200 clusters=1
+    flags     : table-of-authorities row; disagrees with archive record 'United States v. Thomas Melton, Jr.'
+    context   : ...                              | 7      |\n| In re Amica Mut. Ins. Co., 85 A.D.3d 1510 (3 rd Dept. 2011)……………………                           | 5, 6   |\n| In re Marcus , 491 F.2d 56, 60 (2 nd Cir. 1974)……………………………………                                 | 10     |\n| Liss v. T...
+
+[17] 008:3628-3643  score=3  doc=008  locator='131 A.D.3d 1185'
+    candidate : 'Bank of Am., N.A. v. Gruff'  (span 3599-3625, extractor_parties_and_scan)
+    archive   : 'Bachvarov v. Lawrence Union Free School District'  status=200 clusters=1
+    flags     : table-of-authorities row; disagrees with archive record 'Bachvarov v. Lawrence Union Free School District'
+    context   : ...                                                                                           | page                                               |\n| • Bank of Am., N.A. v. Gruff , 131 A.D.3d 1185 (2d Dept. 2015) ......................................[7]                                ...
+
+[18] 008:4028-4042  score=3  doc=008  locator='139 A.D.3d 695'
+    candidate : 'Cadle Co. v. Ayala'  (span 4007-4025, extractor_parties_and_scan)
+    archive   : 'Ramirez v. City of New York'  status=200 clusters=1
+    flags     : table-of-authorities row; disagrees with archive record 'Ramirez v. City of New York'
+    context   : ...........................................................                                   | [7]                                                |\n| • Cadle Co. v. Ayala , 139 A.D.3d 695 (2d Dept. 2016) ...................................................                      ...
+
+[19] 008:4644-4658  score=3  doc=008  locator='183 A.D.3d 649'
+    candidate : 'Cornhill LLC v. Sowers'  (span 4619-4641, extractor_parties_and_scan)
+    archive   : 'Matter of Goodine v. Evans'  status=200 clusters=1
+    flags     : table-of-authorities row; disagrees with archive record 'Matter of Goodine v. Evans'
+    context   : ...10) ....................................[5]                                                |                                                    |\n| • Cornhill LLC v. Sowers , 183 A.D.3d 649 (2d Dept. 2020) .............................................[7]                         ...
+
+[20] 010:16639-16655  score=3  doc=010  locator='61 N.C. App. 134'
+    candidate : 'Barber v. Perry'  (span 16622-16637, extractor_parties_and_scan)
+    archive   : 'State v. Hough'  status=200 clusters=1
+    flags     : name span shared with another citation in the document; disagrees with archive record 'State v. Hough'
+    context   : ...61 S.E.2d 734 (1987) - establishing that injured plaintiffs may recover the reasonable value of medical expenses regardless of third-party payment.\n- Barber v. Perry, 61 N.C. App. 134, 300 S.E.2d 387 (1983) -- affirming the collateral source rule and disallowing evidence o...
+
+[21] 010:16823-16835  score=3  doc=010  locator='364 N.C. 394'
+    candidate : 'Estate of Harvey v. Kore-Kut, Inc.'  (span 16787-16821, extractor_parties_and_scan)
+    archive   : 'State v. Mumford'  status=200 clusters=1
+    flags     : name span shared with another citation in the document; disagrees with archive record 'State v. Mumford'
+    context   : ..., 61 N.C. App. 134, 300 S.E.2d 387 (1983) -- affirming the collateral source rule and disallowing evidence of insurance payments to reduce damages.\n- Estate of Harvey v. Kore-Kut, Inc., 364 N.C. 394, 700 S.E.2d 231 (2010) reiterating that tortfeasors must bear the full cost of their wron...
+
+[22] 023:18730-18743  score=3  doc=023  locator='158 F.3d 1051'
+    candidate : "Valley Eng'rs Inc. v. Elec. Eng'g Co."  (span 18690-18727, extractor_partial_and_scan)
+    archive   : None  status=300 clusters=2
+    flags     : candidate matches only one of the two extractor parties
+    context   : ...emphasized that  '[d]ispositive  sanctions  for  violations  of  procedural  rules should be reserved for cases of willfulness, bad faith, or fault.' Valley Eng'rs Inc. v. Elec. Eng'g Co. , 158 F.3d 1051, 1057 (9th Cir. 1998). There is no such conduct present here.\n\nPlaintiff acted quickly up...
