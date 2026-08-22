@@ -90,17 +90,29 @@ def test_star_pagination_is_not_treated_as_a_printed_page(index: CapIndex) -> No
         ("N.E.2d", "ne2d"),
         ("F. App'x", "f-appx"),
         ("U.S.", "us"),
+        ("N.C. App.", "nc-app"),
+        ("Cal. App. 4th", "cal-app-4th"),
     ],
 )
 def test_a_reporter_maps_to_the_name_the_archive_publishes(reporter: str, expected: str) -> None:
-    """The archive closes up spaces inconsistently, so both forms are tried.
+    """A period inside an abbreviation closes up; a space between them dashes.
 
-    `F.2d` is `f2d` and `F. Supp.` is `f-supp`, and no single rule produces
-    both, so the candidate forms are checked against what is actually there.
+    `F.2d` is `f2d` and `A.D.3d` is `ad3d`, while `F. Supp.` is `f-supp` and
+    `N.C. App.` is `nc-app`. Treating every period as a space instead gets
+    `n-c-app`, which is not published and silently loses the reporter.
     """
-    published = {"f2d", "f-supp", "ad3d", "ne2d", "f-appx", "us"}
+    published = {"f2d", "f-supp", "ad3d", "ne2d", "f-appx", "us", "nc-app", "cal-app-4th"}
 
     assert reporter_slug(reporter, published) == expected
+
+
+def test_a_reporter_that_postdates_the_archive_is_absent_too() -> None:
+    """`F.4th` began in 2021, after the archive stopped. There is no directory.
+
+    Reported the same way as a vendor identifier, because the caller's next
+    move is the same: this index has nothing to say.
+    """
+    assert reporter_slug("F.4th", {"f2d", "f3d", "us"}) is None
 
 
 def test_a_vendor_identifier_is_not_a_reporter() -> None:

@@ -144,17 +144,27 @@ class PageVerdict:
 def reporter_slug(reporter: str, known: Iterable[str]) -> str | None:
     """Map a citation's reporter to the archive's directory name.
 
-    The archive is not consistent about how it closes up spaces -- ``F.2d`` is
-    ``f2d`` and ``F. Supp.`` is ``f-supp`` -- so both forms are tried against
-    the set of names the archive actually publishes, along with the
-    apostrophe-stripped forms needed for ``F. App'x``. Returns ``None`` when no
-    variant is published, which is the answer for a vendor identifier like
-    ``WL`` that is not a reporter at all.
+    The rule the archive follows is that a period *inside* an abbreviation
+    closes up while a space *between* abbreviations becomes a dash. So ``F.2d``
+    is ``f2d`` and ``A.D.3d`` is ``ad3d``, while ``F. Supp.`` is ``f-supp`` and
+    ``N.C. App.`` is ``nc-app``. Splitting on whitespace before removing
+    periods gets all four; treating every period as a space gets ``n-c-app``
+    and finds nothing.
+
+    The all-joined and all-dashed forms are still tried afterwards, because one
+    rule derived from a sample is not a guarantee about 401 directory names.
+    Returns ``None`` when no variant is published, which is the answer for a
+    vendor identifier like ``WL`` that is not a reporter at all, and for a
+    reporter that began after the archive stopped, like ``F.4th``.
     """
     known = set(known)
-    words = reporter.replace(".", " ").replace("’", "'").strip().lower().split()
-    joined, dashed = "".join(words), "-".join(words)
-    for candidate in (joined, dashed, joined.replace("'", ""), dashed.replace("'", "")):
+    cleaned = reporter.replace("’", "'").replace("'", "").strip().lower()
+    tokens = [token.replace(".", "") for token in cleaned.split()]
+    tokens = [token for token in tokens if token]
+    if not tokens:
+        return None
+    flattened = cleaned.replace(".", " ").split()
+    for candidate in ("-".join(tokens), "".join(tokens), "".join(flattened), "-".join(flattened)):
         if candidate in known:
             return candidate
     return None
