@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from mellea_lrc.statutes import ProvisionStatus, SectionForm, UsCodeIndex, resolve_section
+from mellea_lrc.statutes import (
+    ProvisionStatus,
+    SectionForm,
+    UsCodeIndex,
+    listed_sections,
+    resolve_section,
+)
 from mellea_lrc.statutes.section_forms import MAX_ENUMERATED_RANGE
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "us_code"
@@ -126,3 +132,60 @@ def test_a_transferred_section_is_a_defect_though_it_exists(index: UsCodeIndex) 
     assert verdict.form is SectionForm.SECTION
     assert verdict.not_in_force == (("6", ProvisionStatus.TRANSFERRED),)
     assert verdict.is_defect
+
+
+def test_a_plural_citation_names_the_sections_after_the_first() -> None:
+    """`28 U.S.C. §§ 1331, 1332, 1441, and 1446` is four sections.
+
+    eyecite's pattern ends at the first, so the other three are not reported
+    wrongly -- they are absent from the count entirely. Across the two corpora
+    that is 33 sections never checked.
+    """
+    text = "This Court has jurisdiction under 28 U.S.C. §§ 1331, 1332, 1441, and 1446. It should"
+    citation = text.index("28 U.S.C.")
+    end = text.index("1331") + len("1331")
+
+    assert listed_sections(text, citation_start=citation, citation_end=end) == ("1332", "1441", "1446")
+
+
+def test_each_listed_section_may_carry_its_own_subsections() -> None:
+    """Without allowing for them, `1225(b)(1)(B)(ii), 1226(c), 1231(a)(2)(A)` stops early."""
+    text = "detained under 8 U.S.C. §§ 1225(b)(1)(B)(ii), 1226(c), 1231(a)(2)(A) and held"
+    citation = text.index("8 U.S.C.")
+    end = text.index("1225") + len("1225")
+
+    assert listed_sections(text, citation_start=citation, citation_end=end) == ("1226", "1231")
+
+
+def test_reading_a_list_stops_at_the_first_thing_that_is_not_a_section() -> None:
+    """A list runs into ordinary prose, and the prose is not part of the citation."""
+    text = "see 28 U.S.C. §§ 1331, 1332, and the rules thereunder"
+    citation = text.index("28 U.S.C.")
+    end = text.index("1331") + len("1331")
+
+    assert listed_sections(text, citation_start=citation, citation_end=end) == ("1332",)
+
+
+def test_a_single_section_symbol_licenses_no_list() -> None:
+    """`§ 1331, 1332` is one section and then something else.
+
+    The plural marker is what says the filing meant a list. Without it the
+    comma could be anything, and reading on would invent a citation.
+    """
+    text = "under 28 U.S.C. § 1331, 1332 is a different matter"
+    citation = text.index("28 U.S.C.")
+    end = text.index("1331") + len("1331")
+
+    assert listed_sections(text, citation_start=citation, citation_end=end) == ()
+
+
+def test_a_section_that_mixes_digits_and_letters_is_unresolved_when_absent(index: UsCodeIndex) -> None:
+    """A lost hyphen damages a section the same way a scanned digit does.
+
+    One filing writes `42 U.S.C. §§ 2000e-5(e), 2000e5(f)(1)` -- the second has
+    lost its hyphen, and `2000e5` is not a section. Reporting it as absent
+    would accuse a filing that cited the provision correctly two words earlier.
+    """
+    assert resolve_section(index, "99", "20e5").form is SectionForm.UNRESOLVED
+    assert resolve_section(index, "99", "1915B").form is SectionForm.UNRESOLVED
+    assert resolve_section(index, "99", "999").form is SectionForm.ABSENT

@@ -18,6 +18,7 @@ from mellea_lrc.statutes.section_forms import (
     MAX_ENUMERATED_RANGE,
     SectionForm,
     SectionVerdict,
+    listed_sections,
     resolve_section,
 )
 from mellea_lrc.statutes.us_code import (
@@ -36,6 +37,7 @@ __all__ = [
     "SectionVerdict",
     "UsCodeIndex",
     "UscLookupResult",
+    "listed_sections",
     "resolve_section",
     "title_zip_url",
 ]

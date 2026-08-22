@@ -13,10 +13,12 @@ real law, misread in two ways:
   swallows the hyphen, so the section reads as ``2201-2202`` -- which is not a
   section, and reporting it as absent would accuse a correct citation. Ten of
   the fifteen are this.
-* **A digit that came out of the scan as a letter.** In one typewritten filing
-  every ``1`` was rendered ``l``, so ``18 U.S.C. § 201`` reads as ``20l``.
-  Four of the fifteen are this, and one more (``42 U.S.C. § 200d`` for
-  ``2000d``) is a dropped digit of the same character.
+* **A digit that came out of the scan as a letter, or a hyphen that did not
+  survive.** In one typewritten filing every ``1`` was rendered ``l``, so
+  ``18 U.S.C. § 201`` reads as ``20l``. Another filing writes ``2000e5`` in a
+  list two words after writing ``2000e-5`` correctly. Four of the fifteen are
+  this, and one more (``42 U.S.C. § 200d`` for ``2000d``) is a dropped digit of
+  the same character.
 
 Both are settled by evidence rather than by guessing. A hyphenated section is
 treated as a range only when it is absent as written **and** both endpoints
@@ -30,6 +32,11 @@ What is left after both is one citation: ``42 U.S.C. §§ 2000, et seq.``, which
 a filing wrote for Title VII. Title VII is 2000e et seq.; bare 2000 is not a
 section. That is imprecise rather than invented, and it is the only citation in
 601 that this layer cannot account for.
+
+:func:`listed_sections` answers a different question about the same string: a
+plural citation names several sections and eyecite's pattern stops at the first,
+so the rest are absent from the count rather than reported wrongly. Reading them
+adds 33 sections across the two corpora.
 """
 
 from __future__ import annotations
@@ -46,13 +53,35 @@ if TYPE_CHECKING:
 # both match; which one is a range is decided by the Code, not by the shape.
 _HYPHENATED = re.compile(r"^(?P<start>.+)-(?P<end>[0-9]+[a-zA-Z]?)$")
 
-# A section whose digits carry a trailing letter. Real ones are common
-# (`1681g`, `2000e`, `668dd`), which is why an absent one cannot be called
-# fabricated: a scanned `1` reads as `l` and lands in exactly this shape.
-_LETTER_SUFFIXED = re.compile(r"^\d+[a-zA-Z]{1,2}$")
+# A section that mixes digits and letters. Real ones are common (`1681g`,
+# `2000e-5`, `668dd`, `1915A`), which is why an absent one cannot be called
+# fabricated -- every way a scan damages a section number lands in this shape:
+# a `1` read as `l` gives `20l` for 201, and a lost hyphen gives `2000e5` for
+# `2000e-5`, which one filing writes in a list two words after writing
+# `2000e-5` correctly. A section of digits alone carries no such ambiguity, so
+# an absent one is reported as absent.
+_MIXED_ALPHANUMERIC = re.compile(r"^(?=.*\d)(?=.*[a-zA-Z])[0-9A-Za-z\-.:]+$")
 
 # A range's endpoints have to be numbers to be enumerated at all.
 _NUMERIC = re.compile(r"^\d+$")
+
+# The plural section symbol, or the plural word, inside a citation's own text.
+# It is what licenses reading a list after the citation: `§ 1331, 1332` is a
+# writing error, `§§ 1331, 1332` is two sections.
+_PLURAL_MARKER = re.compile(r"§\s*§|\bSect(?:ion)?s\b|\bSs\b", re.IGNORECASE)
+
+# One more section in a list, separated by a comma and optionally the word
+# "and": `, 1332`, `, and 1446`, `, 1446(b)`. The leading group swallows the
+# *previous* section's subsections, without which a list like
+# `§§ 1225(b)(1)(B)(ii), 1226(c), 1231(a)(2)(A)` stops after its second entry.
+# Matched at a position rather than searched for, so reading stops at the first
+# thing that is not another section -- which is what keeps
+# `§§ 1331, 1332, and the rules thereunder` from swallowing the prose.
+_NEXT_LISTED = re.compile(
+    r"(?:\([0-9A-Za-z]+\))*\s*,\s*(?:and\s+)?"
+    r"(?P<section>\d[0-9A-Za-z]*(?:[\-.:]\d+[a-zA-Z]{,2})*)",
+    re.IGNORECASE,
+)
 
 # `2201-2202` and `2201-02` are the same range. Above this many sections the
 # citation is a span the filing is pointing at wholesale rather than a list
@@ -112,7 +141,7 @@ def resolve_section(index: UsCodeIndex, title: str, section: str) -> SectionVerd
     if span is not None:
         return _verdict(index, title, written, SectionForm.RANGE, span)
 
-    form = SectionForm.UNRESOLVED if _LETTER_SUFFIXED.match(written) else SectionForm.ABSENT
+    form = SectionForm.UNRESOLVED if _MIXED_ALPHANUMERIC.match(written) else SectionForm.ABSENT
     return SectionVerdict(title=str(title), written=written, form=form)
 
 
@@ -187,3 +216,28 @@ def _enumerate(start: str, end: str) -> tuple[str, ...]:
     if last - first + 1 > MAX_ENUMERATED_RANGE:
         return (start, end)
     return tuple(str(number) for number in range(first, last + 1))
+
+
+def listed_sections(text: str, *, citation_start: int, citation_end: int) -> tuple[str, ...]:
+    """The further sections a plural citation lists after the one it captured.
+
+    `28 U.S.C. §§ 1331, 1332, 1441, and 1446` names four sections. eyecite's
+    pattern ends at the first, so the other three are never extracted and never
+    checked -- they are not reported wrongly, they are absent from the count
+    entirely. Across the two corpora that is 24 distinct sections named only
+    inside such a list, which puts the statute total at 625 rather than 601 and
+    the share actually found at 96%.
+
+    Reading a list is licensed by the plural marker inside the citation's own
+    text, so a single `§` followed by a comma is left alone. Reading stops at
+    the first thing that is not another section number, which is what keeps
+    `§§ 1331, 1332, and the rules thereunder` from swallowing prose.
+    """
+    if not _PLURAL_MARKER.search(text[citation_start:citation_end]):
+        return ()
+    found: list[str] = []
+    position = citation_end
+    while match := _NEXT_LISTED.match(text, position):
+        found.append(match.group("section"))
+        position = match.end()
+    return tuple(found)
