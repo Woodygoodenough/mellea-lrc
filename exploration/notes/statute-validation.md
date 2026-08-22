@@ -100,14 +100,71 @@ That makes the deterministic quotation check — already built, in
 `quotation/verbatim.py` — more valuable here than it is for cases, and it
 suggests statutes may be the better place to demonstrate it.
 
-## 6. Where to start
+## 6. The patterns had to be relaxed before any of this could run
 
-1. Load the U.S. Code from the bulk XML and answer the existence question for
-   the 642 federal citations in the two corpora. No network, no model, and it
-   establishes the base rate for how often a filing cites a section that is not
-   there.
-2. Add the in-force check from the same data, which is the defect with no case
-   equivalent and therefore the most distinctive thing available here.
-3. Leave state statutes until federal is done, and expect the first work there
+Measured after section 5 was written, and it changed the order of the work.
+eyecite generates law patterns the same way it generates reporter patterns, and
+they are brittle in the same three places. The failure is silent: a statute
+that does not match produces a bare section symbol typed as unknown and no law
+citation at all, so a checker never sees it.
+
+1. The section group admits digits, dots, dashes and colons and refuses a
+   letter fixed to the digits. That rules out Title VII (`2000e-2`), the Fair
+   Credit Reporting Act (`1681g`), the Rehabilitation Act (`794a`), the
+   Securities Act (`77l`) and the National Wildlife Refuge System
+   Administration Act (`668dd`).
+2. Most law patterns join the reporter to the section symbol with a literal
+   space and allow one after it.
+3. Every reporter branch requires its closing period, so `42 U.S.C § 12132` and
+   `29 U.S.C.A § 2612` match nothing. Both are written that way in the sampled
+   filings.
+
+Relaxing all three, scoped to law patterns only, is in
+`experimental/relaxed_eyecite_extractor.py`. Counting distinct
+title-and-section pairs per document against what is written on the page:
+
+| corpus | eyecite as published | relaxed |
+|---|---:|---:|
+| 26 test filings | 41/46 (89%) | 46/46 (100%) |
+| 109 sampled filings | 218/247 (88%) | 246/247 (100%) |
+
+The one remaining miss is layout damage — `78u-4` lost its hyphen — and that
+same statute parses correctly elsewhere in the same document.
+
+The relaxation is not applied to case patterns. A case reporter's closing
+period is what separates it from the page in `410 U.S. 113`. The case
+extraction benchmark is unchanged at 583/585 with no false positives.
+
+Two side effects worth recording.
+
+**`17 C.F.R. § 240.10b-5` is no longer truncated to `240`.** Rule 10b-5 is the
+securities-fraud rule; part 240 is every rule under the Exchange Act. eyecite
+returned the part, which would have sent a checker to the wrong provision.
+
+**The letter suffix misreads a scanned digit.** In a typewritten filing in the
+sampled corpus every digit 1 came out as a lowercase l, so `18 U.S.C. § 201`
+reads as `20l` — a section that does not exist, where eyecite found nothing at
+all. Four of the 53 letter-suffixed sections recovered across the 109 filings
+are that damage, against 49 real ones. The widening is worth having, but it
+constrains the existence check directly: **a letter-suffixed section that is
+not in the code must not be reported as fabricated**, because the checker
+cannot tell that case apart from a scanning artifact. It can be reported as
+unresolved, which is honest and still useful.
+
+## 7. Where to start
+
+1. **Done.** Relax the law patterns, because 11% to 12% of statute citations
+   never reached a checker at all. Section 6 has the measurement.
+2. **Done for titles 28 and 42.** Load the U.S. Code from the bulk XML and
+   answer the existence question. `statutes/us_code.py` does this offline. On
+   the 52 citations in those two titles across both corpora, all 52 exist and
+   all 52 are in force, so the base rate for a fabricated federal statute in
+   this data is zero out of 52 — an upper bound of roughly 6% by the rule of
+   three, which is too loose to be worth reporting on its own. Downloading the
+   remaining titles is the next step and is the cheapest way to tighten it.
+3. Add the in-force check across all titles from the same data. It is the
+   defect with no case equivalent and therefore the most distinctive thing
+   available here.
+4. Leave state statutes until federal is done, and expect the first work there
    to be recovering the code name from the raw text rather than checking
    anything.
