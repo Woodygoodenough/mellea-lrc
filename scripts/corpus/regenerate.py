@@ -54,6 +54,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mellea_lrc.preprocessing.margin_line_numbers import reclassify_margin_line_numbers
+from mellea_lrc.preprocessing.repeated_furniture import reclassify_repeated_furniture
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -107,13 +108,18 @@ class DocumentResult:
 
 
 def _render(pdf: Path) -> tuple[str, str, int]:
-    """Return this filing rendered without and with the margin rule, and the count."""
+    """Return this filing rendered without and with the layout rules, and the count.
+
+    Both rules run, because both change the text and the point of the control
+    rendering is to isolate what the Docling version does on its own.
+    """
     from docling.document_converter import DocumentConverter
 
     document = DocumentConverter().convert(str(pdf)).document
     control = document.export_to_text()
-    margin_items = reclassify_margin_line_numbers(document)
-    return control, document.export_to_text(), margin_items
+    removed = reclassify_margin_line_numbers(document)
+    removed += reclassify_repeated_furniture(document)
+    return control, document.export_to_text(), removed
 
 
 def _shipped_text(path: Path) -> str:
@@ -171,6 +177,7 @@ def regenerate(benchmark: Path, output: Path) -> list[DocumentResult]:
         )
 
     _write_annotations(output / "derived" / "extraction.jsonl", results)
+    _write_annotations(output / "derived" / "extraction_locators.jsonl", results, kind="locator")
     return results
 
 
@@ -197,9 +204,21 @@ def _text_name(benchmark: Path, pdf: Path) -> str:
     return matches[0].name
 
 
-def _write_annotations(path: Path, results: Sequence[DocumentResult]) -> None:
+def _write_annotations(path: Path, results: Sequence[DocumentResult], *, kind: str | None = None) -> None:
+    """Write the carried annotations, optionally only those of one kind.
+
+    The locator file is written alongside the full one because the two kinds
+    are different tasks: eyecite does not model docket numbers, so scoring a
+    tokenizer against a denominator holding them reports a constant penalty
+    that says nothing about the tokenizer.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [json.dumps(record) for result in results for record in result.carried]
+    lines = [
+        json.dumps(record)
+        for result in results
+        for record in result.carried
+        if kind is None or record.get("kind") == kind
+    ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

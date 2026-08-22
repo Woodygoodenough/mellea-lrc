@@ -1,7 +1,12 @@
 # Corpus regeneration
 
 Re-renders false-citation-bench from its PDFs with the pleading-paper margin
-removed, and carries every gold span onto the new rendering.
+and the mislabelled page furniture removed, and carries every gold span onto
+the new rendering. Writes `derived/extraction.jsonl` and, beside it,
+`derived/extraction_locators.jsonl` holding only the volume-reporter-page
+records — eyecite does not model docket numbers, so a tokenizer scored against
+a denominator containing them takes a constant penalty that says nothing about
+the tokenizer.
 
 ```bash
 uv run python -m scripts.corpus.regenerate \

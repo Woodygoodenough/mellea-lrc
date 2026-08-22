@@ -202,6 +202,25 @@ def layout_tolerant(document: str, text: str) -> list[Occurrence]:
     return _from_extracted_document(document, extract_relaxed_citations(text))
 
 
+def layout_tolerant_margins_removed(document: str, text: str) -> list[Occurrence]:
+    """The layout-tolerant tokenizer, told that this text has no page margins.
+
+    Valid only on a corpus the structure-aware preprocessing produced. The
+    wider reporter-to-page join reads a blank line between the two as ordinary
+    separation, which is true once the margin is gone and false while it is
+    still there.
+
+    That is not a caution, it is measured. Run against the v1 corpus, whose
+    margins are present, this arm reports one false positive and it is
+    `214 F.3d\n\n1` -- the margin's first line number read as the citation's
+    page. Run against the same filing with the margins removed, the same arm
+    reports `214 F.3d\n\n1058`, which is the citation. A wrong page is worse
+    than a miss, so the narrower join remains the default everywhere the input
+    is not known to be clean.
+    """
+    return _from_extracted_document(document, extract_relaxed_citations(text, margins_removed=True))
+
+
 def layout_tolerant_with_recovery(document: str, text: str) -> list[Occurrence]:
     """The layout-tolerant tokenizer, then model recovery of what it still missed."""
     extracted = extract_relaxed_citations(text)
@@ -229,6 +248,10 @@ ARMS: dict[str, ArmSpec] = {
     "layout-tolerant": ArmSpec(
         run=layout_tolerant,
         components="layout-tolerant tokenizer",
+    ),
+    "layout-tolerant-wide": ArmSpec(
+        run=layout_tolerant_margins_removed,
+        components="layout-tolerant tokenizer, wide reporter-to-page join",
     ),
     "production+recovery": ArmSpec(
         run=production_with_recovery,

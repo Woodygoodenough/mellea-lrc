@@ -23,6 +23,7 @@ Not wired into the production pipeline.
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from functools import lru_cache
 from typing import TYPE_CHECKING, cast
 
@@ -197,6 +198,23 @@ def extract_relaxed(preprocessed: PreprocessedDocument) -> ExtractedDocument:
     )
 
 
-def extract_relaxed_citations(text: str, *, source_path: str | None = None) -> ExtractedDocument:
-    """Extract citations from raw Layer 2 text using the relaxed tokenizer."""
-    return extract_relaxed(preprocess_plain_text_from_string(text, source_path=source_path))
+def extract_relaxed_citations(
+    text: str,
+    *,
+    source_path: str | None = None,
+    margins_removed: bool = False,
+) -> ExtractedDocument:
+    """Extract citations from raw Layer 2 text using the relaxed tokenizer.
+
+    Plain text carries no record of how it was produced, so the wider
+    reporter-to-page join has to be asserted by the caller. Set
+    ``margins_removed`` only for text a structure-aware preprocessor produced;
+    on text that still holds a page margin it reads a line number as the page.
+    """
+    document = preprocess_plain_text_from_string(text, source_path=source_path)
+    if margins_removed:
+        document = replace(
+            document,
+            preprocessing_metadata=replace(document.preprocessing_metadata, margin_line_numbers_dropped=0),
+        )
+    return extract_relaxed(document)
