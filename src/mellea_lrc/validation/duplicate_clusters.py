@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
     from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinionCluster
 
-__all__ = ["merge_duplicates", "same_case_name"]
+__all__ = ["matching_case_names", "merge_duplicates", "same_case_name"]
 
 # Words that carry no identity: corporate forms, the article, and the wrappers a
 # reporter puts around a party.
@@ -58,6 +58,29 @@ _PUNCTUATION = re.compile(r"[^a-z0-9 ]+")
 # Two records must share at least this many distinctive words before a
 # containment test is allowed to merge them. See same_case_name.
 _MINIMUM_SHARED_WORDS = 2
+
+# A written word this long may stand for a longer one it begins. Below it,
+# `co` would match `Colgate` and `Cox` alike.
+_MINIMUM_PREFIX = 3
+
+# Party-name abbreviations that drop the middle of a word and keep its end, so
+# no prefix test reaches them. The apostrophe is already gone by this point.
+_CONTRACTIONS = {
+    "assn": "assoc",
+    "intl": "international",
+    "natl": "national",
+    "mgmt": "manage",
+    "bhd": "brotherhood",
+    "sys": "system",
+    "servs": "service",
+    "svcs": "service",
+    "cnty": "county",
+    "dist": "district",
+    "auth": "authorit",
+    "comm": "commi",
+    "indus": "industr",
+    "sec": "securit",
+}
 
 # A trailing roman numeral marks which appeal this is, not which case.
 _APPEAL_STAGE = re.compile(r"\b(ii|iii|iv|v?i{0,3})\b$")
@@ -125,3 +148,58 @@ def _is_duplicate(
         # A name agreement separates them; without both names, decline.
         return same_case_name(known.case_name, candidate.case_name)
     return same_case_name(known.case_name, candidate.case_name)
+
+
+def matching_case_names(
+    clusters: Sequence[CourtListenerOpinionCluster],
+    *,
+    plaintiff: str | None,
+    defendant: str | None,
+) -> tuple[int, ...]:
+    """Which records carry the case name the filing wrote, by position.
+
+    A printed page can carry dozens of unrelated cases -- an unpublished-decision
+    table, or a Supreme Court orders list -- and the volume and page alone
+    cannot separate them. The case name can, and the filing supplies it.
+
+    Every distinctive word the filing wrote must appear in the record's name.
+    Requiring the filing's words rather than the record's is what makes this
+    usable on a page of `United States v. ...` entries: the filing names a
+    defendant, and only one record carries it.
+
+    Returns an empty result when the filing named too little to decide on --
+    which must not be read as a mismatch. It is also empty when no record
+    matches, and that case is genuinely ambiguous: either the filing named a
+    case that is not on the page, or the archive holds only part of the page.
+    On the twelve crowded pages in the corpus this separated eleven correctly
+    and failed once, on a page the archive covers thinly.
+    """
+    written = _words(plaintiff) | _words(defendant)
+    if len(written) < _MINIMUM_SHARED_WORDS:
+        return ()
+    return tuple(
+        index for index, cluster in enumerate(clusters) if _covers(_words(cluster.case_name), written)
+    )
+
+
+def _covers(recorded: set[str], written: set[str]) -> bool:
+    """Whether every word the filing wrote is present in the record's name."""
+    return all(any(_same_word(word, other) for other in recorded) for word in written)
+
+
+def _same_word(written: str, recorded: str) -> bool:
+    """Whether one word of a written case name is the record's word for it.
+
+    A citation abbreviates party names by convention, in two shapes. Most are
+    truncations keeping the front -- `Pac.` for Pacific, `Corp.` for
+    Corporation, `Univ.` for University -- which a prefix test covers. The rest
+    cut out the middle and keep the end, which no prefix test reaches, so those
+    are listed. Without this, `Reyes v. Pac. Bell` does not match `Victor Reyes
+    v. Pacific Bell`, which is the ordinary way that case is cited.
+    """
+    if written == recorded:
+        return True
+    expanded = _CONTRACTIONS.get(written)
+    if expanded is not None and recorded.startswith(expanded):
+        return True
+    return len(written) >= _MINIMUM_PREFIX and recorded.startswith(written)

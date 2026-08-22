@@ -7,7 +7,11 @@ change that breaks one is a change against what the archive actually contains.
 import pytest
 
 from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinionCluster
-from mellea_lrc.validation.duplicate_clusters import merge_duplicates, same_case_name
+from mellea_lrc.validation.duplicate_clusters import (
+    matching_case_names,
+    merge_duplicates,
+    same_case_name,
+)
 
 
 def _cluster(name: str, date: str | None = None) -> CourtListenerOpinionCluster:
@@ -113,3 +117,78 @@ def test_a_missing_name_is_no_evidence_of_a_match() -> None:
         )
         == 2
     )
+
+
+def _named(*names: str) -> list[CourtListenerOpinionCluster]:
+    return [_cluster(name) for name in names]
+
+
+def test_the_filings_case_name_picks_one_case_off_a_crowded_page() -> None:
+    """A page of unpublished decisions holds many unrelated cases.
+
+    `21 F.3d 1115` returns 28 of them, so the volume and page cannot choose.
+    The filing names the case, and that separates it.
+    """
+    clusters = _named(
+        "Lynda Loie Paxton v. Oxy USA",
+        "Victor Reyes v. Pacific Bell",
+        "Michael A Nolt v. George Herman",
+    )
+
+    assert matching_case_names(clusters, plaintiff="Reyes", defendant="Pac. Bell") == (1,)
+
+
+def test_a_party_name_may_be_abbreviated_the_way_citations_abbreviate_them() -> None:
+    """`Pac.` is Pacific and `Corp.` is Corporation, by convention.
+
+    Requiring the words to match exactly fails on the ordinary form of almost
+    every corporate party, which is how this was found: the one sound citation
+    among the crowded pages was being rejected.
+    """
+    clusters = _named("Sprague v. General Motors Corporation", "Nolt v. Herman")
+
+    assert matching_case_names(clusters, plaintiff="Sprague", defendant="Gen. Motors Corp.") == (0,)
+
+
+def test_a_name_that_matches_nothing_selects_nothing() -> None:
+    """The filing named a case that is not on this page -- or the archive is thin.
+
+    Those two cannot be told apart here, so an empty result must never be read
+    as a defect. It leaves the existing decision alone.
+    """
+    clusters = _named("United States v. Luna", "United States v. Chambers")
+
+    assert matching_case_names(clusters, plaintiff="Sprague", defendant="General Motors") == ()
+
+
+def test_one_word_is_not_enough_to_look_with() -> None:
+    """A bare surname would match half a page of decisions."""
+    clusters = _named("United States v. Luna", "United States v. Chambers")
+
+    assert matching_case_names(clusters, plaintiff="Luna", defendant=None) == ()
+    assert matching_case_names(clusters, plaintiff=None, defendant=None) == ()
+
+
+def test_a_common_party_matches_many_records_and_that_is_reported_honestly() -> None:
+    """`United States` is two words and neither is distinctive.
+
+    This function reports what matches; it does not decide. Every entry on a
+    page of federal criminal appeals carries that party, so both records here
+    match and both are returned. Narrowing to a usable few is the caller's
+    job -- `candidate_selection` treats a match this wide as no decision and
+    leaves the citation deferred, which is the safe outcome.
+    """
+    clusters = _named("United States v. Luna", "United States v. Chambers")
+
+    assert matching_case_names(clusters, plaintiff="United States", defendant=None) == (0, 1)
+
+
+def test_a_distinctive_party_still_narrows_a_page_of_one_common_party() -> None:
+    """`United States v. Dávila-González` names one case among 32.
+
+    The common party matches everything and the distinctive one matches once,
+    and every written word has to be present, so the result is the one case.
+    """
+    clusters = _named("United States v. Luna", "United States v. Davila-Gonzalez", "United States v. Avery")
+
+    assert matching_case_names(clusters, plaintiff="United States", defendant="Davila-Gonzalez") == (1,)

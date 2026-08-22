@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from mellea_lrc.validation.duplicate_clusters import merge_duplicates
+from mellea_lrc.core.citations import FullCaseCitation
+from mellea_lrc.validation.duplicate_clusters import matching_case_names, merge_duplicates
 from mellea_lrc.validation.types import (
     CandidateSelectionNode,
     CandidateSelectionOutcome,
@@ -34,13 +35,58 @@ def run_locator_candidate_selection(
     halves the number that exceed the limit, without merging any two records
     that are genuinely different cases.
     """
-    distinct = len(merge_duplicates(lookup.candidate_clusters)) if lookup.candidate_clusters else None
+    clusters = lookup.candidate_clusters
+    distinct = len(merge_duplicates(clusters)) if clusters else None
+    node_id = f"{validation.citation_id}:locator_candidate_selection"
+    matches = (
+        _case_name_matches(validation, clusters)
+        if distinct is not None and distinct > CANDIDATE_SELECTION_LIMIT
+        else ()
+    )
+    if matches:
+        return CandidateSelectionNode(
+            node_id=node_id,
+            status=ValidationNodeStatus.SUCCEEDED,
+            outcome=CandidateSelectionOutcome.NARROWED_BY_CASE_NAME,
+            total_candidate_count=lookup.candidate_count,
+            selected_candidate_count=len(matches),
+            selection_limit=CANDIDATE_SELECTION_LIMIT,
+            selected_indices=matches,
+            distinct_case_count=distinct,
+            depends_on=(lookup.node_id,),
+            status_message="Candidate selection completed.",
+            outcome_message=(
+                f"{lookup.candidate_count} returned candidates exceed the scope of "
+                f"{CANDIDATE_SELECTION_LIMIT}, and the case name the filing wrote matches "
+                f"{len(matches)} of them."
+            ),
+        )
     return _selection(
-        node_id=f"{validation.citation_id}:locator_candidate_selection",
+        node_id=node_id,
         retrieval_node_id=lookup.node_id,
         total_candidate_count=lookup.candidate_count,
         distinct_case_count=distinct,
     )
+
+
+def _case_name_matches(validation: CitationValidation, clusters: tuple) -> tuple[int, ...]:
+    """Positions of the records carrying the case name the filing wrote.
+
+    Only consulted when there are too many candidates to evaluate. A page of
+    unpublished decisions holds many unrelated cases and the volume and page
+    cannot choose between them; the case name can, and the filing supplies it.
+
+    An empty result leaves the existing decision alone. It means either that
+    the filing named too little to decide on, or that nothing matched -- and
+    nothing matching is genuinely ambiguous between a filing naming a case that
+    is not on the page and an archive holding only part of the page. Neither
+    may be reported as a defect from here.
+    """
+    citation = validation.citation.citation
+    if not isinstance(citation, FullCaseCitation):
+        return ()
+    matches = matching_case_names(clusters, plaintiff=citation.plaintiff, defendant=citation.defendant)
+    return matches if len(matches) <= CANDIDATE_SELECTION_LIMIT else ()
 
 
 def run_opinion_search_candidate_selection(

@@ -1170,3 +1170,65 @@ def test_unexpected_lookup_response_raises() -> None:
 
     with pytest.raises(AssertionError, match="Unexpected CourtListener lookup response"):
         _validate(extracted, client)
+
+
+def test_a_crowded_page_is_narrowed_by_the_case_name_the_filing_wrote() -> None:
+    """`21 F.3d 1115` returns 28 unrelated cases because it is a table page.
+
+    The Federal Reporter prints unpublished decisions many to a page, so the
+    volume and page genuinely name dozens of cases and the limit defers all of
+    them. The filing names the one it means. Across the crowded pages in this
+    corpus, matching on that name is right where counting candidates is right
+    none of the time.
+    """
+    extracted = _document(
+        FullCaseCitation(volume="21", reporter="F.3d", page="1115", plaintiff="Reyes", defendant="Pac. Bell")
+    )
+    clusters = tuple(
+        CourtListenerOpinionCluster(case_name=name, date_filed=date)
+        for name, date in (
+            ("Lynda Loie Paxton v. Oxy USA", "1994-03-28"),
+            ("Louie Eddie Perez v. Bob Goldsmith", "1994-04-04"),
+            ("Victor Reyes v. Pacific Bell", "1994-04-11"),
+            ("Michael A Nolt v. George Herman", "1994-04-25"),
+        )
+    )
+    client = LookupClient(CourtListenerCitationLookup(citation="21 F.3d 1115", status=300, clusters=clusters))
+
+    nodes = _validate(extracted, client).citations[0].nodes
+    selection = next(node for node in nodes if isinstance(node, CandidateSelectionNode))
+
+    assert selection.outcome is CandidateSelectionOutcome.NARROWED_BY_CASE_NAME
+    assert selection.selected_indices == (2,)
+    assert selection.selected_candidate_count == 1
+
+
+def test_a_crowded_page_the_name_does_not_match_is_still_deferred() -> None:
+    """Nothing matching is ambiguous, and must not be reported as a defect.
+
+    Either the filing named a case that is not on the page, or the archive
+    holds only part of the page. One of the twelve crowded pages in this
+    corpus is the second kind, so the distinction is real rather than
+    hypothetical.
+    """
+    extracted = _document(
+        FullCaseCitation(
+            volume="21", reporter="F.3d", page="1115", plaintiff="Sprague", defendant="Gen. Motors"
+        )
+    )
+    clusters = tuple(
+        CourtListenerOpinionCluster(case_name=name, date_filed=date)
+        for name, date in (
+            ("Paxton v. Oxy USA", "1994-03-28"),
+            ("Perez v. Goldsmith", "1994-04-04"),
+            ("Reyes v. Pacific Bell", "1994-04-11"),
+            ("Nolt v. Herman", "1994-04-25"),
+        )
+    )
+    client = LookupClient(CourtListenerCitationLookup(citation="21 F.3d 1115", status=300, clusters=clusters))
+
+    nodes = _validate(extracted, client).citations[0].nodes
+    selection = next(node for node in nodes if isinstance(node, CandidateSelectionNode))
+
+    assert selection.outcome is CandidateSelectionOutcome.DEFERRED_OVER_LIMIT
+    assert selection.selected_candidate_count == 0
