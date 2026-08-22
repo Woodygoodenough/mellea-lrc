@@ -48,6 +48,13 @@ class CourtListenerOpinionClusterPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("date_filed", "dateFiled"),
     )
+    # The citation-lookup route never sends these. Its cluster payload has no
+    # court key at all -- checked against a live response, whose 50-odd keys
+    # include `docket`, `docket_id`, `judges` and `panel` but nothing naming
+    # the court. They stay declared because a cluster from another route may
+    # carry them, but nothing may depend on them being present: a rule that
+    # compares courts across candidates from a citation lookup silently never
+    # fires. Recovering a court costs one further request against the docket.
     court: str | None = None
     court_id: str | None = None
     docket_id: int | str | None = Field(

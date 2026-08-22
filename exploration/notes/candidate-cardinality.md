@@ -150,3 +150,48 @@ lands in the two-record bucket and is invisible to this count. `132 L.Ed.2d
    known; the rate is not.
 3. Whether recovering `court_id` — one extra request per candidate — pays for
    itself anywhere.
+
+## 8. Two things the lookup response carries that nothing reads
+
+Checked against a live cluster payload rather than against our model of it.
+
+**Parallel citations, on every cluster.** `Bell Atlantic Corp. v. Twombly`
+comes back carrying eight: `550 U.S. 544`, `127 S. Ct. 1955`, `167 L. Ed. 2d
+929`, `2007 U.S. LEXIS 5901` and four more. The field is parsed into
+`CourtListenerOpinionCluster.citations` and read in exactly one place —
+`pinpoint_retrieval/reporter_page.py`, to pick which citation index a star page
+belongs to. Nothing reasons with it.
+
+Three things it would settle:
+
+- **Parallel-citation clashes.** `internal_consistency.py` restricts a clash to
+  one reporter series precisely because a case is routinely reported in several
+  at once, and 60 of the 62 multiply-cited names across the corpora are
+  parallel citations of that kind. A cluster listing them all decides which is
+  which directly, rather than by a rule about series.
+- **Duplicate merging.** Two records for one page carrying the same parallel
+  citation are the same case, whatever their names say. This is a third
+  no-model key alongside the date and the docket identifier.
+- **Whether a Westlaw citation names a real case.** The clusters for
+  `21 F.3d 1115` carry `1994 WL 143951` and `1994 U.S. App. LEXIS 20024`. So
+  CourtListener does hold vendor numbers — as parallel citations on a cluster,
+  not as something the citation-lookup route resolves. `2016 WL 9137645`
+  returns 404 there, from the cache. Since Westlaw and LEXIS are 53% of the
+  unresolved bucket (`open-ended-search.md` section 5), a route that reaches
+  them at all is worth knowing about. **Untested:** whether the search endpoint
+  finds a cluster by its vendor citation. That needs request allowance and is
+  the first thing to try when there is some.
+
+**The court, which is not there at all.** `court` and `court_id` are `None` on
+every record, and the reason is not a parsing gap: the payload has no court key
+among its fifty-odd fields. It carries `docket`, `docket_id`, `judges` and
+`panel`, so a court is one further request away. The fields stay declared on
+the model, with a comment, because another route may populate them — but
+nothing may depend on them, since a rule comparing courts across candidates
+from a citation lookup silently never fires.
+
+**One idea this killed.** `precedential_status` looked like a free way to
+recognise a table-of-decisions page. It is not: `554 F.2d 1071` returns 32
+clusters all marked `Published`, while `21 F.3d 1115` returns 28 all
+`Unpublished`. Both are table pages. The date spread in section 5 remains the
+signal that works.
