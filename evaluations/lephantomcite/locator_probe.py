@@ -66,7 +66,22 @@ _UNKNOWN_REPORTER_STATUS = 400
 # the eval split needs 1,197, so no pacing makes it fit -- the budget is the
 # constraint, not the rate. When the daily cap is hit the sweep stops rather
 # than retrying into a wall for hours, and says when the quota returns.
-DAILY_QUOTA_MARKER = "Rate limit exceeded"
+# Two different services say the allowance is gone, and the sweep has to
+# recognise both. CourtListener itself throttles with "Rate limit exceeded".
+# The caching proxy in front of it parks a token when that happens and, once
+# every token is parked, refuses with its own wording instead -- so a sweep
+# that only knew CourtListener's message ran through the proxy would never
+# detect exhaustion. It would keep asking, be refused, exhaust its retries, and
+# record a `failed` row for every remaining locator: on the first run of this
+# script that turned 30% of the work into noise before it was stopped by hand,
+# and it would have done the same to all 1,045 that were left.
+# A per-minute burst throttle is also reported as "Rate limit exceeded", and
+# treating that as exhaustion would stop a sweep that is fine seconds later, so
+# only a per-day window counts.
+_DAILY_REFUSAL = re.compile(r"Rate limit exceeded.*?/\s*day", re.IGNORECASE | re.DOTALL)
+# The proxy refuses with its own wording once every token it holds is parked.
+# Reaching that state already means each of them met a per-day window.
+_POOL_EXHAUSTED = re.compile(r"tokens are exhausted", re.IGNORECASE)
 
 MIN_REQUEST_INTERVAL_SECONDS = 2.0
 MAX_ATTEMPTS = 5
@@ -320,11 +335,20 @@ def summarize(results: Sequence[LookupResult]) -> dict[str, int]:
     return counts
 
 
-def _quota_detail(error: CourtListenerError) -> str:
-    """Pull the upstream throttle message out of the nested proxy envelope."""
+def _is_quota_refusal(error: CourtListenerError) -> bool:
+    """Whether the allowance is spent, rather than the request merely being paced."""
     text = str(error.upstream_detail)
-    start = text.find(DAILY_QUOTA_MARKER)
-    return text[start : start + 120] if start >= 0 else text[:120]
+    return bool(_DAILY_REFUSAL.search(text) or _POOL_EXHAUSTED.search(text))
+
+
+def _quota_detail(error: CourtListenerError) -> str:
+    """Pull the refusal message out of whichever service sent it."""
+    text = str(error.upstream_detail)
+    for pattern in (_POOL_EXHAUSTED, _DAILY_REFUSAL):
+        match = pattern.search(text)
+        if match:
+            return text[match.start() : match.start() + 120]
+    return text[:120]
 
 
 def _unparsed_result(cited_text: str) -> LookupResult:
@@ -353,7 +377,7 @@ def _lookup_one(
             response = client.lookup_citation(parts.volume, parts.reporter, parts.page)
             break
         except CourtListenerError as error:
-            if DAILY_QUOTA_MARKER in str(error.upstream_detail):
+            if _is_quota_refusal(error):
                 raise DailyQuotaExhausted(_quota_detail(error)) from error
             if not error.retryable or attempt == attempts - 1:
                 logger.warning("lookup failed for %s: %s", parts.key, error.message)
