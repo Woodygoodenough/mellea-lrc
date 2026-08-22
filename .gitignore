@@ -30,3 +30,8 @@ data/
 run-artifact.jsonl
 run-validation/
 evaluation-result/
+
+# Volume indexes fetched from the Caselaw Access Project's static archive.
+# Re-fetchable from static.case.law and large; the cache location is a runtime
+# choice, so no copy belongs in the repository.
+local/cap/
