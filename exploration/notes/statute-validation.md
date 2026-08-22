@@ -159,13 +159,21 @@ resolved and checked offline:
 
 | | count |
 |---|---:|
-| one section, found | 586 |
-| a span, both endpoints found | 10 (naming 25 sections) |
+| one section, found | 625 |
+| a span, both endpoints found | 10 |
 | no such section | 1 |
-| unresolved, shaped like scanning damage | 4 |
+| unresolved, shaped like scanning damage | 5 |
 | of all the above, cited under a title they have left | 5 |
 
-**No fabricated federal statute appears in 601 citations across 135 filings.**
+The denominator is 641, not 601. A plural citation names several sections and
+eyecite's pattern stops at the first, so `28 U.S.C. §§ 1331, 1332, 1441, and
+1446` reached the checker as one citation instead of four. Reading the list
+adds 40 sections, 33 of which appear nowhere else in their document. Of the 40,
+39 are real; the one that is not is `42 U.S.C. § 2000e5`, written two words
+after the same filing writes `2000e-5` correctly, so the hyphen was lost when
+the page was read.
+
+**No fabricated federal statute appears in 641 citations across 135 filings.**
 That is the base rate, and it is a useful negative: the existence check is
 cheap and offline, but on real filings it almost never fires. A paper claiming
 statute checking as a contribution cannot lean on it.
@@ -191,8 +199,12 @@ Two things had to be built before these numbers meant anything, both in
   string is read as a span only when it is absent as written *and* both
   endpoints are real sections, so `2000e-2` and `78u-4` never reach that
   branch.
-- **A letter-suffixed absence is unresolved, not fabricated.** See the scanning
-  damage in section 6. Four of the fifteen.
+- **An absence that mixes digits and letters is unresolved, not fabricated.**
+  See the scanning damage in section 6. Every way a scan damages a section
+  number lands in that shape — a `1` read as `l` gives `20l` for 201, a lost
+  hyphen gives `2000e5` for `2000e-5` — and none can be told apart from an
+  invented section. A section of digits alone carries no such ambiguity, so an
+  absent one is still reported as absent.
 
 ## 8. Where to start
 
