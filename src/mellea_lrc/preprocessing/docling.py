@@ -6,6 +6,7 @@ from pathlib import Path
 from mellea_lrc.core.documents import SourceFormat, SourceMetadata
 from mellea_lrc.preprocessing.document_index import index_table_spans
 from mellea_lrc.preprocessing.margin_line_numbers import reclassify_margin_line_numbers
+from mellea_lrc.preprocessing.repeated_furniture import reclassify_repeated_furniture
 from mellea_lrc.preprocessing.types import (
     PreprocessedDocument,
     PreprocessingBackend,
