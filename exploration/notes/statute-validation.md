@@ -151,20 +151,60 @@ not in the code must not be reported as fabricated**, because the checker
 cannot tell that case apart from a scanning artifact. It can be reported as
 unresolved, which is honest and still useful.
 
-## 7. Where to start
+## 7. What the existence check found across all 601 federal citations
+
+The 18 U.S. Code titles the two corpora actually cite were downloaded (601
+citations; titles 28 and 42 alone are 321 of them). Every U.S.C. citation was
+resolved and checked offline:
+
+| | count |
+|---|---:|
+| one section, found | 586 |
+| a span, both endpoints found | 10 (naming 25 sections) |
+| no such section | 1 |
+| unresolved, shaped like scanning damage | 4 |
+| of all the above, cited under a title they have left | 5 |
+
+**No fabricated federal statute appears in 601 citations across 135 filings.**
+That is the base rate, and it is a useful negative: the existence check is
+cheap and offline, but on real filings it almost never fires. A paper claiming
+statute checking as a contribution cannot lean on it.
+
+The single absence is `42 U.S.C. §§ 2000, et seq.`, written for Title VII,
+which is 2000e et seq. Bare 2000 is not a section. That is imprecise rather
+than invented.
+
+**The five in-force failures are the real finding.** `42 U.S.C. § 14135a` was
+moved to title 34 in the 2017 reorganization and `25 U.S.C. § 477` was
+reclassified in 2016; three filings cite them under the titles they have left.
+This is the defect class with no case-citation equivalent — an overruled case
+needs a citator and a judgement, while a transfer is recorded as a fact in the
+Code — and it fires five times where the existence check fires zero.
+
+Two things had to be built before these numbers meant anything, both in
+`statutes/section_forms.py`:
+
+- **A hyphenated section is often a span.** `28 U.S.C. §§ 2201-2202` covers two
+  sections and `§§ 2201-02` is the same span abbreviated. eyecite hands the
+  whole string over as one section. Ten of the fifteen apparent absences were
+  this, and reporting them would have accused correct citations. A hyphenated
+  string is read as a span only when it is absent as written *and* both
+  endpoints are real sections, so `2000e-2` and `78u-4` never reach that
+  branch.
+- **A letter-suffixed absence is unresolved, not fabricated.** See the scanning
+  damage in section 6. Four of the fifteen.
+
+## 8. Where to start
 
 1. **Done.** Relax the law patterns, because 11% to 12% of statute citations
    never reached a checker at all. Section 6 has the measurement.
-2. **Done for titles 28 and 42.** Load the U.S. Code from the bulk XML and
-   answer the existence question. `statutes/us_code.py` does this offline. On
-   the 52 citations in those two titles across both corpora, all 52 exist and
-   all 52 are in force, so the base rate for a fabricated federal statute in
-   this data is zero out of 52 — an upper bound of roughly 6% by the rule of
-   three, which is too loose to be worth reporting on its own. Downloading the
-   remaining titles is the next step and is the cheapest way to tighten it.
-3. Add the in-force check across all titles from the same data. It is the
-   defect with no case equivalent and therefore the most distinctive thing
-   available here.
+2. **Done.** Load the U.S. Code from the bulk XML and answer the existence and
+   in-force questions offline. `statutes/us_code.py` and
+   `statutes/section_forms.py`, measured in section 7.
+3. Decide whether the in-force result is worth building on. Five findings in
+   601 citations is a real defect class that nothing else in this project can
+   see, but it is thin on its own. Widening the corpus is the way to know
+   whether five is the rate or the sample.
 4. Leave state statutes until federal is done, and expect the first work there
    to be recovering the code name from the raw text rather than checking
    anything.
