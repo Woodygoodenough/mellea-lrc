@@ -45,3 +45,25 @@ def test_the_reported_detail_names_the_refusal() -> None:
     )
 
     assert "tokens are exhausted for 2230s" in detail
+
+
+def test_a_short_form_is_not_looked_up_as_a_first_page() -> None:
+    """`550 U.S. at 563` names page 563 of a case that starts at 544.
+
+    Looking that page up as a locator asks whether a case *begins* there, which
+    CourtListener answers no -- so a perfectly sound short citation was being
+    recorded as unresolved. The production pipeline never does this:
+    `validation/citation_lookup/exact.py` skips a non-full citation as
+    unsupported. Reporting them separately was worth 343 of the probe's 1,334
+    records, 30 of them previously counted as unresolved.
+    """
+    assert locator_probe.parse_locator("550 U.S. at 563") is None
+    assert locator_probe.is_short_form("550 U.S. at 563")
+
+
+def test_a_full_citation_is_still_a_locator() -> None:
+    parts = locator_probe.parse_locator("Bell Atlantic Corp. v. Twombly, 550 U.S. 544 (2007)")
+
+    assert parts is not None
+    assert (parts.volume, parts.reporter, parts.page) == ("550", "U.S.", "544")
+    assert not locator_probe.is_short_form("Bell Atlantic Corp. v. Twombly, 550 U.S. 544 (2007)")

@@ -127,6 +127,16 @@ class LookupOutcome(str, Enum):
     REFUTED = "refuted"
     UNRESOLVED = "unresolved"
     OUT_OF_SCOPE = "out_of_scope"
+    SHORT_FORM = "short_form"
+    """The citation is a short form, whose page is a pin cite rather than a locator.
+
+    `550 U.S. at 563` names page 563 of a case that starts somewhere else, so
+    looking it up as a first page asks the wrong question and gets `unresolved`
+    for a citation that is perfectly sound. The production pipeline never does
+    this -- `validation/citation_lookup/exact.py` skips a non-full citation as
+    unsupported -- so counting these as unresolved measured something the
+    pipeline does not do. They were 30 of the 98 previously reported.
+    """
     UNPARSED = "unparsed"
     FAILED = "failed"
 
@@ -183,12 +193,31 @@ def parse_locator(cited_text: str) -> LocatorParts | None:
     document = extract_from_plain_text(cited_text)
     for item in document.citations:
         citation = item.citation
-        if not isinstance(citation, FullCaseCitation | ShortCaseCitation):
+        if not isinstance(citation, FullCaseCitation):
             continue
         volume, reporter, page = citation.volume, citation.reporter, citation.page
         if volume and reporter and page:
             return LocatorParts(volume=volume, reporter=reporter, page=page)
     return None
+
+
+def is_short_form(cited_text: str) -> bool:
+    """Whether this citation is a short form, so its page is a pin cite.
+
+    Read separately from :func:`parse_locator` so that a short form is reported
+    as what it is rather than looked up at a page no case starts on.
+    """
+    document = extract_from_plain_text(cited_text)
+    return (
+        any(
+            isinstance(item.citation, ShortCaseCitation)
+            and item.citation.volume
+            and item.citation.reporter
+            and item.citation.page
+            for item in document.citations
+        )
+        and parse_locator(cited_text) is None
+    )
 
 
 def probe_locators(
@@ -357,6 +386,12 @@ def _unparsed_result(cited_text: str) -> LookupResult:
             parts=None,
             outcome=LookupOutcome.REFUTED,
             detail="no such reporter series",
+        )
+    if is_short_form(cited_text):
+        return LookupResult(
+            parts=None,
+            outcome=LookupOutcome.SHORT_FORM,
+            detail="short form; its page is a pin cite, not a first page",
         )
     return LookupResult(parts=None, outcome=LookupOutcome.UNPARSED)
 
