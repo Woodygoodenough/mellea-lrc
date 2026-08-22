@@ -140,7 +140,8 @@ async def run_mellea_case_name_query_preparation(
                 error="Case-name query preparation exhausted its repair budget",
             )
         terms = _proposal(result.result.value)
-        query = _query(terms, court_id)
+        year = _year(validation)
+        query = _query(terms, court_id, year)
     except Exception as exc:
         return _node(
             validation,
@@ -161,8 +162,12 @@ async def run_mellea_case_name_query_preparation(
         query=query,
         query_plaintiff=terms.query_plaintiff,
         query_defendant=terms.query_defendant,
+        year=year,
         status_message="Case-name query preparation completed.",
-        outcome_message="Prepared one CourtListener case-name query from both re-extracted parties.",
+        outcome_message=(
+            "Prepared one CourtListener case-name query from both re-extracted parties"
+            + (f", narrowed to {year} give or take {YEAR_WINDOW} year." if year else ".")
+        ),
     )
 
 
@@ -176,6 +181,7 @@ def _node(
     query: str | None = None,
     query_plaintiff: str | None = None,
     query_defendant: str | None = None,
+    year: str | None = None,
     status_message: str | None = None,
     outcome_message: str | None = None,
     error: str | None = None,
@@ -188,6 +194,7 @@ def _node(
         query_plaintiff=query_plaintiff,
         query_defendant=query_defendant,
         court_id=court_id,
+        year=year,
         depends_on=(reextraction.node_id,),
         status_message=status_message,
         outcome_message=outcome_message,
@@ -198,6 +205,11 @@ def _node(
 def _court_id(validation: CitationValidation) -> str | None:
     citation = validation.citation.citation
     return citation.court if isinstance(citation, FullCaseCitation) else None
+
+
+def _year(validation: CitationValidation) -> str | None:
+    citation = validation.citation.citation
+    return citation.year if isinstance(citation, FullCaseCitation) else None
 
 
 def _proposal(value: object) -> _QueryTermsProposal:
@@ -220,12 +232,34 @@ def _valid_schema(ctx: Context) -> ValidationResult:
     return ValidationResult(result=True)
 
 
-def _query(terms: _QueryTermsProposal, court_id: str) -> str:
+# A citation's parenthetical states the year the case was decided, and every
+# citation that reaches this step states one -- 25 of 25 in the last
+# measurement, and 30 of 30 under a looser reading of the party requirement. So
+# the year is a filter the search was giving away for nothing.
+#
+# The window is a year either side rather than the year itself. A decision
+# handed down in December is reported in the following year's volume, an
+# amended opinion carries a later date than the one the filing read, and this
+# project would rather search too wide than miss the case it is looking for.
+YEAR_WINDOW = 1
+
+
+def _query(terms: _QueryTermsProposal, court_id: str, year: str | None) -> str:
     """Construct CourtListener query syntax outside the Mellea response."""
-    return (
+    query = (
         f"caseName:({_term(terms.query_plaintiff)} AND {_term(terms.query_defendant)}) "
         f"AND court_id:{court_id}"
     )
+    span = _year_span(year)
+    return f"{query} AND {span}" if span else query
+
+
+def _year_span(year: str | None) -> str | None:
+    """A date range around the year the citation states, or None if it states none."""
+    if not year or not year.isdigit():
+        return None
+    stated = int(year)
+    return f"dateFiled:[{stated - YEAR_WINDOW}-01-01 TO {stated + YEAR_WINDOW}-12-31]"
 
 
 def _term(value: str) -> str:

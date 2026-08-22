@@ -317,6 +317,14 @@ class MelleaCaseNameQueryPreparationNode:
     status_message: str | None = None
     outcome_message: str | None = None
     error: str | None = None
+    year: str | None = None
+    """The year the citation states, when it states one, and the query used it.
+
+    Recorded because it changes what a miss means. A search narrowed to a range
+    of years that finds nothing has not established that the case is absent,
+    only that it is absent from those years, and a reader of the result has to
+    be able to tell the two apart.
+    """
 
 
 @dataclass(frozen=True, slots=True)

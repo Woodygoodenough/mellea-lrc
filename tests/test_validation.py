@@ -1040,6 +1040,7 @@ def test_mellea_case_name_query_preparation_constructs_the_courtlistener_query(
     assert node.status is ValidationNodeStatus.SUCCEEDED
     assert node.outcome is MelleaCaseNameQueryPreparationOutcome.PREPARED
     assert node.query == 'caseName:("Brown" AND "Board of Education") AND court_id:scotus'
+    assert node.year is None
     assert node.depends_on == (reextraction.node_id,)
     spec = calls[0]
     assert spec.user_variables == {"plaintiff": "Brown", "defendant": "Board of Education"}
