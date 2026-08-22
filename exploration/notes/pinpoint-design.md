@@ -165,10 +165,33 @@ overwritten by a judgement. And **the two verdicts that accuse someone —
 adjudicated records describe**, so the system asserts the class of defect that
 courts actually sanction and abstains on the class they debate.
 
-## 6. What to measure next
+## 6. How much is left after the cheap steps
 
-- How many of the 643 occurrences in the test filings reach step 5 at all,
-  after steps 0 to 3 remove the ones with nothing to check.
+Measured over the 26 test filings, applying steps 0 to 3 only:
+
+| | count | share |
+|---|---:|---:|
+| citation occurrences found by the tree | 643 | |
+| listed in a table of authorities, asserting nothing | 103 | 16% |
+| no pin cite, so no claim about a page | 201 | 31% |
+| **pinpoint claims remaining** | **339** | **53%** |
+| — pin cite names a reporter page that can be fetched | 276 | |
+| — star pagination, so no reporter page exists to fetch | 63 | |
+| distinct authorities behind the 339 | 257 | |
+
+**Nearly half of all occurrences need no model at all**, and that is settled by
+structure rather than by asking one. No occurrence was removed by the signal
+step, which matches section 4: the signals that do not claim support are absent
+from these filings.
+
+Two numbers worth holding on to. The semantic layer's real scope on this corpus
+is **276 checkable pinpoint claims**, where the project has so far produced
+nine semantic verdicts — the shortfall is not the model, it is that only full
+citations were ever checked. And those 276 claims sit on **257 distinct
+authorities**, so identity is resolved 257 times rather than 339, which is the
+saving the tree was built for.
+
+## 7. What to measure next
 - Of the 25 adjudicated misrepresentation records, how many would be caught by
   `different_subject` or `states_the_contrary`, given the page. That is the
   recall ceiling for the semantic layer and it is currently unknown.
