@@ -52,16 +52,25 @@ aligned against the shipped text.
 | `total_fail` | spans that fail with it |
 
 `total_fail - drift_fail` is what the margin rule costs. On the corpus at
-Docling 2.115 it is **zero**: 574 of 594 spans carry over exactly, and all 20
-that do not are table-of-authorities cells, which move because table structure
-inference differs between Docling versions.
+Docling 2.115 it is **zero**. 574 of 594 spans carry over exactly, and the 20
+that do not were read one by one:
+
+| how many | what differs | example |
+|---:|---|---|
+| 17 | one space | shipped `2016 WL1448829`, here `2016 WL 1448829` |
+| 1 | one period | shipped `455 US. 363`, here `455 U.S. 363` |
+| 2 | OCR output, in body text | shipped `U.S. Fid. & Guar. Co.`, here `U.S. Fidelity & Guaranty Co.` |
+
+The last two are in a scanned filing, not a table. The shipped rendering also
+reads `(N.D. Fila. 2016)` where this one reads `(N.D. Fla. 2016)`.
 
 ## Pin the version
 
-The margin rule reads text-item geometry, which is stable across versions.
-Table parsing is not, and it accounts for every span this process cannot carry
-over. Record the Docling version alongside any regenerated corpus, so the
-rendering the spans address is reproducible from the PDFs.
+The rules here read text-item geometry, which is stable across versions.
+Character-level rendering and OCR are not, and between them they account for
+every span this process cannot carry over. Record the Docling version
+alongside any regenerated corpus, so the rendering the spans address is
+reproducible from the PDFs.
 
 ## Carrying spans over
 

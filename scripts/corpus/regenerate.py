@@ -24,13 +24,17 @@ aligned against the shipped text:
     failures under both      the Docling version differs from the shipped one
     failures under one only  attributable to the margin rule
 
-On the corpus as of Docling 2.115 the second number is **zero**: 574 of 594
-spans carry over exactly, and all 20 that do not are table-of-authorities cells
-that move because table structure inference differs between Docling versions.
-Removing 4,854 margin items costs no gold span at all.
+On the corpus as of Docling 2.115 the second number is **zero**. 574 of 594
+spans carry over exactly. The 20 that do not were read one by one: 17 differ
+from the shipped text by a single space (`2016 WL1448829` against
+`2016 WL 1448829`), one by a period (`455 US. 363` against `455 U.S. 363`),
+and two sit in a scanned filing whose OCR output differs between versions,
+in body text rather than in a table. Removing 4,854 margin items costs no gold
+span at all.
 
-That is also the argument for pinning the version alongside the corpus. The
-margin rule reads text-item geometry, which is stable; table parsing is not.
+That is the argument for pinning the version alongside the corpus. The rules
+here read text-item geometry, which is stable; character-level rendering and
+OCR are not.
 
 Usage::
 

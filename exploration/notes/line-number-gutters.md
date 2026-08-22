@@ -200,10 +200,12 @@ decomposition first; adjudication for what structure cannot reach.
 ## Reproducibility
 
 Re-converting document 022 with Docling 2.115 does not reproduce the shipped
-rendering byte for byte — 99.86% similar, with the differences almost entirely
-**table cell boundaries** in the table of authorities. Text-item geometry, which
-is all the margin rule reads, is far more stable than table structure
-inference.
+rendering byte for byte — 99.86% similar. Carrying the gold spans over shows
+what the differences are: of the 20 spans that do not survive, 17 differ by a
+single space (`2016 WL1448829` against `2016 WL 1448829`), one by a period
+(`455 US. 363` against `455 U.S. 363`), and two by OCR output in a scanned
+filing, in body text rather than in a table. Text-item geometry, which is all
+these rules read, is stable; character-level rendering and OCR are not.
 
 Regenerating the corpus therefore means pinning the Docling version and
 recording it with the corpus, so that the rendering the gold spans address is
