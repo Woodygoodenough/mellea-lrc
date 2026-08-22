@@ -1,165 +1,204 @@
 # Splitting this work between two agents
 
-Two agents working the same branch will overwrite each other. This file defines
-a boundary so they do not. Read it before starting, and treat the file
-ownership table as binding rather than advisory.
+Two agents on one branch overwrite each other. This file defines a boundary so
+they do not.
 
-Current head of `experiment/lephantomcite` when this was written: `ccfe54c`.
+The split is deliberately unequal. **The primary agent decides what the system
+asserts and what the numbers mean. The second agent supplies what those
+decisions need.** That is not a comment on capability — it is that decisions of
+the first kind require holding the whole project in view and being willing to
+discard earlier work, and two agents doing that in parallel produce conclusions
+that have to be reconciled rather than combined.
+
+Head of `experiment/lephantomcite` when this was written: `9db046d`.
 
 ---
 
-## 1. Setting up the second worktree
+## 1. Which work goes where, and why
+
+Looking at what actually moved this project, the useful line is not by
+subsystem. It is between deciding and supplying.
+
+**Decisions, which stay with the primary agent.** Every one of these was a
+choice to discard or restate something rather than to add to it:
+
+- deleting a working text-based margin rule after measuring it against the
+  page geometry;
+- adding two citations no reader can extract into the denominator, which took
+  the headline score from 100% to 99.7%;
+- rejecting a reporter-year check after all 37 of its findings turned out
+  false;
+- setting the boundary a pin-cite check may assert by reading 25 adjudicated
+  records rather than by trusting a model.
+
+None of these could have been split. Each needed the whole context, and each
+made an earlier result worse on purpose.
+
+**Supply, which is where a second agent adds hours without adding
+reconciliation cost.** This is the work that was slow rather than difficult:
+converting 109 PDFs, harvesting filings from the archive, waiting out the API
+allowance, downloading bulk data, building fixtures, running a measurement
+whose shape was already decided.
+
+---
+
+## 2. Setting up the second worktree
 
 A git branch can only be checked out in one worktree, so the second agent needs
-its own branch. From the main checkout:
+its own branch.
 
 ```bash
 git fetch woody-fork
 git worktree add ../mellea-lrc-b -b experiment/lephantomcite-b experiment/lephantomcite
 cd ../mellea-lrc-b
 uv sync
-cp ../mellea-lrc/.env .          # secrets are gitignored and not carried by the worktree
-```
-
-Push only to `woody-fork`, never to `origin`:
-
-```bash
+cp ../mellea-lrc/.env .          # secrets are gitignored and not carried by a worktree
 git push -u woody-fork experiment/lephantomcite-b
 ```
 
-Both branches merge back into `experiment/lephantomcite` when a piece of work
-is finished, not continuously.
+Merge into `experiment/lephantomcite` when a piece is finished, not
+continuously.
 
 ---
 
-## 2. File ownership
+## 3. What the second agent does
+
+Each item names what to produce and the shape it should arrive in. **Where a
+task says "do not decide", it means produce the candidates and leave the call.**
+
+### 3.1 Load the United States Code and answer one question
+
+Report section 18. 642 of 704 statute citations in the corpora are federal and
+parse into title, section and subsection. The Office of the Law Revision
+Counsel publishes the Code as bulk XML with amendment history.
+
+Produce: a local index answering *does this title and section exist*, and *is
+it currently in force*, for a `(title, section)` pair. A module under
+`src/mellea_lrc/statutes/`, with tests, and a short note in `handoff-b.md`
+giving the base rate — how many of the 642 name a provision that is not there.
+
+**Do not decide** what verdict a missing provision should produce, or how
+statutes enter the validation pipeline. Report the counts.
+
+### 3.2 Extend the corpus miner past the easy case
+
+Report section 13. `scripts/miner/` finds sanctions orders and identifies which
+filing an order accuses, when the order names a docket number. It does not
+handle the case where the order names an attorney and a motion but no number —
+"attorney Jason Castro had filed a motion littered with fabricated cases".
+
+Produce: for each such order, a ranked list of candidate docket entries with
+the evidence for each. The reference implementation at
+`~/CodingProjects/caseSearchLangGraph/targets/` calls this the `docket_only`
+tier and is worth reading first.
+
+**Do not decide** which candidate is the offending filing where it is not
+obvious, and do not add anything to the corpus. Produce candidates with
+evidence; adjudication is a primary-agent task, and every corpus record so far
+was settled by looking at the printed page.
+
+### 3.3 Keep the cache filling and the infrastructure alive
+
+The nightly job needs about three more runs to finish the 497 outstanding
+lookups. Watch it, report the outcome counts, and fix it when it breaks — it
+has broken twice, once because the proxy's refusal wording was not recognised
+and once because a slow response ended the whole run.
+
+**This is the highest-value item on the list**, because everything in the
+semantic layer is blocked on cached pages and nothing else can proceed without
+them.
+
+### 3.4 Run measurements whose shape is already decided
+
+Two are specified and unstarted:
+
+- The invented-reporter count against Charlotin's tracker of AI-fabrication
+  cases, which is an order of magnitude larger than our 54 records. Report
+  section 10.3 says exactly what to count and what would change the decision.
+- Of the 25 adjudicated misrepresentation records, how many would be caught by
+  `different_subject` or `states_the_contrary` given the page. That is the
+  recall ceiling for the semantic layer and it is currently unknown. Section 7
+  of `exploration/notes/pinpoint-design.md` specifies it.
+
+**Do not redesign the measurement.** If the specification looks wrong, say so
+in `handoff-b.md` and stop.
+
+---
+
+## 4. File ownership
 
 Nothing outside your own column may be edited, including to fix something
-obviously wrong in it. If you find a defect in the other track's files, write it
-down in your handoff file (section 5) and leave the code alone.
+obviously wrong. Describe defects in the other track's files; do not repair
+them.
 
 | Path | Owner |
 |---|---|
-| `src/mellea_lrc/preprocessing/**` | **A** |
-| `src/mellea_lrc/extraction/**` | **A** |
-| `src/mellea_lrc/experimental/relaxed_eyecite_extractor.py` | **A** |
-| `src/mellea_lrc/experimental/page_crops.py` | **A** |
-| `src/mellea_lrc/experimental/layout_review.py` | **A** |
-| `evaluations/extraction/**` | **A** |
-| `scripts/corpus/**` | **A** |
-| `data/false-citation-bench-v2/**` (gitignored, local) | **A** |
+| `src/mellea_lrc/preprocessing/**` | primary |
+| `src/mellea_lrc/extraction/**` | primary |
+| `src/mellea_lrc/validation/**` | primary |
+| `src/mellea_lrc/experimental/**` | primary |
+| `evaluations/extraction/**` | primary |
+| `scripts/corpus/**` | primary |
+| `data/**` (gitignored, local) | primary |
 | | |
-| `src/mellea_lrc/validation/**` | **B** |
-| `src/mellea_lrc/statutes/**` (does not exist yet; B creates it) | **B** |
-| `src/mellea_lrc/experimental/grounded_adjudication/**` | **B** |
-| `evaluations/lephantomcite/**` | **B** |
-| `scripts/miner/**` | **B** |
-| `scripts/courtlistener/**` | **B** |
-| `scripts/modal/**` | **B** |
+| `src/mellea_lrc/statutes/**` (does not exist yet) | second |
+| `scripts/miner/**` | second |
+| `scripts/courtlistener/**` | second |
+| `scripts/modal/**` | second |
+| `evaluations/lephantomcite/**` | second |
 
-Tests follow their module: a test file named after a module belongs to that
-module's owner. `tests/test_margin_line_numbers.py` is A's,
-`tests/test_lephantomcite_locator_probe.py` is B's. A new test file belongs to
-whoever owns the code it tests.
+Tests follow their module. Neither edits `README.md`, `pyproject.toml`,
+`.gitignore`, `src/mellea_lrc/core/**` or `src/mellea_lrc/courtlistener/**`
+without writing a handoff entry first.
 
-**Neither track edits** `README.md`, `pyproject.toml`, `.gitignore`,
-`src/mellea_lrc/core/**`, or `src/mellea_lrc/courtlistener/**` without saying so
-in the handoff file first. Those are small, shared, and where a silent conflict
-would hurt most.
+The primary agent owns `validation/**` because the pin-cite redesign is the
+largest open design question and section 17 of the report is the argument for
+how it should work.
 
 ---
 
-## 3. What each track is doing
+## 5. Shared resources
 
-### Track A — reading the document
+**The CourtListener allowance is one pool** — three tokens, 125 requests each
+per day, shared by both worktrees through the same proxy. The **second agent
+owns it**, because the nightly job and the miner both need it and the nightly
+job is on a schedule. The primary agent does not spend quota without a handoff
+entry first. The reserved fourth token, reached with the `x-cl-pool: reserved`
+header, is for small targeted experiments and is not part of the main budget.
 
-Getting citations out of a PDF correctly, and keeping the test set honest.
+**The response cache is additive.** Anything either fetches is free for the
+other afterwards. Nobody deletes from it.
 
-- Citations split across table cells (report section 12). Two are known, both
-  verified on the page, and neither is reachable by any change to the citation
-  reader. Options are Docling's table settings, reading table regions from the
-  page image, or accepting the loss and recording it.
-- Page headers that Docling labels inconsistently, extending the rule in 4.4.
-- Keeping the answer key correct: every disagreement between readers settled
-  against the printed page, and every citation shown to exist added to the
-  denominator.
-- Whatever comes out of GitHub issue #79 that touches extraction.
+**The report artifact** is written by the primary agent. The second agent does
+not publish to it; findings go into `handoff-b.md` and are folded in. Two
+agents publishing one page overwrite each other and the page loses its voice.
 
-### Track B — checking the citation
-
-Everything after a citation has been found.
-
-- **Pin cite redesign**, report section 17. The design is written in
-  `exploration/notes/pinpoint-design.md` and is the largest single piece of
-  open work. Split the one verdict into the sequence in section 5 of that note,
-  so the deterministic answers are reached before a model is asked anything.
-- **Statute checking**, report section 18 and
-  `exploration/notes/statute-validation.md`. Entirely new code. Start with
-  whether a federal provision exists, from the United States Code bulk XML.
-  642 of 704 statute citations in the corpora are federal and parse cleanly.
-- **The corpus miner**, report section 13. `scripts/miner/` finds sanctions
-  orders and identifies which filing they accuse. The open piece is the case
-  where an order names an attorney and a motion but no docket number.
-- The nightly cache job and the Modal proxy.
+**`exploration/notes/`** — write your own files, never edit the other's.
 
 ---
 
-## 4. Shared resources and the rules for them
+## 6. Handoff files
 
-**The CourtListener allowance is one pool, not two.** Three tokens, 125
-requests each per day, shared by both worktrees through the same proxy. Track B
-owns it, because the miner and the cache job both need it. **Track A must not
-run anything that spends quota** without B agreeing first — a single sweep can
-take the whole day's budget and leave the nightly job with nothing.
+`exploration/handoff-a.md` and `exploration/handoff-b.md`, appended to, newest
+entry first. Write an entry when you finish something the other depends on,
+find a defect in their files, need to touch a file you do not own, or learn
+something that changes what they should do.
 
-The reserved fourth token exists for small targeted experiments. Ask for it with
-the `x-cl-pool: reserved` header rather than taking from the main pool.
-
-**The response cache is shared and additive.** Anything either track fetches is
-stored and free for the other afterwards. Nobody deletes from it.
-
-**`exploration/notes/`** — write your own files, never edit the other's. Name
-them for their subject.
-
-**The report artifact** at `claude.ai/code/artifact/8c8acdcc-c9da-4588-a683-a49795764d7f`
-is written by **A**. B does not publish to it. B writes findings into
-`exploration/handoff-b.md` and A folds them into the report, which keeps a
-single voice and avoids two agents overwriting one page.
+An entry gives the date, what happened, and what the other should do about it.
 
 ---
 
-## 5. Handoff files
+## 7. Rules both follow
 
-Each track keeps one file, appended to rather than rewritten, newest entry
-first. These are how the two tracks talk.
-
-- `exploration/handoff-a.md`
-- `exploration/handoff-b.md`
-
-Write an entry when you:
-
-- finish something the other track's work depends on;
-- find a defect in the other track's files (describe it, do not fix it);
-- need to touch a file you do not own;
-- learn something that changes what the other track should do.
-
-An entry gives the date, what happened, and what the other track should do
-about it, if anything.
-
----
-
-## 6. Rules both tracks follow
-
-- **Push to `woody-fork` only.** Never to `origin`, and never to `main`.
+- **Push to `woody-fork` only.** Never `origin`, never `main`.
 - **The dataset stays local.** `data/` is gitignored and nothing under it is
   pushed anywhere.
-- **No commit trailers crediting a tool**, and no messages sent on the user's
+- **No commit trailers crediting a tool**, and nothing sent on the user's
   behalf to anyone — not GitHub issues, not collaborators.
-- **A citation shown to exist goes into the denominator.** If a check finds a
-  real citation no reader extracts, it is added to the answer key and the
-  scores are restated, even when that lowers them.
+- **A citation shown to exist goes into the denominator**, even when that
+  lowers a score.
 - **Report what a number cannot show.** If a fix was made after seeing which
   case failed, the sentence reporting the score says so.
 - **`exploration/writing-style.md`** governs anything written for a reader.
-- Run `uv run pytest` and `uv run ruff check` before every commit. Both tracks
-  share one test suite, so a break in yours blocks the other.
+- Run `uv run pytest` and `uv run ruff check` before every commit. One test
+  suite is shared, so a break in yours blocks the other.
