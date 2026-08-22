@@ -14,6 +14,12 @@ validator on its own -- it says nothing about whether a filing quoted the
 section correctly, only whether the section it named is real.
 """
 
+from mellea_lrc.statutes.section_forms import (
+    MAX_ENUMERATED_RANGE,
+    SectionForm,
+    SectionVerdict,
+    resolve_section,
+)
 from mellea_lrc.statutes.us_code import (
     DEFAULT_RELEASE_POINT,
     ProvisionStatus,
@@ -24,8 +30,12 @@ from mellea_lrc.statutes.us_code import (
 
 __all__ = [
     "DEFAULT_RELEASE_POINT",
+    "MAX_ENUMERATED_RANGE",
     "ProvisionStatus",
+    "SectionForm",
+    "SectionVerdict",
     "UsCodeIndex",
     "UscLookupResult",
+    "resolve_section",
     "title_zip_url",
 ]

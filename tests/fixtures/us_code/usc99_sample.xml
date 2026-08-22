@@ -8,6 +8,11 @@
   an en dash instead of a hyphen, a single <section> covering two identifiers
   at once (a joint repeal), and a "..." range placeholder for a repealed
   block. See src/mellea_lrc/statutes/us_code.py for what each shape means.
+
+  Sections 2201, 2202 and 2300 are here for section_forms.py rather than for
+  the loader: a citation may write a span as "2201-02", abbreviating the
+  second number, and four-digit sections are the smallest ones that can show
+  that abbreviation at all.
 -->
 <uscDoc xsi:schemaLocation="http://xml.house.gov/schemas/uslm/1.0 USLM-1.0.15.xsd" xml:lang="en" identifier="/us/usc/t99" xmlns="http://xml.house.gov/schemas/uslm/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
 <meta>
@@ -28,6 +33,12 @@
 <section identifier="/us/usc/t99/s4a"><num value="4a">§ 4a.</num><heading> Letter-suffixed section</heading><content> Also in force.</content></section>
 
 <section identifier="/us/usc/t99/s20&#8211;1"><num value="20-1">§ 20-1.</num><heading> En dash identifier</heading><content> Exported with an en dash between 20 and 1.</content></section>
+
+<section identifier="/us/usc/t99/s2201"><num value="2201">§ 2201.</num><heading> Span start</heading><content> In force.</content></section>
+
+<section identifier="/us/usc/t99/s2202"><num value="2202">§ 2202.</num><heading> Span end</heading><content> In force.</content></section>
+
+<section identifier="/us/usc/t99/s2300"><num value="2300">§ 2300.</num><heading> Distant section</heading><content> In force.</content></section>
 
 <section status="repealed" identifier="/us/usc/t99/s2"><num value="2">[§ 2.</num><heading> Repealed. Pub. L. 90-1, title I, § 1, Jan. 1, 1968, 80 Stat. 1]</heading></section>
 
