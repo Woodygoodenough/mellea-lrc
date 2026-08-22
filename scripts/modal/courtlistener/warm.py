@@ -39,6 +39,13 @@ WARM_SCHEDULE = modal.Cron("30 6 * * *")
 # Below CourtListener's per-minute burst limit. The daily allowance runs out
 # long before pacing matters, but bursting wastes requests on refusals.
 REQUEST_INTERVAL_SECONDS = 2.0
+# A slow answer says nothing about the citation asked for, so it is retried once
+# before being counted against the run.
+TRANSPORT_RETRY_SECONDS = 5.0
+# Enough consecutive failures to complete means the service is not answering
+# rather than answering slowly, and the run should stop instead of spending an
+# hour timing out against it.
+MAX_CONSECUTIVE_TRANSPORT_ERRORS = 5
 FIELDS = ("volume", "reporter", "page")
 
 
@@ -117,6 +124,7 @@ def warm_cache() -> dict[str, Any]:
 
     fetched = 0
     failed = 0
+    consecutive_transport_errors = 0
     ended = "completed"
 
     with httpx.Client(timeout=45) as client:
@@ -126,6 +134,29 @@ def warm_cache() -> dict[str, Any]:
                 status, payload = _fetch(
                     client, pool, base_url, data, is_quota_refusal, is_burst_refusal, burst_wait_seconds
                 )
+            except httpx.HTTPError as transport:
+                # A timeout or a dropped connection says nothing about this
+                # citation, and the run has hundreds of others queued behind
+                # it. Count it, keep going, and stop only if the upstream
+                # appears to be gone rather than slow.
+                failed += 1
+                consecutive_transport_errors += 1
+                logger.warning(
+                    "transport error on %s (%d in a row): %s",
+                    data,
+                    consecutive_transport_errors,
+                    transport,
+                )
+                if consecutive_transport_errors >= MAX_CONSECUTIVE_TRANSPORT_ERRORS:
+                    ended = "upstream_unreachable"
+                    logger.error(
+                        "%d lookups in a row failed to complete; stopping rather than "
+                        "spending the run on a service that is not answering",
+                        consecutive_transport_errors,
+                    )
+                    break
+                time.sleep(REQUEST_INTERVAL_SECONDS)
+                continue
             except AllTokensExhausted as exhausted:
                 ended = "quota_exhausted"
                 logger.info(
@@ -134,6 +165,7 @@ def warm_cache() -> dict[str, Any]:
                     exhausted.retry_after_seconds,
                 )
                 break
+            consecutive_transport_errors = 0
             if should_store(status, payload):
                 s3.put_object(
                     Bucket=bucket,
@@ -178,16 +210,32 @@ def _fetch(
     is_burst_refusal: Any,
     burst_wait_seconds: Any,
 ) -> tuple[int, Any]:
-    """One lookup, moving off a spent token and waiting out a burst refusal."""
+    """One lookup, moving off a spent token and waiting out a burst refusal.
+
+    A slow answer is retried once rather than allowed to end the lookup. The
+    upstream occasionally takes longer than the client will wait, and the run
+    that found this had hundreds of locators still queued behind the one that
+    timed out.
+    """
     import time
+
+    import httpx
 
     for _ in range(pool.size * 4):
         token = pool.acquire()
-        response = client.post(
-            f"{base_url}/citation-lookup/",
-            data=data,
-            headers={"Authorization": f"Token {token.value}", "Accept": "application/json"},
-        )
+        try:
+            response = client.post(
+                f"{base_url}/citation-lookup/",
+                data=data,
+                headers={"Authorization": f"Token {token.value}", "Accept": "application/json"},
+            )
+        except httpx.HTTPError:
+            time.sleep(TRANSPORT_RETRY_SECONDS)
+            response = client.post(
+                f"{base_url}/citation-lookup/",
+                data=data,
+                headers={"Authorization": f"Token {token.value}", "Accept": "application/json"},
+            )
         if is_quota_refusal(response.status_code, response.text):
             pool.park(token, response.text)
             continue
