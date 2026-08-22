@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from mellea_lrc.core.citations import FullCaseCitation, IdCitation, ShortCaseCitation
+from mellea_lrc.core.citations import (
+    FullCaseCitation,
+    FullLawCitation,
+    IdCitation,
+    ShortCaseCitation,
+)
 from mellea_lrc.core.spans import Span
 from mellea_lrc.extraction import ExtractedCitation
 from mellea_lrc.extraction.citation_tree import build_citation_tree
@@ -141,3 +146,63 @@ def test_a_dangling_antecedent_cannot_reach_the_tree_at_all() -> None:
     """
     with pytest.raises(ValueError, match="invalid resolves_to"):
         _document(_id("c3", "570", "gone", 0))
+
+
+def _law(citation_id: str, start: int, resolves_to: str | None = None) -> ExtractedCitation:
+    return ExtractedCitation(
+        citation_id=citation_id,
+        span=Span(start, start + 14),
+        locator_span=Span(start, start + 14),
+        matched_text="28 U.S.C. § 636",
+        citation=FullLawCitation(reporter="U.S.C."),
+        resolves_to=resolves_to,
+    )
+
+
+def test_a_statute_is_out_of_scope_rather_than_unattributed() -> None:
+    """The two look alike in a count and mean opposite things.
+
+    A statute has no case authority to belong to, so declining it is correct
+    behaviour. A case citation that could not be traced to its full form is a
+    failure worth looking at. Reporting them together turns a 1-in-894 failure
+    rate on this corpus into an apparent 30%, and buries the one case that
+    actually needs reading.
+    """
+    document = _document(_full("c1", "544", None, 0), _law("s1", 200))
+
+    tree = build_citation_tree(document)
+
+    assert [c.citation_id for c in tree.out_of_scope] == ["s1"]
+    assert tree.unattributed == ()
+
+
+def test_an_id_standing_in_for_a_statute_is_out_of_scope_too() -> None:
+    """`Id.` carries no reporter, so what it refers to is whatever it resolved to."""
+    document = _document(_law("s1", 0), _id("c2", "637", "s1", 200))
+
+    tree = build_citation_tree(document)
+
+    assert {c.citation_id for c in tree.out_of_scope} == {"s1", "c2"}
+    assert tree.unattributed == ()
+
+
+def test_a_short_form_with_no_antecedent_is_a_real_failure() -> None:
+    """A short form carries a volume and reporter, so it is a case on its own evidence.
+
+    This is the corpus's single unattributed citation: `Rosenblatt v. Baer, 383
+    U.S. at 85`, quoted inside another case's parenthetical and never given in
+    full. Nothing can be verified about it, and it must not be silently folded
+    in with the statutes.
+    """
+    orphan = ExtractedCitation(
+        citation_id="c9",
+        span=Span(0, 14),
+        locator_span=Span(0, 14),
+        matched_text="383 U.S. at 85",
+        citation=ShortCaseCitation(volume="383", reporter="U.S.", page="85", pin_cite="at 85"),
+    )
+
+    tree = build_citation_tree(_document(orphan))
+
+    assert [c.citation_id for c in tree.unattributed] == ["c9"]
+    assert tree.out_of_scope == ()

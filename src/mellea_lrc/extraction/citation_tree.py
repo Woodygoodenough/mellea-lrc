@@ -23,8 +23,41 @@ Two properties are what make this worth having rather than merely tidy:
 
 Resolution here is eyecite's, followed transitively: `Id.` may point at a short
 form that points at the full citation. Nothing is invented -- a citation eyecite
-could not attribute is reported as unattributed rather than guessed at, because
-attaching a claim to the wrong authority would check it against the wrong page.
+could not attribute is reported rather than guessed at, because attaching a
+claim to the wrong authority would check it against the wrong page.
+
+What is *reported* matters as much as what is resolved, and two failures that
+look alike in a count mean opposite things:
+
+- **out of scope** -- positive evidence that the citation names something other
+  than a case: it is a statute or a journal article, it is a span eyecite could
+  not parse as a citation at all, or it is an `id.` that resolved to one of
+  those. There is no case authority for these to belong to, and grouping them
+  under one would be wrong. On false-citation-bench this is 252 of 894, and
+  every one is correct behaviour.
+- **unattributed** -- no such evidence. Either a case citation that could not
+  be traced to the full citation introducing it, or a reference that needed an
+  antecedent and reached none, so its kind is unknown. This is the number that
+  measures the tree, and on the same corpus it is 20.
+
+Only positive evidence sends a citation out of scope, which is the same rule
+the rest of the project applies to absence: not knowing what something refers
+to is not evidence that it refers to a statute.
+
+Read individually, the 20 are:
+
+- one `ShortCaseCitation`, and it is real -- `Rosenblatt v. Baer, 383 U.S. at
+  85`, quoted inside another case's parenthetical and never given in full
+  anywhere in the document. There is no antecedent, so declining is right.
+- nineteen `Id.`, of which seventeen carry a paragraph pin cite (`Id. ¶ 33`).
+  Those are almost certainly references into a pleading's own numbered
+  allegations rather than to a case. That evidence is deliberately not acted
+  on: several state courts number opinion paragraphs in the public-domain
+  citation format, so a paragraph pin cite does not by itself establish that a
+  reference is not to a case.
+
+Reporting all of this as one figure would read as a 30% failure rate for what
+is, in case citations, one.
 """
 
 from __future__ import annotations
@@ -32,7 +65,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from mellea_lrc.core.citations import FullCaseCitation
+from mellea_lrc.core.citations import CitationKind, FullCaseCitation, ShortCaseCitation
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -41,6 +74,10 @@ if TYPE_CHECKING:
 
 # A chain longer than this is a resolution loop or a pathology, not a brief.
 MAX_RESOLUTION_DEPTH = 24
+
+# Citations that carry no identity of their own and mean whatever they point at.
+# One of these that resolves to nothing is a resolution failure, not a statute.
+_REFERRING_KINDS = frozenset({CitationKind.ID, CitationKind.SUPRA, CitationKind.REFERENCE})
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +131,14 @@ class CitationTree:
 
     authorities: tuple[Authority, ...]
     unattributed: tuple[ExtractedCitation, ...]
+    """References with no positive evidence of being out of scope, and no authority.
+
+    A case citation whose full form was never found, or a reference that needed
+    an antecedent and reached none. The second kind has an unknown citation
+    type, which is why it is here rather than in `out_of_scope`.
+    """
+    out_of_scope: tuple[ExtractedCitation, ...] = ()
+    """Citations that are not to a case, so no case authority could hold them."""
 
     @property
     def occurrence_count(self) -> int:
@@ -115,22 +160,58 @@ def build_citation_tree(document: ExtractedDocument) -> CitationTree:
     by_id = {item.citation_id: item for item in document.citations}
     roots: dict[str, list[CitationOccurrence]] = {}
     unattributed: list[ExtractedCitation] = []
+    out_of_scope: list[ExtractedCitation] = []
 
     for item in document.citations:
         root_id, depth = _resolve_root(item, by_id)
         root = by_id.get(root_id) if root_id else None
-        if root is None or not isinstance(root.citation, FullCaseCitation):
+        if root is not None and isinstance(root.citation, FullCaseCitation):
+            roots.setdefault(root_id or "", []).append(
+                CitationOccurrence(citation=item, depth=depth, pin_cite=_pin_cite(item))
+            )
+        elif _is_out_of_scope(item, root):
+            out_of_scope.append(item)
+        else:
             unattributed.append(item)
-            continue
-        roots.setdefault(root_id or "", []).append(
-            CitationOccurrence(citation=item, depth=depth, pin_cite=_pin_cite(item))
-        )
 
     authorities = tuple(
         Authority(root=by_id[root_id], occurrences=tuple(occurrences))
         for root_id, occurrences in roots.items()
     )
-    return CitationTree(authorities=authorities, unattributed=tuple(unattributed))
+    return CitationTree(
+        authorities=authorities,
+        unattributed=tuple(unattributed),
+        out_of_scope=tuple(out_of_scope),
+    )
+
+
+def _is_out_of_scope(item: ExtractedCitation, root: ExtractedCitation | None) -> bool:
+    """Whether there is positive evidence this citation names something other than a case.
+
+    Only positive evidence counts, and it comes from exactly two places: the
+    citation is itself of a non-case kind, or it resolved to one. A statute is
+    a statute on its own evidence; an `id.` that resolved to a statute is a
+    statute by what it stands for.
+
+    An `id.` that resolved to *nothing* is neither. It carries no reporter, so
+    it cannot be typed on its own, and there is no antecedent to type it by --
+    which is a resolution failure, and every failure of that kind belongs in
+    `unattributed` where it will be counted. Calling it out of scope would
+    assert that it did not name a case, which is precisely what is unknown.
+    """
+    if isinstance(item.citation, FullCaseCitation | ShortCaseCitation):
+        return False
+    if not _needs_an_antecedent(item):
+        return True
+    reached_something_else = root is not None and root.citation_id != item.citation_id
+    if not reached_something_else:
+        return False
+    return not isinstance(root.citation, FullCaseCitation | ShortCaseCitation)
+
+
+def _needs_an_antecedent(item: ExtractedCitation) -> bool:
+    """Whether this citation carries no identity of its own and must resolve to one."""
+    return item.citation.kind in _REFERRING_KINDS
 
 
 def _resolve_root(
@@ -172,4 +253,5 @@ def summarize(trees: Sequence[CitationTree]) -> dict[str, int]:
         "occurrences": sum(tree.occurrence_count for tree in trees),
         "pinpoint_claims": sum(tree.pinpoint_claim_count for tree in trees),
         "unattributed": sum(len(tree.unattributed) for tree in trees),
+        "out_of_scope": sum(len(tree.out_of_scope) for tree in trees),
     }
