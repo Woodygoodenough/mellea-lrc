@@ -50,6 +50,18 @@ is a statement about this index and never about the citation.
 spanning 690 to 693 covers four printed pages; the index says the cited page
 falls within the case, and says nothing about whether the proposition is on it.
 
+**What may be concluded, and what may not.** The one claim this index supports
+is narrow: *no case begins at this volume and page*. That is safe where a case
+demonstrably covers the page, because a case the archive is missing leaves a
+**gap** rather than being absorbed by its neighbour -- ``last_page`` is
+recorded per case, not derived from where the next one starts, and 0.9% of
+adjacent pairs do leave a gap, which is how that is known. A page in a gap
+returns ``NO_CASE_COVERS_IT`` and concludes nothing.
+
+It does not support "the correct first page is N". The covering case need not
+be the one the filing meant, and in the corpus it never is: in all 27 findings
+the name the filing wrote disagrees with the case covering the page.
+
 **Coverage is 57% of the corpus** and the rest divides cleanly. A third of all
 citations name a reporter the archive does not publish, which is mostly Westlaw
 and LEXIS -- not reporters at all -- plus `F.4th`, which began after the archive
@@ -118,6 +130,22 @@ class PageOutcome(str, Enum):
     """The archive does not hold this volume, usually because it is too recent.
 
     A statement about the index, never about the citation.
+    """
+
+    AMBIGUOUS_PAGE = "ambiguous_page"
+    """More than one case is recorded as occupying this page.
+
+    Cases share a page routinely -- one ends partway down and the next begins
+    -- and the archive records that by letting spans touch. What this outcome
+    marks is the other thing: spans that genuinely overlap, so the archive
+    does not agree with itself about which case the page belongs to. About 1.5%
+    of adjacent pairs are like that.
+
+    Nothing may be concluded. Saying a page sits inside a case means nothing if
+    a second case claims it, and this is the shape a volume takes when its
+    recorded pages are wrong in bulk -- so it also catches the scanned-page
+    problem that :func:`_printed_first_page` corrects, independently of that
+    correction.
     """
 
 
@@ -244,9 +272,11 @@ class CapIndex:
         starting = next((case for case in cases if case.first_page == number), None)
         if starting is not None:
             return PageVerdict(slug, volume, page, PageOutcome.STARTS_A_CASE, starting)
-        covering = next((case for case in cases if case.covers(number)), None)
-        if covering is not None:
-            return PageVerdict(slug, volume, page, PageOutcome.INSIDE_A_CASE, covering)
+        covering = [case for case in cases if case.covers(number)]
+        if len(covering) > 1:
+            return PageVerdict(slug, volume, page, PageOutcome.AMBIGUOUS_PAGE)
+        if covering:
+            return PageVerdict(slug, volume, page, PageOutcome.INSIDE_A_CASE, covering[0])
         return PageVerdict(slug, volume, page, PageOutcome.NO_CASE_COVERS_IT)
 
     def _volume(self, slug: str, volume: str) -> list[CapCase] | None:

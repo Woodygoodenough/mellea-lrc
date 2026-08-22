@@ -6,6 +6,7 @@ is real data rather than an invented example: `City of Canton v. Harris` runs
 from page 378 to 400, and it is the case that made this index worth building.
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -180,3 +181,46 @@ def test_a_reporter_the_rule_cannot_predict_is_listed(reporter: str, expected: s
     was checked against the published directory listing rather than guessed.
     """
     assert reporter_slug(reporter, {"ny-2d", "nc-app", "f-appx", "f2d"}) == expected
+
+
+def test_two_cases_claiming_one_page_concludes_nothing(tmp_path: Path) -> None:
+    """Cases share a page routinely; spans that genuinely overlap are different.
+
+    A shared page is one case ending partway down where the next begins, and
+    the archive records it by letting spans touch. Overlapping spans mean the
+    archive does not agree with itself about whose page it is, which is 1.5% of
+    adjacent pairs -- and is also the shape a volume takes when its recorded
+    pages are wrong in bulk. Either way nothing may be concluded, so this is a
+    second guard against the scanned-page problem, independent of the
+    correction for it.
+    """
+    overlapping = json.dumps(
+        [
+            {
+                "name_abbreviation": "Maestracci v. Helly Nahmad Gallery",
+                "first_page": "405",
+                "last_page": "409",
+                "decision_date": "2017-11-21",
+                "court": {"name_abbreviation": "N.Y. App. Div."},
+                "citations": [{"type": "official", "cite": "155 A.D.3d 405"}],
+            },
+            {
+                "name_abbreviation": "Korff v. Corbett",
+                "first_page": "405",
+                "last_page": "411",
+                "decision_date": "2017-11-21",
+                "court": {"name_abbreviation": "N.Y. App. Div."},
+                "citations": [{"type": "official", "cite": "155 A.D.3d 405"}],
+            },
+        ]
+    )
+    path = tmp_path / "overlap.json"
+    path.write_text(overlapping)
+    index = CapIndex(cache_dir=tmp_path, allow_fetch=False)
+    index.load_file("ad3d", "155", path)
+
+    verdict = index.page("ad3d", "155", "407")
+
+    assert verdict.outcome is PageOutcome.AMBIGUOUS_PAGE
+    assert verdict.case is None
+    assert not verdict.contradicts_locator
