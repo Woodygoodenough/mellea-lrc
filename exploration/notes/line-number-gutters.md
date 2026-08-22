@@ -116,15 +116,49 @@ run in place, preserving every offset. `preprocessing/margin_line_numbers.py`
 works on the `DoclingDocument` and reclassifies the margin items as furniture,
 which is what they are.
 
-The structural rule is the better one, and by a clear margin:
+Measured across all 26 documents, the two rules agree exactly on *which*
+filings are pleading paper -- the same eight, with no disagreement in either
+direction -- and not at all on how much of the margin they can see:
+
+| doc | pages | items | geometry | text rule |
+|---|---:|---:|---:|---:|
+| 011 | 7 | 97 | 25 | 21 |
+| 013 | 70 | 2384 | **1930** | 356 |
+| 018 | 10 | 417 | 277 | 275 |
+| 019 | 17 | 519 | 391 | 390 |
+| 020 | 32 | 1147 | **864** | 17 |
+| 021 | 21 | 766 | 587 | 526 |
+| 022 | 16 | 586 | 446 | 414 |
+| 023 | 12 | 453 | 334 | 274 |
+| **total** | | | **4854** | **2273** |
+
+The text rule misses 53% of the margin. Where the rendering is clean the two
+agree closely (018: 277 vs 275; 019: 391 vs 390). Where it is not, the text
+rule collapses, and document 020 shows why in one line. Its margin arrives in
+the text as::
+
+    1  2  3  4  5  6  7  8  9  10  12  13  14  ...
+
+`11` is missing -- Docling dropped or absorbed it. The text rule requires a run
+ascending by exactly one, so a single absent number ends the run, and 864
+margin numbers are seen as 17. In the object the column is untouched at
+`l=59.8, r=67.3`; a gap in a column is still a column.
+
+That is the general shape of it. The text rule has to reconstruct the margin
+from properties that are *consequences* of being a margin -- consecutive
+integers, isolated on their lines -- and every one of those consequences is
+destroyed by ordinary rendering noise. The geometric rule reads the property
+that *defines* a margin, which the rendering is what destroys in the first
+place.
+
+Three specific advantages:
 
 - **It reads the column instead of inferring it.** Line numbers share a right
-  edge and sit left of the prose. Nothing about digits has to be guessed.
-- **It does not need the numbers to be contiguous or ascending.** On document
-  011 the text rule found 21 numbers and the geometry found 25 -- the text rule
-  needs an unbroken run between blank lines, and the column does not oblige.
+  edge and sit left of the prose. Nothing about the digits has to be guessed.
+- **It tolerates gaps and non-numeric noise.** Missing numbers, `- 4 -` styling
+  and absorbed items all leave the column intact.
 - **It cannot mistake a numbered list for a margin**, because a list sits in
-  the text column.
+  the text column, whatever its numbers do.
 
 The text rule remains useful for one reason: the benchmark ships text, and its
 gold spans address that text. Blanking preserves those offsets; reclassifying
