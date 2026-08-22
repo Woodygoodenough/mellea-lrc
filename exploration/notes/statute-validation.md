@@ -1,5 +1,29 @@
 # Checking statute citations
 
+> **Scope.** This is domain learning, not a component. Nothing in the citation
+> pipeline imports any of it, and nothing should until the questions in
+> section 0 are answered. The project is case citations; statutes are being
+> read about, not built on.
+
+## 0. What has to be understood before any of this is wired in
+
+None of these is answered yet, and each one changes what a statute checker
+would even be:
+
+- **How a provision is represented.** A section is not a stable object. It is
+  amended, renumbered, transferred between titles, and split. Two citations to
+  "the same" provision years apart may not name the same text.
+- **Which jurisdictions, in what order.** Federal first is obvious. After that
+  the ordering question is real: the corpora cite New York, California and
+  Indiana, each with its own code structure, its own abbreviations, and its
+  own publication arrangements.
+- **What counts as a defect.** A repealed section cited for history is correct
+  practice. A transferred section cited under its old title is arguably
+  correct at the date the brief was written. Neither is a fabrication.
+
+Until those are settled, wiring statute handling into the extractor would
+entangle the citation results with a question nobody has answered.
+
 Written 22 August 2026. The project checks case citations and ignores statutes
 entirely. This is a measurement of what that leaves out and what checking it
 would involve.
@@ -119,8 +143,11 @@ citation at all, so a checker never sees it.
    `29 U.S.C.A § 2612` match nothing. Both are written that way in the sampled
    filings.
 
-Relaxing all three, scoped to law patterns only, is in
-`experimental/relaxed_eyecite_extractor.py`. Counting distinct
+Relaxing all three is in `statutes/exploratory_tokenizer.py`, which nothing
+imports. It lived in `experimental/relaxed_eyecite_extractor.py` for part of a
+day, which was a mistake: that is the case-citation extractor and it should
+not change behaviour because of statute work. It now relaxes case patterns and
+leaves law patterns exactly as eyecite generates them. Counting distinct
 title-and-section pairs per document against what is written on the page:
 
 | corpus | eyecite as published | relaxed |
