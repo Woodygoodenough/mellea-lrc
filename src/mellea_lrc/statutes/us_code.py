@@ -134,9 +134,7 @@ def _natural_key(section: str) -> tuple[tuple[int, int | str], ...]:
     chunk is tagged 0-for-digits/1-for-letters so two chunks of different kinds
     never get compared against each other by ``int < str``.
     """
-    return tuple(
-        (0, int(chunk)) if chunk.isdigit() else (1, chunk) for chunk in _CHUNK_RE.findall(section)
-    )
+    return tuple((0, int(chunk)) if chunk.isdigit() else (1, chunk) for chunk in _CHUNK_RE.findall(section))
 
 
 @dataclass(frozen=True, slots=True)

@@ -23,9 +23,7 @@ _FIXTURES = Path(__file__).parent / "fixtures" / "us_code"
 
 @pytest.fixture
 def index() -> UsCodeIndex:
-    return UsCodeIndex.from_paths(
-        [_FIXTURES / "usc99_sample.xml", _FIXTURES / "usc07_sample.zip"]
-    )
+    return UsCodeIndex.from_paths([_FIXTURES / "usc99_sample.xml", _FIXTURES / "usc07_sample.zip"])
 
 
 def test_an_in_force_section_exists_and_is_in_force(index: UsCodeIndex) -> None:
@@ -81,7 +79,7 @@ def test_a_joint_repeal_registers_every_identifier_it_lists(index: UsCodeIndex) 
 
 
 def test_a_range_placeholder_covers_every_section_between_its_endpoints(index: UsCodeIndex) -> None:
-    """"§§ 30 to 33" repealed as one block covers 31 and 32, neither of which
+    """ "§§ 30 to 33" repealed as one block covers 31 and 32, neither of which
     has its own <section> element in the fixture."""
     for section in ("30", "31", "32", "33"):
         result = index.lookup(99, section)
@@ -157,6 +155,5 @@ def test_an_unparseable_identifier_is_skipped(tmp_path: Path) -> None:
 def test_title_zip_url_matches_the_olrc_download_shape() -> None:
     url = title_zip_url(28, release_point="119-102not101")
     assert url == (
-        "https://uscode.house.gov/download/releasepoints/us/pl/119/102not101"
-        "/xml_usc28@119-102not101.zip"
+        "https://uscode.house.gov/download/releasepoints/us/pl/119/102not101/xml_usc28@119-102not101.zip"
     )
