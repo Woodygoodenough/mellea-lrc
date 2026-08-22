@@ -86,11 +86,45 @@ boundary, so "I searched and found nothing" has no defined meaning there, and
 "I searched and found something" may be a citation to a court record that
 itself came from an AI.
 
-## 5. The argument for going outside it
+## 5. What the unresolved citations actually are
 
-**State law is where the free record thins out.** The corpora cite New York
-Appellate Division, California Court of Appeal, and Indiana appellate decisions
-heavily, and those are exactly where a lookup returns nothing.
+Measured after this note was first written, and it removes the main argument
+for going outside CourtListener. The first version said state law is where the
+free record thins out. That is not what the unresolved bucket is.
+
+Of the 98 locators the probe recorded as unresolved:
+
+| | count | share |
+|---|---:|---:|
+| Westlaw (`WL`) | 45 | 46% |
+| federal reporters | 34 | 35% |
+| state and regional reporters | 10 | 10% |
+| LEXIS | 7 | 7% |
+| other specialty | 2 | 2% |
+
+A Westlaw number is assigned by Thomson Reuters and a LEXIS number by
+RELX. They are not reporters, they identify a record in a paid database, and
+**no free source can resolve one — nor can the open web, since the databases
+are paywalled.** Together they are 53% of the bucket. The unresolved rate for a
+Westlaw locator is 90%, against 6% for a federal reporter.
+
+Of the 10 state entries, 7 evaporate on reading: 4 are short forms (see below),
+and 3 are `70 O.S. 5` and `70 O.S. 6`, which are **Oklahoma Statutes** misread
+as Ohio State Reports because `reporters-db` lists `O.S.` as a variation of
+that reporter. Similarly `209 CMR 32` is the Massachusetts Code of Regulations
+read as Court Martial Records, and three `FERC ¶ 61,xxx` entries are agency
+orders. Roughly 7 of the 98 are not case citations at all.
+
+**Genuine unresolved state-court case citations: 3 of 98.** Nothing here
+justifies reaching outside CourtListener for state coverage.
+
+A further 30 of the 98 were never citations to look up. They are short forms —
+`132 S.Ct. at 1300` — whose page is a pin cite, and the probe was asking
+whether a case *begins* on that page. The production pipeline never asks that.
+Fixed in `evaluations/lephantomcite/locator_probe.py`, which now reports short
+forms separately; it was 331 of the probe's 1,334 records.
+
+## 6. The argument that survives for going outside it
 
 **A well-known case is verifiable from many sources.** For a Supreme Court case,
 the open web is not a weaker source than CourtListener — the citation appears in
@@ -104,7 +138,7 @@ be useful.
 declines to draw a conclusion. Any evidence that moves one of those to a real
 answer is worth more than another confirmation of a case already found.
 
-## 6. What decides between them
+## 7. What decides between them
 
 The choice is not "scoped or open". It is **what a search is allowed to
 conclude**, and that differs by source:
@@ -124,7 +158,29 @@ That asymmetry is the design rule. **The open web is a refutation channel, not
 a confirmation channel.** It answers "does this name belong to a different
 citation?" and never "does this citation exist?"
 
-## 7. What an agent is for, and what it is not for
+Tested against three citations from the corpus whose case name disagrees with
+the CourtListener record, searching only `nycourts.gov` — the New York courts'
+own site, which publishes the official reports:
+
+- `183 A.D.3d 649`: the official bound-volume index gives `Goodine, Matter of,
+  v Evans`. The filing wrote `Cornhill LLC v. Sowers`. **Refuted**, and it
+  matches CourtListener exactly.
+- `139 A.D.3d 695`: the official index gives `Cadle Co. v Ayala` at
+  **47 A.D.3d 919**, a different volume entirely from the filing's.
+- `131 A.D.3d 1185` and `85 A.D.3d 1510`: the right index PDF came back both
+  times, but the answer was not in the snippet.
+
+So the mechanism works and its reliability is uneven, for a reason worth
+recording: **every page on `nycourts.gov` returns 403 to a program.** The whole
+site is behind bot protection, so the official reports are reachable only
+through a search engine's index of them, and the evidence is whatever the
+snippet happened to contain. A verification result that depends on a search
+snippet is not reproducible next year, which is a problem for a project whose
+whole point is that its results can be checked.
+
+That is what sent this work to `caselaw-archive.md` instead.
+
+## 8. What an agent is for, and what it is not for
 
 The current search is one query with no room to react. An agent is worth
 introducing where the next action genuinely depends on the previous result, and
@@ -152,16 +208,39 @@ So the shape is a **bounded agent with a fixed budget of queries, a fixed set of
 allowed moves, and no authority over the conclusion**. It chooses which query to
 run next; the rules decide what the result means.
 
-## 8. What to measure before building it
+## 9. What the preconditions actually cost
 
-Nothing here should be built before these are known, and none of them costs a
-model:
+Measured over the same 98. Each row is what survives the previous one:
 
-1. How many of the 98 unresolved locators are refused by the preconditions in
-   section 2 rather than searched and missed. A citation that never reached the
-   search is not evidence that the search is too narrow.
-2. How many resolve if the court filter is dropped. This is one query per
-   citation and settles whether the hard filter is the constraint.
-3. How many state-court citations are unresolved compared with federal. This
-   settles whether the open web is worth reaching for at all, or whether the
-   gap is somewhere else.
+| gate | passes | fails |
+|---|---:|---:|
+| parses as a full case citation | 68 | 30 (all short forms) |
+| both parties recoverable | 32 to 39 | 36 to 29 |
+| carries a court | **25 to 30** | 7 to 9 |
+
+**Only about a quarter of the unresolved citations ever reach the search.** The
+range comes from the party gate being measured with eyecite rather than with
+the model that actually runs it; eyecite is a lower bound, because it loses a
+party to the benchmark's `*emphasis*` markup in 7 cases and to an intervening
+docket number in others, both of which the model's prompt explicitly tolerates.
+A `v.` appears in the window for 50 of the 68, but that is a ceiling rather than
+an estimate: in a string citation the nearby `v.` usually belongs to a different
+citation, and borrowing across citations is what the prompt forbids.
+
+Of the 25 that do reach the search, 19 are Westlaw and 3 are LEXIS. That is the
+right population for a name search — CourtListener very likely holds the opinion
+under a reporter citation or none, and the vendor number will never resolve.
+
+**Every one of the 25 states a year.** So does every one of the 30 under the
+looser party rule. The query dropping the year is a filter given away for free,
+in 100% of the cases where it could be used. That is the cheapest change
+available and it needs no agent at all.
+
+## 10. What is still worth measuring
+
+1. How many of the 25 resolve if the court filter is dropped. One query each.
+2. Whether adding the year as a date range changes what the existing query
+   returns.
+3. Whether the 150 short forms the probe recorded as `resolved` resolved to the
+   right case. The lookup matches a first page only, so each of those found
+   whatever case begins at the pin page, which is not the case cited.

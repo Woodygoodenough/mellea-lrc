@@ -1,9 +1,15 @@
 # How many candidates a lookup returns, and what to do about it
 
-Written 22 August 2026. When a locator lookup or a search returns more than one
-record, something has to decide which records are worth evaluating. The rule
-today is a constant. This note measures what the rule is applied to, which
-turns out to be two different problems that need opposite treatments.
+Written 22 August 2026, corrected the same day after the numbers were checked
+properly. When a locator lookup returns more than one record, something has to
+decide which records are worth evaluating. The rule today is a constant, and it
+is being applied to two different problems that need opposite treatment.
+
+**Two claims in the first version of this note were wrong**, and both are
+corrected below. The counts were taken from a partial dedup (68 locators rather
+than 90), and the conclusion that name variation needs a model does not survive
+contact with the data: the decision date settles 80% of it on its own, with no
+false merges at all.
 
 ## 1. The rule today
 
@@ -16,104 +22,131 @@ selected_count = total if total <= CANDIDATE_SELECTION_LIMIT else 0
 
 It is not a top-3. **More than three candidates selects zero**, and the whole
 branch below is marked deferred. The reasoning is defensible — picking three of
-twenty-nine arbitrarily would be worse than declining — but the effect is that
-the citations with the most retrieved evidence are the ones that get none of it
-looked at.
+twenty-nine arbitrarily would be worse than declining — but section 4 measures
+what it costs, and the answer is most of the right answers.
 
-## 2. What the ambiguous results actually contain
+## 2. What the ambiguous results contain
 
-From the locator probe, 94 of the 817 answered locators came back ambiguous.
-Re-reading 68 of those from the cache, at no request cost:
+94 records in the locator probe came back ambiguous, covering **90 distinct
+locators**. Every one of them was read back from the cache at no request cost.
 
 | records returned | locators |
 |---:|---:|
-| 2 | 54 |
+| 2 | 76 |
 | 3 | 2 |
 | 4 to 32 | 12 |
 
-Two records is 79% of the ambiguity. Twelve locators are over the limit and are
-deferred entirely.
+## 3. The two-record case is one case recorded twice, and no model is needed
 
-## 3. The two-record case is one case recorded twice
+CourtListener holds the same decision more than once — a library import beside
+a scraped copy, a panel opinion beside its rehearing, a record whose name field
+is empty. **73 of the 76 two-record locators are one case.** Only 3 are two
+genuinely different cases sharing a page.
 
-CourtListener holds the same decision more than once — a Harvard import and a
-scraped copy, a panel opinion and its rehearing, a record whose name field is
-empty. Collapsing on a normalized name with prefix matching resolves 35 of the
-68 to a single case. Reading the remaining two-record ones by hand, essentially
-all of them are also one case, and the reason a string rule missed them is
-instructive:
+The name variation is real and a string rule does not cover it:
 
-| locator | first record | second record | why the rule missed it |
+| locator | one record | the other | why a name rule misses it |
 |---|---|---|---|
-| `828 F.2d 123` | Grasty v. Amalgamated Clothing **&** Textile Workers Uni | Grasty v. Amalgamated Clothing **And** Textile Workers U | truncated at different lengths |
-| `198 F.3d 1083` | Free Speech Coalition v. **Reno** | Free Speech Coalition v. **Janet** Reno | a first name inserted |
-| `338 F.3d 23` | Savard v. **Rhode Island** | Savard v. **RI** | abbreviation |
+| `828 F.2d 123` | Grasty v. Amalgamated Clothing **&** Text… | …Clothing **And** Textile… | truncated at different lengths |
 | `343 F.3d 1143` | Giebeler v. **M & B** Associates | Giebeler v. Associates | dropped party words |
-| `244 F.3d 1152` | Local Joint Executive Board of Culinary… | *(empty)* | no name at all |
 | `398 F.3d 868` | Johnson v. Karnes | Johnson **II** v. Karnes | appeal-stage marker |
+| `332 F.3d 654` | Public Citizen, Inc. v. U.S. Dept HHS | Pub Ctzn Inc v. HHS | abbreviation throughout |
+| `295 U.S. 602` | Rathbun v. **Unitted** States | Humphrey's v. United States | alternative caption, plus a typo |
+| `70 F.3d 736` | Warrick v. General Electric Co. | In Re Warrick | bankruptcy caption |
+| `244 F.3d 1152` | Local Joint Executive Board… | *(empty)* | one record has no name at all |
 
-Every one of these is decidable by a person in a second, and none is decidable
-by a rule that will not also merge cases that differ. Normalization is
-open-ended in the way that party names are open-ended: an insertion, an
-abbreviation, a truncation, an ampersand, an empty field, a roman numeral.
+**But the name is not the field to merge on.** The decision date is:
 
-This is the honest case for a model at this step. The question is narrow —
-*are these two records the same decision?* — and it comes with strong
-programmatic evidence to guard against a wrong answer: the two records share a
-locator, and a date, and a court. A model that says "different" for two records
-with the same locator, date, and court should be overruled; a model that says
-"same" for records with different dates should have to say why.
+- **61 of 76 pairs share `date_filed`, and reading all 61, every one is the same
+  case. No false merges.**
+- Ten pairs have an empty name on one side, and eight of those ten agree on
+  date — so the date rule covers exactly the cases where a name rule has
+  nothing to work with.
+- Of the 15 pairs whose dates disagree, 12 are still one case, split because
+  CourtListener recorded an opinion and its amendment or rehearing separately
+  (`Ultramercial v. Hulu` at 2011-09-15 and 2011-03-18). Loose normalization
+  catches all 12 — `Rhode Island`/`RI`, `Pub Ctzn`/`Public Citizen`.
+- The 3 real collisions differ in **both** name and date, so nothing merges
+  them by accident.
 
-## 4. The high-cardinality case is a different problem entirely
+So the first version's conclusion — that this is where a model earns its place
+— is wrong. A date comparison does 80% with no errors, and mechanical
+normalization does the rest. `docket_id` is equal in 24 of 76 and never equal
+for a non-duplicate, so it is a second no-model key with perfect precision and
+low recall.
 
-The twelve locators over the limit do not shrink when duplicates are collapsed,
-because they are not duplicates:
+**One thing genuinely cannot be done here.** `court_id` is `None` on every
+record, always. The cluster payload from the citation-lookup endpoint has no
+court field at all, though `courtlistener/opinion_transport.py` declares one.
+Recovering a court costs a second request per candidate, so any rule that wants
+to compare courts is not free.
 
-```
-554 F.2d 1071  -> 31 distinct cases: United States v. Maldonado-Farias,
-                  United States v. Chambers, United States v. Luna, ...
-788 F.2d 9     -> 27 distinct cases: In re Acker, Saunders v. McDonnell
-                  Douglas, Snowden v. City of Tucson, ...
- 21 F.3d 1115  -> 26 distinct cases
-```
+## 4. Deferring the high-cardinality ones loses the answers
 
-These are **table-of-decisions pages**. The Federal Reporter prints unpublished
-dispositions in a table, many to a page, so one volume-and-page really does name
-dozens of unrelated cases. The locator is not ambiguous by accident; it is
-insufficient by design.
+For each of the 12 locators over the limit, the case name the filing wrote was
+matched against the returned records. **Eleven of the twelve come out right:**
 
-Deduplication cannot help here and neither can a bigger limit. The only thing
-that separates 31 cases sharing a page is **the case name the filing wrote** —
-which the pipeline has, and which the current design never brings to this step.
+- **5 confirmations.** `515 U.S. 1159` matches `Johnson & Higgins v. Sempier`
+  (the certiorari caption reverses the parties); `21 F.3d 1115` matches `Victor
+  Reyes v. Pacific Bell`; and three more.
+- **6 correct rejections**, every one of which the benchmark independently
+  labels `case_name_mismatch`. `554 F.2d 1071`, `788 F.2d 9`, `998 So. 2d 614`
+  and three others: the filing's name matches nothing on that page, which is
+  the defect.
+- **1 false rejection.** `132 L.Ed.2d 854` returns only 4 records for a page
+  that carries many more, so the right entry is simply absent and the name
+  matches nothing.
 
-## 5. What follows
+The one failure is the opposite of what the limit guards against: not too many
+candidates, but too few — a sparsely covered page where absence reads as
+mismatch. **That argues for gating on coverage rather than on cardinality.**
 
-The two problems need opposite handling, and the constant treats them alike.
+## 5. The high-cardinality pages are two different things
 
-**For duplicates:** collapse before counting. The limit should apply to distinct
-cases, not to returned records. On this data that turns 54 two-record results
-into single-candidate results and removes them from the decision entirely.
+They do not shrink when duplicates are collapsed, because they are not
+duplicates. They split cleanly, and the decision date separates them:
 
-**For table pages:** do not collapse, and do not defer. Match the filing's own
-case name against the returned records. Thirty-one candidates with a case name
-to match on is an easier problem than three candidates without one, so the
-current rule has the difficulty backwards.
+| kind | example | records | distinct dates | span |
+|---|---|---:|---:|---|
+| Supreme Court orders list | `562 U.S. 1035` | 32 | 1 | 2010-11-08 |
+| Supreme Court orders list | `493 U.S. 1023` | 29 | 1 | 1990-01-08 |
+| reporter table of decisions | `554 F.2d 1071` | 32 | 20 | 1977-04-01 to 05-31 |
+| reporter table of decisions | `21 F.3d 1115` | 28 | 11 | 1994-03-28 to 04-25 |
 
-**For the limit itself:** it should bound *work*, not *evidence*. Deferring
-everything above a threshold discards retrieved records that were already paid
-for with a request. Ranking them and evaluating the top few, while recording
-that the rest were not looked at, keeps the honesty without the waste — and
-recording what was dropped is a rule this project already applies elsewhere.
+An orders list is one Monday's certiorari dispositions, so every record shares
+a date. A table of unpublished decisions covers weeks, so the dates spread.
+Six of the twelve are each kind, and **the date spread tells them apart without
+reading anything**.
 
-## 6. What to measure next
+Neither is ambiguous by accident: one printed page really does name dozens of
+unrelated cases. Only the case name the filing wrote can separate them, and the
+current design never brings it to this step.
 
-1. How often a returned candidate set contains the case the filing actually
-   named, for the twelve deferred locators. If the answer is usually, deferring
-   them is losing real answers.
-2. Whether collapsing on locator, date, and court alone — no name at all — is
-   enough for the two-record case. That would need no model, and section 3 says
-   it probably is not, but it is one query away from being known rather than
-   assumed.
-3. What the same distributions look like for the opinion-search results, which
-   this note has not examined. Search returns a result count that can be in the
-   hundreds, and the same all-or-nothing rule applies to it.
+The rate is **12 of the 600 locators that returned any record, or 2.0%** — and
+that is a floor, not an estimate. A table page that CourtListener covers thinly
+lands in the two-record bucket and is invisible to this count. `132 L.Ed.2d
+854` is exactly that case.
+
+## 6. What should replace the constant
+
+- **Merge on the date before counting.** Sixty-one of the 76 two-record results
+  become single-candidate results with no model and no risk, and the limit
+  stops binding on them at all.
+- **For a page with many candidates, do the opposite of deferring.** Match the
+  filing's own case name. Section 4 says that is right 11 times in 12, against
+  0 in 12 today.
+- **Gate on coverage, not cardinality.** The single failure was a page the
+  archive holds thinly. Whether the returned set plausibly covers the page is
+  the question worth asking; how many records came back is not.
+- **Bound work, not evidence.** Deferring above a threshold discards records
+  already paid for with a request. Rank them, evaluate the top few, and record
+  plainly that the rest were not examined.
+
+## 7. Still not measured
+
+1. The opinion-search results, which this note has not touched. Search returns
+   counts in the hundreds and the same all-or-nothing rule applies to them.
+2. How often a thinly covered table page produces a false mismatch. One case is
+   known; the rate is not.
+3. Whether recovering `court_id` — one extra request per candidate — pays for
+   itself anywhere.
