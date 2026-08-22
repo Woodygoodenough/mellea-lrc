@@ -60,6 +60,9 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
         # It is empty here: this test is about which export is called, and a
         # document with a margin belongs in the margin rule's own tests.
         texts: tuple[object, ...] = ()
+        # The margin rule and the index locator both walk these, so they have to
+        # exist. Both are empty here: this test is about which export is called.
+        tables: tuple[object, ...] = ()
 
         def export_to_text(self) -> str:
             calls["export_to_text"] = True
@@ -89,6 +92,7 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
     assert document.preprocessing_metadata.backend == PreprocessingBackend.DOCLING
     assert calls == {"path": "sample.pdf", "export_to_text": True}
     assert document.preprocessing_metadata.margin_line_numbers_dropped == 0
+    assert document.index_spans == ()
 
 
 def test_preprocessed_document_rejects_empty_text() -> None:
