@@ -23,6 +23,7 @@ Not wired into the production pipeline.
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from typing import TYPE_CHECKING, cast
 
 import ahocorasick
@@ -54,31 +55,42 @@ if TYPE_CHECKING:
 # present, so the group still cannot end on whitespace. This works for the
 # alternation-shaped groups too, where lifting the trailing ``\s*`` out by
 # string surgery cannot reach every branch.
-# The two joins are relaxed differently, because a page break falling at one is
-# not the same risk as at the other.
+# The two joins are relaxed differently, and which one is right depends on what
+# produced the text.
 #
 # Between volume and reporter, a break leaves reporter and page still adjacent
 # on the far side, so the page that gets captured is the citation's own. Blank
-# lines are safe here, and needed: `937\n\nS.W.2d 796` is a real citation split
-# by a page break.
+# lines are always safe here, and needed: `937\n\nS.W.2d 796` is a real
+# citation split by a page break.
 #
 # Between reporter and page, the page number is what lands beyond the break --
-# next to running heads and PDF margin line numbers. Allowing a blank line there
-# read `214 F.3d\n\n1\n\n2\n\n3` as `214 F.3d 1` when the citation is
-# `214 F.3d 1058`: not a miss but a *wrong page*, which sends validation to the
-# wrong case and reports a confident verdict about it. So this join crosses at
-# most one newline.
+# which on pleading paper is where the margin line numbers are. Allowing a blank
+# line there reads `214 F.3d\n\n1\n\n2\n\n3` as `214 F.3d 1` when the
+# citation is `214 F.3d 1058`: not a miss but a *wrong page*, which sends
+# validation to the wrong case and reports a confident verdict about it.
+#
+# That hazard is a property of the text, not of the tokenizer. Text produced by
+# the structure-aware preprocessing has no margin left in it, and there the
+# blank line between reporter and page means what it appears to mean. So the
+# join is a parameter: bounded to a single newline by default, and opened up
+# only for text whose margins have been removed. `PreprocessingMetadata.
+# margin_line_numbers_dropped` records whether that ran, so the caller does not
+# have to remember.
 _ACROSS_BLOCKS = r"\s*"
 _WITHIN_BLOCK = r"[^\S\r\n]*(?:\r?\n[^\S\r\n]*)?"
 
-_JOINS: tuple[tuple[str, str], ...] = (
-    (r") (?P<reporter>", rf"){_ACROSS_BLOCKS}(?P<reporter>"),
-    (r"),? (?P<page>", rf")(?<!\s),?{_WITHIN_BLOCK}(?P<page>"),
-)
+
+def _joins(*, cross_blank_lines: bool) -> tuple[tuple[str, str], ...]:
+    """The two substitutions that relax a generated reporter pattern."""
+    page_gap = _ACROSS_BLOCKS if cross_blank_lines else _WITHIN_BLOCK
+    return (
+        (r") (?P<reporter>", rf"){_ACROSS_BLOCKS}(?P<reporter>"),
+        (r"),? (?P<page>", rf")(?<!\s),?{page_gap}(?P<page>"),
+    )
 
 
-def _relax(regex: str) -> str:
-    for old, new in _JOINS:
+def _relax(regex: str, joins: tuple[tuple[str, str], ...]) -> str:
+    for old, new in joins:
         regex = regex.replace(old, new)
     return regex
 
@@ -108,12 +120,19 @@ class _RelaxedTokenizer(AhocorasickTokenizer):
         return self.make_ahocorasick_filter(pairs)
 
 
-def relaxed_tokenizer() -> Tokenizer:
-    """Build a tokenizer whose reporter regexes tolerate any separator whitespace."""
+@lru_cache(maxsize=2)
+def relaxed_tokenizer(*, cross_blank_lines: bool = False) -> Tokenizer:
+    """Build a tokenizer whose reporter regexes tolerate separator whitespace.
+
+    Set ``cross_blank_lines`` only for text whose page margins have been
+    removed. On text that still holds them it reads a margin line number as the
+    citation's page.
+    """
+    joins = _joins(cross_blank_lines=cross_blank_lines)
     return _RelaxedTokenizer(
         extractors=[
             TokenExtractor(
-                regex=_relax(extractor.regex),
+                regex=_relax(extractor.regex, joins),
                 constructor=extractor.constructor,
                 extra=extractor.extra,
                 flags=extractor.flags,
@@ -124,7 +143,14 @@ def relaxed_tokenizer() -> Tokenizer:
     )
 
 
-_TOKENIZER = relaxed_tokenizer()
+def _tokenizer_for(preprocessed: PreprocessedDocument) -> Tokenizer:
+    """Pick the join width from how this document's text was produced.
+
+    A document whose margins were removed records how many were removed, so
+    ``None`` means the rule did not run and the wider join is not safe.
+    """
+    dropped = preprocessed.preprocessing_metadata.margin_line_numbers_dropped
+    return relaxed_tokenizer(cross_blank_lines=dropped is not None)
 
 
 def extract_relaxed(preprocessed: PreprocessedDocument) -> ExtractedDocument:
@@ -139,7 +165,7 @@ def extract_relaxed(preprocessed: PreprocessedDocument) -> ExtractedDocument:
     comparable, and any normalization added there later applies to both.
     """
     text = preprocessed.text
-    eyecite_citations = _get_citations_with_recovered_spans(text, tokenizer=_TOKENIZER)
+    eyecite_citations = _get_citations_with_recovered_spans(text, tokenizer=_tokenizer_for(preprocessed))
     resolutions = cast(
         "dict[Resource, list[CitationBase]]",
         resolve_citations(eyecite_citations),
