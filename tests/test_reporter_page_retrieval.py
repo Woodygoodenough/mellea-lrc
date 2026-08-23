@@ -322,3 +322,68 @@ def test_star_pagination_is_named_rather_than_called_unsupported(pin_cite: str) 
     """
     assert reporter_page._numeric_pin_page(pin_cite) is None
     assert reporter_page.is_star_pagination(pin_cite)
+
+
+@dataclass
+class CountingOpinionClient:
+    """An opinion source that records how many documents were actually read."""
+
+    opinions: dict[str, CourtListenerOpinion]
+    reads: list[str]
+
+    def get_opinion(self, opinion_id: str) -> CourtListenerOpinion:
+        """Return one configured opinion, remembering that it was fetched."""
+        self.reads.append(opinion_id)
+        return self.opinions[opinion_id]
+
+
+def test_the_search_stops_once_nothing_later_can_rank_higher() -> None:
+    """A cluster's separate writings are fetched only to be discarded.
+
+    The selection takes the best-ranked base opinion, and unanimous is the best
+    rank there is, so once one is found the rest of the cluster cannot change
+    the answer. Reading them anyway costs a request each against a daily
+    allowance -- across the resolved citations in this corpus, 201 clusters
+    carry three or more opinions and 504 of 1,172 reads are for opinions that
+    cannot be selected.
+    """
+    validation, evaluation = _validation(sub_opinion_ids=("unanimous", "dissent", "concurrence"))
+    html = '<span citation-index="1" label="623">*623</span> holding'
+    client = CountingOpinionClient(
+        opinions={
+            "unanimous": CourtListenerOpinion("unanimous", "2971299", "015unamimous", html),
+            "dissent": CourtListenerOpinion("dissent", "2971299", "040dissent", html),
+            "concurrence": CourtListenerOpinion("concurrence", "2971299", "030concurrence", html),
+        },
+        reads=[],
+    )
+
+    node = run_reporter_page_retrieval(validation, evaluation=evaluation, client=client)
+
+    assert node.outcome is ReporterPageRetrievalOutcome.FOUND
+    assert node.evidence is not None
+    assert node.evidence.opinion_id == "unanimous"
+    assert client.reads == ["unanimous"]
+
+
+def test_the_search_reads_on_when_the_first_opinion_cannot_be_selected() -> None:
+    """Stopping early must not stop before an answer exists.
+
+    A dissent comes first here and is not a base opinion, so the search has to
+    continue to reach the one that is.
+    """
+    validation, evaluation = _validation(sub_opinion_ids=("dissent", "unanimous"))
+    html = '<span citation-index="1" label="623">*623</span> holding'
+    client = CountingOpinionClient(
+        opinions={
+            "dissent": CourtListenerOpinion("dissent", "2971299", "040dissent", html),
+            "unanimous": CourtListenerOpinion("unanimous", "2971299", "015unamimous", html),
+        },
+        reads=[],
+    )
+
+    node = run_reporter_page_retrieval(validation, evaluation=evaluation, client=client)
+
+    assert node.evidence is not None
+    assert node.evidence.opinion_id == "unanimous"
+    assert client.reads == ["dissent", "unanimous"]

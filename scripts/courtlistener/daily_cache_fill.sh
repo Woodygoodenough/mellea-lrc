@@ -131,5 +131,16 @@ STATUS=$?
 # purpose is to spend the day's budget and stop.
 ANSWERED=$(wc -l < "$LOG_DIR/locator-probe.checkpoint.jsonl" 2>/dev/null | tr -d ' ')
 say "probe exited $STATUS; checkpoint now holds ${ANSWERED:-0} answered locators"
+
+# Whatever allowance the locators left goes to the opinion documents the
+# checking stage reads. Those are a different endpoint and are not stored by
+# the probe, so until they are warm that stage needs a live service and cannot
+# be re-run offline. Enumerating them costs nothing -- it reads the locator
+# answers back out of the cache -- so this is safe to attempt every night even
+# when the probe has just spent everything.
+say "warming opinion documents with whatever allowance is left"
+uv run --env-file "$REPO/.env" python -m evaluations.lephantomcite.warm_opinions \
+  --dataset "$DATASET" >> "$LOG" 2>&1
+say "opinion warming exited $?"
 say "=== run finished ==="
 exit 0

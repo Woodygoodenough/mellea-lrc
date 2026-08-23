@@ -386,8 +386,17 @@ def summarize(results: Sequence[LookupResult]) -> dict[str, int]:
 
 def _is_quota_refusal(error: CourtListenerError) -> bool:
     """Whether the allowance is spent, rather than the request merely being paced."""
-    text = str(error.upstream_detail)
-    if _POOL_EXHAUSTED.search(text) and _refusal_seconds(text) is not None:
+    return is_quota_refusal_for(str(error.upstream_detail))
+
+
+def is_quota_refusal_for(text: str) -> bool:
+    """Whether a refusal message means the day is spent rather than the minute.
+
+    Shared with the opinion warmer, which meets the same two refusals and has
+    to tell them apart the same way -- by the number of seconds attached, not
+    by the words, which are identical either way.
+    """
+    if _POOL_EXHAUSTED.search(text):
         seconds = _refusal_seconds(text)
         if seconds is not None and seconds < SHORT_REFUSAL_SECONDS:
             return False
