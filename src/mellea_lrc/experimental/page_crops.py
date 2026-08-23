@@ -77,7 +77,7 @@ def place_text_items(document: DoclingDocument) -> tuple[ItemPlacement, ...]:
     text = document.export_to_text()
     placements, cursor = [], 0
     for item, _ in document.iterate_items(with_groups=False, included_content_layers={ContentLayer.BODY}):
-        body = getattr(item, "text", None)
+        body = _item_text(item, document)
         provenance = getattr(item, "prov", None) or []
         if not body or not body.strip() or not provenance:
             continue
@@ -98,6 +98,32 @@ def place_text_items(document: DoclingDocument) -> tuple[ItemPlacement, ...]:
         )
         cursor = found + len(body)
     return tuple(placements)
+
+
+def _item_text(item: Any, document: DoclingDocument) -> str | None:
+    """The text this item contributes to the export.
+
+    A table has no ``text`` of its own -- it becomes markdown -- so an item
+    test that only reads ``text`` skips every table, and a span inside one maps
+    to no region at all. That is not an edge case here: a table of authorities
+    is where the citations this project most wants to look at are printed, and
+    it was the reason the two occurrences no extractor can reach could not be
+    cropped either.
+
+    The whole table is placed as one region rather than cell by cell. Its cells
+    have no separate boxes in the export, and for looking at a page the table
+    is the right unit anyway.
+    """
+    body = getattr(item, "text", None)
+    if body:
+        return str(body)
+    to_markdown = getattr(item, "export_to_markdown", None)
+    if to_markdown is None:
+        return None
+    try:
+        return str(to_markdown(document))
+    except (TypeError, ValueError, AttributeError):
+        return None
 
 
 def regions_for_span(
