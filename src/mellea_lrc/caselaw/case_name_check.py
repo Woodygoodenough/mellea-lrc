@@ -61,31 +61,31 @@ find:
 ====================  ==========================  ======
 this check says       the annotators say          count
 ====================  ==========================  ======
-agrees                nothing                       1292
-agrees                some other defect               89
+agrees                nothing                       1282
+agrees                some other defect               87
 **agrees**            **a wrong case name**            **0**
 disagrees             nothing                        152
-disagrees             a wrong case name               91
-disagrees             some other defect                4
-undecided             nothing                        803
-undecided             some other defect               67
-undecided             a wrong case name               14
+disagrees             a wrong case name               98
+disagrees             some other defect                3
+undecided             nothing                        813
+undecided             some other defect               70
+undecided             a wrong case name                7
 ====================  ==========================  ======
 
-**Nothing this check clears is a name the annotators marked.** Of 1,381
+**Nothing this check clears is a name the annotators marked.** Of 1,369
 citations it calls agreeing, none is labelled a wrong case name. That is what
 makes it worth running: agreement is trustworthy, so it can take a citation off
 the pile rather than only adding to it.
 
 The other direction is weaker, as the numbers say plainly. Of the 105 labelled
-wrong names it could reach, it catches 91 and returns undecided on 14 -- so it
-misses few, but only 37% of what it calls a disagreement carries a label. Since
+wrong names it could reach, it catches 98 and returns undecided on 7 -- so it
+misses few, but only 39% of what it calls a disagreement carries a label. Since
 an unlabelled citation is not a certified correct one, that is a floor rather
 than a precision figure.
 
 **On filings with nothing inserted into them it finds nothing.** Over the 109
-sampled filings it flags 17 citations, and every one is an artifact rather than
-a defect: a name the extractor damaged (``Under Domino' Pizza``, ``Congress,'
+sampled filings it flags 11 citations of 599 it can speak on, and every one is
+an artifact rather than a defect: a name the extractor damaged (``Under Domino' Pizza``, ``Congress,'
 Arizona v. United States``), or an abbreviation still not reconciled. That
 number is the one to plan against, and it is the same story the first-page
 check tells in :mod:`~mellea_lrc.caselaw.first_page_check`.
@@ -107,8 +107,11 @@ if TYPE_CHECKING:
 
 __all__ = ["CaseNameFinding", "NameVerdict", "check_case_name", "compare_case_name"]
 
-# Kept so an abbreviation's trailing period survives to be read as one.
-_PUNCTUATION = re.compile(r"[^a-z0-9. ]+")
+# Keeps the trailing period, so an abbreviation can be recognised as one, and
+# keeps case, so an acronym can be. Excluding A-Z here silently removed the
+# first letter of every capitalised word -- `Limited` became `imited` and
+# `CFTC` vanished entirely.
+_PUNCTUATION = re.compile(r"[^A-Za-z0-9. ]+")
 
 # Words carrying no identity: corporate forms, articles, and the wrappers a
 # reporter puts around a party.
