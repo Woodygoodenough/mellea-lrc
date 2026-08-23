@@ -233,3 +233,28 @@ which run only 134–140 and 176–181. Only 18 fall after a reporter's last
 volume. So "the archive ends around 2020" is a minor limit here; the real one is
 that its static files carry a narrow slice of the parallel Supreme Court
 reporters.
+
+## 8. The same check over real filings finds nothing
+
+Run over the 135 filings that carry no injected defects — the 26 test filings
+and the 109 sampled from other courts, 2,007 case citations between them.
+
+| what the check concluded | count |
+|---|---:|
+| the case name disagrees, so this is a name question not a page one | 18 |
+| a short form written without `at` | 9 |
+| **a wrong first page** | **0** |
+
+**Nothing is reported.** Set against the 7 found among the 3,138 citations in
+the annotated excerpts, the rate of this defect in real filings is somewhere
+under a tenth of a percent, and on this corpus it is zero.
+
+That is worth stating plainly rather than burying. The check is sound, the 7 it
+found are real and verified by hand, and it is a rare defect. Anyone planning
+to build on it should size the effort against a defect that fires roughly twice
+in a thousand citations, not against the 61% label agreement in section 7 —
+which, as 7.1 says, is largely a property of how that corpus was built.
+
+The 18 name disagreements are a different matter and are not this check's
+business: the page belongs to one case and the filing names another, which is
+the case-name defect, and the name check is what should report it.
