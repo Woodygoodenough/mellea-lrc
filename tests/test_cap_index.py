@@ -224,3 +224,39 @@ def test_two_cases_claiming_one_page_concludes_nothing(tmp_path: Path) -> None:
     assert verdict.outcome is PageOutcome.AMBIGUOUS_PAGE
     assert verdict.case is None
     assert not verdict.contradicts_locator
+
+
+def _volume_963(tmp_path: Path) -> CapIndex:
+    index = CapIndex(cache_dir=tmp_path, allow_fetch=False)
+    index.load_file("f2d", "963", _FIXTURES / "f2d-963-slice.json")
+    return index
+
+
+def test_every_case_beginning_on_a_page_is_returned(tmp_path: Path) -> None:
+    """Several cases routinely start on one page, and picking one accuses a filing.
+
+    `963 F.2d 1258` begins both `United States v. Fine`, which occupies that
+    page alone, and `Ferdik v. Bonzelet`, which runs to 1264. Returning the
+    first one found told a filing that correctly cited Ferdik that the page
+    belongs to Fine -- a false accusation against a well-known citation, and
+    the same shape caught `Steckman v. Hart Brewing` and `Octocom Systems`.
+    """
+    verdict = _volume_963(tmp_path).page("f2d", "963", "1258")
+
+    assert verdict.outcome is PageOutcome.STARTS_A_CASE
+    assert {case.name for case in verdict.cases} == {"United States v. Fine", "Ferdik v. Bonzelet"}
+
+
+def test_a_case_with_an_unreadable_last_page_is_kept(tmp_path: Path) -> None:
+    """`Sher v. Johnson` carries a last page of `1366-1376`.
+
+    Dropping the case for that is worse than not knowing where it ends: the
+    case vanishes, its first page reads as belonging to whatever ran up to it,
+    and a correct citation is contradicted. It is treated as a single page
+    instead, which understates the span and never invents one.
+    """
+    verdict = _volume_963(tmp_path).page("f2d", "963", "1357")
+
+    assert verdict.outcome is PageOutcome.STARTS_A_CASE
+    assert verdict.case is not None
+    assert verdict.case.name == "Sher v. Johnson"

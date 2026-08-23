@@ -197,8 +197,24 @@ class PageVerdict:
     volume: str
     page: str
     outcome: PageOutcome
-    case: CapCase | None = None
-    """The case that starts on or covers the page, when there is one."""
+    cases: tuple[CapCase, ...] = ()
+    """Every case the archive puts at this page.
+
+    More than one when several begin on the same page, which is ordinary: a
+    reporter starts a new case partway down the page the last one ended on, and
+    a one-page disposition can sit between two longer opinions. `963 F.2d 1258`
+    begins both `United States v. Fine`, which occupies that page alone, and
+    `Ferdik v. Bonzelet`, which runs to 1264.
+
+    Picking one of those arbitrarily is how a correct citation gets contradicted:
+    a filing citing Ferdik was told the page belongs to Fine. A caller comparing
+    case names has to be satisfied by **any** of them.
+    """
+
+    @property
+    def case(self) -> CapCase | None:
+        """The first case at this page, for callers that need only one."""
+        return self.cases[0] if self.cases else None
 
     @property
     def contradicts_locator(self) -> bool:
@@ -295,14 +311,14 @@ class CapIndex:
             # range comparison below would be meaningless rather than wrong.
             return PageVerdict(slug, volume, page, PageOutcome.NO_CASE_COVERS_IT)
         number = int(page)
-        starting = next((case for case in cases if case.first_page == number), None)
-        if starting is not None:
+        starting = tuple(case for case in cases if case.first_page == number)
+        if starting:
             return PageVerdict(slug, volume, page, PageOutcome.STARTS_A_CASE, starting)
-        covering = [case for case in cases if case.covers(number)]
+        covering = tuple(case for case in cases if case.covers(number))
         if len(covering) > 1:
             return PageVerdict(slug, volume, page, PageOutcome.AMBIGUOUS_PAGE)
         if covering:
-            return PageVerdict(slug, volume, page, PageOutcome.INSIDE_A_CASE, covering[0])
+            return PageVerdict(slug, volume, page, PageOutcome.INSIDE_A_CASE, covering)
         return PageVerdict(slug, volume, page, PageOutcome.NO_CASE_COVERS_IT)
 
     def _volume(self, slug: str, volume: str) -> list[CapCase] | None:
@@ -375,8 +391,16 @@ def _parse(payload: list[dict], volume: str) -> list[CapCase]:
     cases = []
     for entry in payload:
         first, last = str(entry.get("first_page", "")), str(entry.get("last_page", ""))
-        if not (first.isdigit() and last.isdigit()):
+        if not first.isdigit():
             continue
+        if not last.isdigit():
+            # A malformed last page occurs -- `Sher v. Johnson` carries
+            # `1366-1376` -- and dropping the case for it is worse than not
+            # knowing where it ends. The case disappears, its first page reads
+            # as belonging to whatever ran up to it, and a correct citation is
+            # contradicted. Treated as a single page instead, which understates
+            # the span and never invents one.
+            last = first
         court = entry.get("court") or {}
         printed = _printed_first_page(entry, volume, int(first))
         cases.append(

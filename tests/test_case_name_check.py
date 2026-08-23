@@ -6,7 +6,9 @@ Caselaw Access Project records at that citation.
 
 import pytest
 
-from mellea_lrc.caselaw import NameVerdict, compare_case_name
+from pathlib import Path
+
+from mellea_lrc.caselaw import CapIndex, NameVerdict, check_case_name, compare_case_name
 
 
 @pytest.mark.parametrize(
@@ -99,3 +101,27 @@ def test_a_name_of_only_abbreviations_decides_nothing() -> None:
 def test_an_empty_name_decides_nothing() -> None:
     assert compare_case_name(None, "Brady v. United States") is NameVerdict.UNDECIDED
     assert compare_case_name("Brady v. United States", None) is NameVerdict.UNDECIDED
+
+
+def test_a_name_matching_any_case_on_the_page_agrees(tmp_path: Path) -> None:
+    """Several cases begin on one page, and the filing may mean any of them.
+
+    A citation to `Ferdik v. Bonzelet, 963 F.2d 1258` was reported as naming a
+    different case, because `United States v. Fine` also starts on that page
+    and was compared first. Agreement with one of them is agreement.
+    """
+    index = CapIndex(cache_dir=tmp_path, allow_fetch=False)
+    index.load_file("f2d", "963", Path(__file__).parent / "fixtures" / "cap" / "f2d-963-slice.json")
+
+    finding = check_case_name(
+        index,
+        written_name="Ferdik v. Bonzelet",
+        volume="963",
+        reporter="F.2d",
+        page="1258",
+        known_reporters={"f2d"},
+    )
+
+    assert finding is not None
+    assert finding.verdict is NameVerdict.AGREES
+    assert finding.case.name == "Ferdik v. Bonzelet"

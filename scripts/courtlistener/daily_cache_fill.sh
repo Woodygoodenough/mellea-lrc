@@ -74,9 +74,17 @@ esac
 # and the right answer then is to stop and let tomorrow's fire have it.
 MAX_WAIT_SECONDS=${MAX_WAIT_SECONDS:-5400}
 
+# The probe has to MISS the cache. A cached answer comes back 200 with no
+# mention of the allowance, so probing a citation that has been asked for
+# before reports "available" whatever the allowance is actually doing -- which
+# sent a run straight into a refusal it had just been told to wait for. A
+# random volume and page is never cached, so the answer is always about the
+# allowance. It costs one request when the allowance is up, out of 375.
 probe_allowance() {
   curl -s -m 60 -X POST "$BASE/citation-lookup/" \
-    --data-urlencode "volume=1" --data-urlencode "reporter=U.S." --data-urlencode "page=1" 2>/dev/null
+    --data-urlencode "volume=$(( (RANDOM % 800) + 100 ))" \
+    --data-urlencode "reporter=F.2d" \
+    --data-urlencode "page=$(( (RANDOM % 9000) + 1000 ))" 2>/dev/null
 }
 
 WAITED=0

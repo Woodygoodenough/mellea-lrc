@@ -266,10 +266,14 @@ def check_case_name(
     if slug is None or not volume.isdigit():
         return None
     verdict = index.page(slug, volume, page)
-    if verdict.case is None:
+    if not verdict.cases:
         return None
-    return CaseNameFinding(
-        written=written_name or "",
-        case=verdict.case,
-        verdict=compare_case_name(written_name, verdict.case.name),
-    )
+    # Several cases can begin on one page, and the filing may mean any of them.
+    # Agreement with one is agreement; only a name matching none of them is
+    # evidence of anything.
+    outcomes = [(compare_case_name(written_name, case.name), case) for case in verdict.cases]
+    for wanted in (NameVerdict.AGREES, NameVerdict.UNDECIDED):
+        for outcome, case in outcomes:
+            if outcome is wanted:
+                return CaseNameFinding(written=written_name or "", case=case, verdict=wanted)
+    return CaseNameFinding(written=written_name or "", case=outcomes[0][1], verdict=NameVerdict.DISAGREES)
