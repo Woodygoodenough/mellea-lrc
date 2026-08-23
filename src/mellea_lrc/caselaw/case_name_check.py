@@ -61,28 +61,34 @@ find:
 ====================  ==========================  ======
 this check says       the annotators say          count
 ====================  ==========================  ======
-agrees                nothing                       1239
-agrees                some other defect               83
+agrees                nothing                       1292
+agrees                some other defect               89
 **agrees**            **a wrong case name**            **0**
-disagrees             nothing                        195
+disagrees             nothing                        152
 disagrees             a wrong case name               91
-disagrees             some other defect                9
-undecided             nothing                        813
-undecided             some other defect               68
+disagrees             some other defect                4
+undecided             nothing                        803
+undecided             some other defect               67
 undecided             a wrong case name               14
 ====================  ==========================  ======
 
-**Nothing this check clears is a name the annotators marked.** Of 1,322
+**Nothing this check clears is a name the annotators marked.** Of 1,381
 citations it calls agreeing, none is labelled a wrong case name. That is what
 makes it worth running: agreement is trustworthy, so it can take a citation off
 the pile rather than only adding to it.
 
-The other direction is weaker, as the numbers above say plainly. Of the 105
-labelled wrong names it could reach, it catches 91 and returns undecided on 14
--- so it misses few, but only 31% of what it calls a disagreement carries a
-label. Since an unlabelled citation is not a certified correct one, that 31% is
-a floor rather than a precision figure; the rest are the abbreviation and typo
-artifacts described above, plus whatever the annotators did not mark.
+The other direction is weaker, as the numbers say plainly. Of the 105 labelled
+wrong names it could reach, it catches 91 and returns undecided on 14 -- so it
+misses few, but only 37% of what it calls a disagreement carries a label. Since
+an unlabelled citation is not a certified correct one, that is a floor rather
+than a precision figure.
+
+**On filings with nothing inserted into them it finds nothing.** Over the 109
+sampled filings it flags 17 citations, and every one is an artifact rather than
+a defect: a name the extractor damaged (``Under Domino' Pizza``, ``Congress,'
+Arizona v. United States``), or an abbreviation still not reconciled. That
+number is the one to plan against, and it is the same story the first-page
+check tells in :mod:`~mellea_lrc.caselaw.first_page_check`.
 """
 
 from __future__ import annotations
@@ -109,6 +115,8 @@ _PUNCTUATION = re.compile(r"[^a-z0-9. ]+")
 _GENERIC = frozenset(
     {
         "inc",
+        "incorporated",
+        "limited",
         "llc",
         "llp",
         "ltd",
@@ -138,6 +146,9 @@ _GENERIC = frozenset(
 # abbreviation whether or not it kept its period -- `Am`, `Ct` and `Bd` are
 # abbreviations that often lose the dot in extraction.
 MINIMUM_SPELLED_OUT = 4
+
+# A contraction shorter than this is not distinctive enough to match on.
+_MINIMUM_CONTRACTION = 3
 
 # `v.`, `vs.` and the bare `v` that survives some extractions.
 _PARTY_SEPARATOR = re.compile(r"\s+v[.s]?\.?\s+", re.IGNORECASE)
@@ -205,6 +216,53 @@ def _tokens(name: str | None) -> list[tuple[str, bool]]:
     return tokens
 
 
+def _is_contraction_of(short: str, long: str) -> bool:
+    """Whether a written abbreviation is the record's word with letters removed.
+
+    This is how legal abbreviation actually works: `Commc'ns` for
+    Communications, `Mkts.` for Markets, `Techs.` for Technologies, `Assocs.`
+    for Associates. All keep the first letter and the letter order and drop the
+    rest, which a prefix test cannot reach because the vowels go first.
+
+    Requiring the first letter and a minimum length keeps this from matching
+    anything of a shape -- but it is still the loosest rule here, and it is
+    allowed to be because being wrong in this direction declines to report,
+    which is the side of the line this project stays on.
+    """
+    if len(short) < _MINIMUM_CONTRACTION or len(short) >= len(long) or short[0] != long[0]:
+        return False
+    position = 0
+    for letter in short:
+        position = long.find(letter, position)
+        if position < 0:
+            return False
+        position += 1
+    return True
+
+
+def _one_edit_apart(word: str, other: str) -> bool:
+    """Whether two words differ by a single character.
+
+    A filing writes `Miliken v. Meyer` for *Milliken*, `Matthews v. Eldridge`
+    for *Mathews*, `Bonner v. City of Pritchard` for *Prichard*. Those are
+    spelling slips in famous case names, not citations to different cases, and
+    a check that reports them buries the findings that matter in noise nobody
+    will read past.
+
+    Deliberately one edit and no more. Two is enough to turn one surname into
+    another.
+    """
+    if abs(len(word) - len(other)) > 1:
+        return False
+    if len(word) == len(other):
+        return sum(a != b for a, b in zip(word, other, strict=True)) == 1
+    shorter, longer = sorted((word, other), key=len)
+    for cut in range(len(longer)):
+        if longer[:cut] + longer[cut + 1 :] == shorter:
+            return True
+    return False
+
+
 def _present(word: str, recorded: set[str]) -> bool:
     """Whether a written word appears in the record, allowing either to abbreviate.
 
@@ -213,7 +271,15 @@ def _present(word: str, recorded: set[str]) -> bool:
     `George Wash. Univ.`. Testing only that the written word begins the recorded
     one calls the second of those a disagreement.
     """
-    return any(other == word or other.startswith(word) or word.startswith(other) for other in recorded)
+    return any(
+        other == word
+        or other.startswith(word)
+        or word.startswith(other)
+        or (len(word) >= MINIMUM_SPELLED_OUT and _one_edit_apart(word, other))
+        or _is_contraction_of(word, other)
+        or _is_contraction_of(other, word)
+        for other in recorded
+    )
 
 
 def compare_case_name(written: str | None, recorded: str | None) -> NameVerdict:

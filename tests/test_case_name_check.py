@@ -125,3 +125,40 @@ def test_a_name_matching_any_case_on_the_page_agrees(tmp_path: Path) -> None:
     assert finding is not None
     assert finding.verdict is NameVerdict.AGREES
     assert finding.case.name == "Ferdik v. Bonzelet"
+
+
+@pytest.mark.parametrize(
+    ("written", "recorded"),
+    [
+        ("Miliken v. Meyer", "Milliken v. Meyer"),
+        ("Matthews v. Eldridge", "Mathews v. Eldridge"),
+        ("Coleman v. Maldnado", "Coleman v. Maldonado"),
+        ("Bonner v. City of Pritchard", "Bonner v. City of Prichard"),
+    ],
+)
+def test_a_one_letter_slip_is_not_a_different_case(written: str, recorded: str) -> None:
+    """These are misspellings of famous case names, not citations to other cases.
+
+    Reporting them buries the findings that matter under noise nobody will read
+    past. One edit and no more: two is enough to turn one surname into another.
+    """
+    assert compare_case_name(written, recorded) is NameVerdict.AGREES
+
+
+@pytest.mark.parametrize(
+    ("written", "recorded"),
+    [
+        ("Danjaq, S.A. v. Pathe Commc'ns Corp.", "Danjaq, S.A. v. Pathe Communications Corp."),
+        ("E. Shore Mkts., Inc. v. J.D. Assocs.", "Eastern Shore Markets, Inc. v. J.D. Associates"),
+        ("AT&T Techs. v. Commc'ns Workers", "AT&T Technologies, Inc. v. Communications Workers"),
+        ("Brunette Machine Works, Limited v. Kockum", "Brunette Machine Works, Ltd. v. Kockum"),
+    ],
+)
+def test_a_contraction_is_never_a_disagreement(written: str, recorded: str) -> None:
+    """`Commc'ns`, `Mkts.` and `Techs.` drop letters from the middle of a word.
+
+    A prefix test cannot reach those, because the vowels are the first thing to
+    go. Keeping the first letter and the letter order is how legal abbreviation
+    actually works.
+    """
+    assert compare_case_name(written, recorded) is not NameVerdict.DISAGREES
