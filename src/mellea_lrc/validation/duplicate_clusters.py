@@ -46,7 +46,14 @@ if TYPE_CHECKING:
 
     from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinionCluster
 
-__all__ = ["matching_case_names", "merge_duplicates", "same_case_name"]
+__all__ = [
+    "case_name_matches",
+    "matching_case_names",
+    "merge_duplicates",
+    "name_covers",
+    "name_words",
+    "same_case_name",
+]
 
 # Words that carry no identity: corporate forms, the article, and the wrappers a
 # reporter puts around a party.
@@ -84,6 +91,23 @@ _CONTRACTIONS = {
 
 # A trailing roman numeral marks which appeal this is, not which case.
 _APPEAL_STAGE = re.compile(r"\b(ii|iii|iv|v?i{0,3})\b$")
+
+
+def name_words(name: str | None) -> set[str]:
+    """The distinctive words of a case name, for comparing one name with another.
+
+    Corporate forms, articles and the wrappers a reporter puts around a party
+    are removed, along with the roman numeral that marks which appeal this is
+    rather than which case. Words of two letters or fewer carry no identity and
+    go too, which is why `United States v. Lo` reduces to `united` and `states`
+    alone.
+    """
+    return _words(name)
+
+
+def name_covers(recorded: set[str], written: set[str]) -> bool:
+    """Whether every word the filing wrote appears in a record's name."""
+    return bool(written) and _covers(recorded, written)
 
 
 def _words(name: str | None) -> set[str]:
@@ -174,12 +198,25 @@ def matching_case_names(
     On the twelve crowded pages in the corpus this separated eleven correctly
     and failed once, on a page the archive covers thinly.
     """
+    return tuple(
+        index
+        for index, cluster in enumerate(clusters)
+        if case_name_matches(cluster.case_name, plaintiff=plaintiff, defendant=defendant)
+    )
+
+
+def case_name_matches(recorded: str | None, *, plaintiff: str | None, defendant: str | None) -> bool:
+    """Whether one record's case name is the one the filing wrote.
+
+    Every distinctive word the filing wrote must appear in the record's name,
+    allowing the abbreviations a citation conventionally uses. Returns ``False``
+    when the filing named too little to decide on, which is not the same as a
+    disagreement and must not be read as one.
+    """
     written = _words(plaintiff) | _words(defendant)
     if len(written) < _MINIMUM_SHARED_WORDS:
-        return ()
-    return tuple(
-        index for index, cluster in enumerate(clusters) if _covers(_words(cluster.case_name), written)
-    )
+        return False
+    return _covers(_words(recorded), written)
 
 
 def _covers(recorded: set[str], written: set[str]) -> bool:

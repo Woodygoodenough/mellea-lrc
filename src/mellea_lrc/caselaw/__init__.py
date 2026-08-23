@@ -23,13 +23,21 @@ from mellea_lrc.caselaw.cap_index import (
     reporter_slug,
     volume_metadata_url,
 )
+from mellea_lrc.caselaw.first_page_check import (
+    FirstPageFinding,
+    LaterReferenceEvidence,
+    check_first_pages,
+)
 
 __all__ = [
     "BASE_URL",
     "CapCase",
     "CapIndex",
+    "FirstPageFinding",
+    "LaterReferenceEvidence",
     "PageOutcome",
     "PageVerdict",
+    "check_first_pages",
     "reporter_slug",
     "volume_metadata_url",
 ]
