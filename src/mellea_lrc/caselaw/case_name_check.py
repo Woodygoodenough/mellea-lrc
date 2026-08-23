@@ -53,6 +53,36 @@ in CourtListener, and in the New York official reports, where the filing wrote
 So the disagreement count is an **upper bound on the defect count**, and the
 right use of this check is to put a small, ranked list of citations in front of
 a person, not to report a verdict on its own.
+
+Checked against the human annotations over the 1,300 annotated excerpts, where
+a name the annotators marked as belonging to a different case is the thing to
+find:
+
+====================  ==========================  ======
+this check says       the annotators say          count
+====================  ==========================  ======
+agrees                nothing                       1239
+agrees                some other defect               83
+**agrees**            **a wrong case name**            **0**
+disagrees             nothing                        195
+disagrees             a wrong case name               91
+disagrees             some other defect                9
+undecided             nothing                        813
+undecided             some other defect               68
+undecided             a wrong case name               14
+====================  ==========================  ======
+
+**Nothing this check clears is a name the annotators marked.** Of 1,322
+citations it calls agreeing, none is labelled a wrong case name. That is what
+makes it worth running: agreement is trustworthy, so it can take a citation off
+the pile rather than only adding to it.
+
+The other direction is weaker, as the numbers above say plainly. Of the 105
+labelled wrong names it could reach, it catches 91 and returns undecided on 14
+-- so it misses few, but only 31% of what it calls a disagreement carries a
+label. Since an unlabelled citation is not a certified correct one, that 31% is
+a floor rather than a precision figure; the rest are the abbreviation and typo
+artifacts described above, plus whatever the annotators did not mark.
 """
 
 from __future__ import annotations
