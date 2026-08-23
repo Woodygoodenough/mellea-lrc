@@ -79,9 +79,19 @@ _UNKNOWN_REPORTER_STATUS = 400
 # treating that as exhaustion would stop a sweep that is fine seconds later, so
 # only a per-day window counts.
 _DAILY_REFUSAL = re.compile(r"Rate limit exceeded.*?/\s*day", re.IGNORECASE | re.DOTALL)
-# The proxy refuses with its own wording once every token it holds is parked.
-# Reaching that state already means each of them met a per-day window.
+# The proxy refuses with its own wording once every token it holds is parked,
+# and says how long until one comes back. That number is what distinguishes the
+# two cases, and reading only the words gets it wrong: a run starting a few
+# seconds before the allowance returns is refused with the same sentence and
+# `retry_after_seconds: 18`. Treating that as the day being spent ended a run
+# two seconds after it began, having answered nothing.
 _POOL_EXHAUSTED = re.compile(r"tokens are exhausted", re.IGNORECASE)
+_RETRY_AFTER = re.compile(r"retry_after_seconds['\"]?\s*[:=]\s*(\d+)", re.IGNORECASE)
+
+# Below this, a refusal is the tail of a window rather than the day's end, and
+# the right response is to wait it out. A daily window is hours; anything this
+# short is a boundary the run arrived a moment early for.
+SHORT_REFUSAL_SECONDS = 300
 
 MIN_REQUEST_INTERVAL_SECONDS = 2.0
 MAX_ATTEMPTS = 5
@@ -377,7 +387,17 @@ def summarize(results: Sequence[LookupResult]) -> dict[str, int]:
 def _is_quota_refusal(error: CourtListenerError) -> bool:
     """Whether the allowance is spent, rather than the request merely being paced."""
     text = str(error.upstream_detail)
+    if _POOL_EXHAUSTED.search(text) and _refusal_seconds(text) is not None:
+        seconds = _refusal_seconds(text)
+        if seconds is not None and seconds < SHORT_REFUSAL_SECONDS:
+            return False
     return bool(_DAILY_REFUSAL.search(text) or _POOL_EXHAUSTED.search(text))
+
+
+def _refusal_seconds(text: str) -> int | None:
+    """How long the refusal says to wait, when it says."""
+    match = _RETRY_AFTER.search(text)
+    return int(match.group(1)) if match else None
 
 
 def _quota_detail(error: CourtListenerError) -> str:
@@ -435,6 +455,13 @@ def _lookup_one(
         except CourtListenerError as error:
             if _is_quota_refusal(error):
                 raise DailyQuotaExhausted(_quota_detail(error)) from error
+            waiting = _refusal_seconds(str(error.upstream_detail))
+            if waiting is not None and waiting < SHORT_REFUSAL_SECONDS:
+                # The allowance is a few seconds away. Waiting costs nothing and
+                # not waiting costs the whole run.
+                logger.info("allowance returns in %ss; waiting", waiting)
+                time.sleep(waiting + 5)
+                continue
             if not error.retryable or attempt == attempts - 1:
                 logger.warning("lookup failed for %s: %s", parts.key, error.message)
                 return LookupResult(parts=parts, outcome=LookupOutcome.FAILED, detail=error.failure_type)
