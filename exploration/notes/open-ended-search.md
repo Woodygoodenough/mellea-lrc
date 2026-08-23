@@ -244,3 +244,40 @@ available and it needs no agent at all.
 3. Whether the 150 short forms the probe recorded as `resolved` resolved to the
    right case. The lookup matches a first page only, so each of those found
    whatever case begins at the pin page, which is not the case cited.
+
+## 11. The search index is a smaller corpus than the lookup index
+
+Settled with seven requests against the reserved allowance while the nightly
+sweep held the main one.
+
+| query | citation lookup | search |
+|---|---:|---:|
+| `550 U.S. 544` (Twombly) | 1 cluster | **1 result** |
+| `21 F.3d 1115` | **28 clusters** | **0 results** |
+| `caseName:("Reyes" AND "Pacific Bell")` | — | **0 results** |
+| `caseName:("Pacific Bell")` | — | 111 results, none of them that case |
+| `citation:("1994 WL 143951")` | — | **0 results** |
+
+The syntax is right — Twombly comes back, and `caseName` returns 111 cases for
+a party name. What comes back for `21 F.3d 1115` is nothing, from an endpoint
+whose sibling returns 28 clusters for the same citation.
+
+**So the two endpoints are backed by different corpora.** The unpublished
+dispositions that fill a table-of-decisions page are reachable by citation
+lookup and absent from search. Two things follow, and both are constraints on
+work already planned:
+
+1. **A Westlaw or LEXIS citation cannot be recovered by search.** The cluster
+   for `21 F.3d 1115` carries `1994 WL 143951`, so CourtListener holds the
+   vendor number — but searching for it returns nothing, and neither does
+   looking it up (`2016 WL 9137645` gives a 404). Vendor numbers are 53% of the
+   unresolved bucket, and this closes the last free route to them. They are
+   unresolvable, and the honest thing is to stop counting them as a gap this
+   project could close.
+2. **The fallback name search cannot find an unpublished disposition**, which
+   is the population most likely to be miscited in the first place — a brief
+   citing a table page has picked something obscure. A miss there is not
+   evidence the case does not exist, and section 7's rule already says a miss
+   concludes nothing, so nothing unsound follows. But the search's reach is
+   narrower than the archive's, and the earlier sections of this note assumed
+   otherwise.
