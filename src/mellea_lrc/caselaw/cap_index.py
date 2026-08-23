@@ -183,6 +183,15 @@ class CapCase:
     decision_date: str
     court: str
     citations: tuple[str, ...]
+    full_name: str = ""
+    """The whole caption, where the archive records one.
+
+    The short name drops a relator or a long party list -- `United States v.
+    Lockheed Missiles` for a case whose caption names Margaret A. Newsham, and
+    `Southern Methodist University Ass'n` for one naming the Association of
+    Women Law Students. A filing that writes the long form is comparing against
+    a name the short one does not contain, and reads as naming a different case.
+    """
 
     def covers(self, page: int) -> bool:
         """Whether this case occupies the given printed page."""
@@ -406,6 +415,7 @@ def _parse(payload: list[dict], volume: str) -> list[CapCase]:
         cases.append(
             CapCase(
                 name=entry.get("name_abbreviation") or entry.get("name") or "",
+                full_name=entry.get("name") or "",
                 first_page=printed,
                 last_page=printed + (int(last) - int(first)),
                 decision_date=entry.get("decision_date") or "",

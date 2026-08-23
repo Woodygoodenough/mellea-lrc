@@ -162,3 +162,45 @@ def test_a_contraction_is_never_a_disagreement(written: str, recorded: str) -> N
     actually works.
     """
     assert compare_case_name(written, recorded) is not NameVerdict.DISAGREES
+
+
+def test_an_apostrophe_does_not_split_a_word_in_two() -> None:
+    """`P'ship` is one word. Split, it becomes `P` and `ship`.
+
+    `ship` is then four letters with no period, so it reads as spelled out and
+    absent from `Partnership`, and the check reported a wrong case name for
+    *Pioneer Investment Services Co. v. Brunswick Associates Ltd. Partnership*.
+    Legal abbreviation is full of these -- `Ass'n`, `Int'l`, `Commc'ns`.
+    """
+    assert (
+        compare_case_name(
+            "Pioneer Inv. Servs. Co. v. Brunswick Assocs. Ltd. P'ship",
+            "Pioneer Investment Services Co. v. Brunswick Associates Ltd. Partnership",
+        )
+        is NameVerdict.AGREES
+    )
+
+
+def test_the_whole_caption_is_compared_as_well_as_the_short_name(tmp_path: Path) -> None:
+    """The archive's short name drops a relator; a filing may write one.
+
+    `United States ex rel. Newsham v. Lockheed Missiles` is recorded short as
+    `United States v. Lockheed Missiles & Space Co.`, which does not contain
+    `Newsham` -- so comparing against the short name alone reads a correct
+    citation as naming a different case. The full caption does contain it.
+    """
+    from mellea_lrc.caselaw.case_name_check import _best_verdict
+    from mellea_lrc.caselaw.cap_index import CapCase
+
+    case = CapCase(
+        name="United States v. Lockheed Missiles & Space Co.",
+        first_page=963,
+        last_page=975,
+        decision_date="1999-09-09",
+        court="9th Cir.",
+        citations=("190 F.3d 963",),
+        full_name="UNITED STATES of America, ex rel. Margaret A. NEWSHAM v. LOCKHEED MISSILES & SPACE CO.",
+    )
+
+    assert _best_verdict("United States ex rel. Newsham v. Lockheed Missiles", case) is NameVerdict.AGREES
+    assert _best_verdict("Cadle Co. v. Ayala", case) is NameVerdict.DISAGREES

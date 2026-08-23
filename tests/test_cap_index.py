@@ -260,3 +260,16 @@ def test_a_case_with_an_unreadable_last_page_is_kept(tmp_path: Path) -> None:
     assert verdict.outcome is PageOutcome.STARTS_A_CASE
     assert verdict.case is not None
     assert verdict.case.name == "Sher v. Johnson"
+
+
+def test_an_abbreviation_shared_with_another_reporter_is_declined() -> None:
+    """`70 O.S. 5` is the Oklahoma Statutes, and `O.S.` also names Ohio State Reports.
+
+    Resolving an unplaceable abbreviation through a reporter database's
+    canonical name looks like an obvious improvement. It is not: it sends a
+    citation to the Oklahoma school code into the Ohio reports, where the
+    archive answers confidently and wrongly that it sits inside *State v.
+    Schiller*, 70 Ohio St. 1 (1904). Declining is the point of this function.
+    """
+    assert reporter_slug("O.S.", {"ohio-st", "us", "f2d"}) is None
+    assert reporter_slug("CMR", {"ct-mart-rep", "us", "f2d"}) is None

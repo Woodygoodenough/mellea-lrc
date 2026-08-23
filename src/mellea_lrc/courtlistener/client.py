@@ -26,6 +26,13 @@ if TYPE_CHECKING:
 DEFAULT_BASE_URL = "https://www.courtlistener.com/api/rest/v4/"
 DEFAULT_USER_AGENT = "mellea-lrc (+https://github.com/gt-csse/mellea-lrc)"
 
+# Enough for a citation lookup, which returns a small record. An opinion
+# document is the whole text of a decision and on a cache miss the proxy has to
+# fetch it upstream and store it before answering, so a bulk read of opinions
+# wants longer -- 2 of 12 timed out at 45 seconds. `MELLEA_LRC_COURTLISTENER_TIMEOUT`
+# raises it without making every other caller wait as long for a failure.
+DEFAULT_TIMEOUT_SECONDS = 45
+
 
 @dataclass(frozen=True, slots=True)
 class CourtListenerConfig:
@@ -34,6 +41,7 @@ class CourtListenerConfig:
     base_url: str = DEFAULT_BASE_URL
     token: str | None = None
     pool: str | None = None
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
 
     @classmethod
     def from_env(cls) -> CourtListenerConfig:
@@ -46,10 +54,12 @@ class CourtListenerConfig:
         """
         token = os.getenv("COURTLISTENER_API_TOKEN", "").strip() or None
         pool = os.getenv("MELLEA_LRC_COURTLISTENER_POOL", "").strip() or None
+        timeout = os.getenv("MELLEA_LRC_COURTLISTENER_TIMEOUT", "").strip()
         return cls(
             base_url=os.getenv("COURTLISTENER_BASE_URL", DEFAULT_BASE_URL),
             token=token,
             pool=pool,
+            timeout_seconds=float(timeout) if timeout else DEFAULT_TIMEOUT_SECONDS,
         )
 
 
@@ -185,7 +195,7 @@ class CourtListenerClient(CourtListenerServiceClient):
                 url,
                 data=data,
                 headers=self._headers(),
-                timeout=45,
+                timeout=self.config.timeout_seconds,
             )
         except requests.Timeout as exc:
             raise CourtListenerError(
@@ -215,7 +225,7 @@ class CourtListenerClient(CourtListenerServiceClient):
                 url,
                 params=params,
                 headers=self._headers(),
-                timeout=45,
+                timeout=self.config.timeout_seconds,
             )
         except requests.Timeout as exc:
             raise CourtListenerError(
@@ -240,7 +250,9 @@ class CourtListenerClient(CourtListenerServiceClient):
         """GET one docket without coupling it to citation lookup."""
         url = urljoin(self.config.base_url.rstrip("/") + "/", f"dockets/{docket_id}/")
         try:
-            response = self.session.request("GET", url, headers=self._headers(), timeout=45)
+            response = self.session.request(
+                "GET", url, headers=self._headers(), timeout=self.config.timeout_seconds
+            )
         except requests.Timeout as exc:
             raise CourtListenerError(
                 "CourtListener request timed out", failure_type="upstream_timeout", retryable=True, url=url
@@ -264,7 +276,9 @@ class CourtListenerClient(CourtListenerServiceClient):
             f"{resource}/{resource_id}/",
         )
         try:
-            response = self.session.request("GET", url, headers=self._headers(), timeout=45)
+            response = self.session.request(
+                "GET", url, headers=self._headers(), timeout=self.config.timeout_seconds
+            )
         except requests.Timeout as exc:
             raise CourtListenerError(
                 "CourtListener request timed out",
