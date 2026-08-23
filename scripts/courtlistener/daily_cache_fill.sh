@@ -11,14 +11,23 @@
 # locator already fetched is served from R2 at no quota cost, so starting from
 # scratch each day is cheap and the checkpoint is only a convenience.
 #
-# Install (macOS or Linux), running at 02:37 local, a few minutes after the
-# CourtListener day rolls over:
+# The run waits for the daily allowance rather than assuming it has arrived,
+# so the schedule only has to be roughly right. See MAX_WAIT_SECONDS below.
 #
-#   (crontab -l 2>/dev/null; echo "37 2 * * * $PWD/scripts/courtlistener/daily_cache_fill.sh") | crontab -
+# On macOS install the launchd agent, which fires on wake if the machine was
+# asleep at the appointed time -- cron does not, and on a laptop that is the
+# difference between running and not:
 #
-# Check it took:   crontab -l
+#   cp scripts/courtlistener/com.mellea-lrc.cache-fill.plist ~/Library/LaunchAgents/
+#   launchctl load ~/Library/LaunchAgents/com.mellea-lrc.cache-fill.plist
+#
+# Check it took:   launchctl list | grep mellea-lrc
 # Read the log:    tail -n 40 <repo>/local/cache-fill.log
-# Remove it:       crontab -l | grep -v daily_cache_fill | crontab -
+# Remove it:       launchctl unload ~/Library/LaunchAgents/com.mellea-lrc.cache-fill.plist
+#
+# On Linux, cron is fine because the machine is not asleep:
+#
+#   (crontab -l 2>/dev/null; echo "15 3 * * * $PWD/scripts/courtlistener/daily_cache_fill.sh") | crontab -
 
 set -uo pipefail
 
@@ -53,6 +62,47 @@ case "$HEALTH" in
   *'"status":"ok"'*) say "proxy healthy: $HEALTH" ;;
   *) say "FAILED: proxy health check did not return ok: $HEALTH"; exit 1 ;;
 esac
+
+# The allowance is 24 hours from each token's FIRST USE, not from midnight, so
+# the moment it returns drifts later every day the job starts later. A fixed
+# schedule therefore cannot stay on the right side of it: whatever hour is
+# chosen, within days the run starts a few minutes early and spends itself on
+# refusals. The proxy says exactly how long is left, so wait rather than guess.
+#
+# Bounded, because waiting is only correct when the allowance is about to
+# return. A refusal with hours on it means this is the second run of the day,
+# and the right answer then is to stop and let tomorrow's fire have it.
+MAX_WAIT_SECONDS=${MAX_WAIT_SECONDS:-5400}
+
+probe_allowance() {
+  curl -s -m 60 -X POST "$BASE/citation-lookup/" \
+    --data-urlencode "volume=1" --data-urlencode "reporter=U.S." --data-urlencode "page=1" 2>/dev/null
+}
+
+WAITED=0
+while :; do
+  REPLY_BODY="$(probe_allowance)"
+  case "$REPLY_BODY" in
+    *retry_after_seconds*) ;;
+    *) break ;;
+  esac
+  LEFT="$(printf '%s' "$REPLY_BODY" | sed -n 's/.*"retry_after_seconds": *\([0-9]*\).*/\1/p')"
+  [ -n "$LEFT" ] || break
+  if [ "$LEFT" -gt "$MAX_WAIT_SECONDS" ]; then
+    say "allowance returns in ${LEFT}s, beyond the ${MAX_WAIT_SECONDS}s this run will wait; stopping"
+    say "=== run finished ==="
+    exit 0
+  fi
+  say "allowance returns in ${LEFT}s; waiting"
+  sleep "$((LEFT + 15))"
+  WAITED=$((WAITED + LEFT + 15))
+  if [ "$WAITED" -gt "$((MAX_WAIT_SECONDS * 2))" ]; then
+    say "waited ${WAITED}s without the allowance returning; stopping"
+    say "=== run finished ==="
+    exit 0
+  fi
+done
+say "allowance is available"
 
 DATASET="$REPO/data/lephantomcite/eval.jsonl"
 if [ ! -f "$DATASET" ]; then

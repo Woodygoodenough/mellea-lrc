@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nightly CourtListener cache fill.
+
+  launchd rather than cron because this runs on a laptop. cron silently skips a
+  job whose time passed while the machine was asleep; launchd runs it on the
+  next wake, which is the difference between the cache filling and not.
+
+  The hour only has to be roughly right. The daily allowance returns 24 hours
+  after each token's first use, so the moment it arrives drifts later every day
+  the job starts later, and no fixed time stays on the right side of it. The
+  script asks the proxy how long is left and waits, up to 90 minutes.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.mellea-lrc.cache-fill</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/woodygoodenough/CodingProjects/mellea-lrc/scripts/courtlistener/daily_cache_fill.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>3</integer>
+    <key>Minute</key><integer>15</integer>
+  </dict>
+
+  <!-- The script keeps its own dated log; these catch anything that escapes it,
+       such as a failure before the log is opened. -->
+  <key>StandardOutPath</key>
+  <string>/Users/woodygoodenough/CodingProjects/mellea-lrc/local/cache-fill.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/woodygoodenough/CodingProjects/mellea-lrc/local/cache-fill.launchd.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
