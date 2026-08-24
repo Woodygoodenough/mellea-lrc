@@ -99,11 +99,13 @@ The same tier catches an impossible combination of real fields: `F.2d` ended in
 1993, so `739 F.2d 131 (4th Cir. 2014)` is refuted by arithmetic. Section 3 of
 `unrecorded-defects.md` has three of these that are real drafting errors.
 
-## 6. Three tags, and the detail recorded underneath them
+## 6. A routing gate, three tags under it, and the detail recorded underneath
 
 The temptation here is a label per mechanism -- wrong volume, wrong series,
 wrong first page, wrong pin cite, fabricated, unresolvable. That is premature,
-and the corpus says so.
+and the corpus says so. The opposite mistake is flattening far enough that a
+routing decision ends up sitting next to a classification, which section 6.2
+is about.
 
 ### 6.1 The only labelled distribution available is a generator's
 
@@ -132,69 +134,82 @@ Two further facts from the same table:
   "wrong volume" and "wrong series" behave differently, and until they are
   known to, they should not be different labels.
 
-### 6.2 The tree
+### 6.2 The gate comes first, and it is not a defect class
 
-Three tags, ordered. Each is a different thing the citation gets wrong, and
-each is only meaningful once the one before it has cleared.
+Resolution is a routing decision before it is a classification:
 
-| tag | the claim | the five corpus labels it holds |
-|---|---|---|
-| **`address`** | the locator does not lead where it says | `non_existent_citation`, `wrong_pincite` |
-| **`identity`** | it leads somewhere, but not to the case named | `case_name_mismatch` |
-| **`content`** | it leads to the right case, which does not say this | `content_misrepresentation`, `misquote` |
+> **Does any reading of this citation reach a document?**
 
-The ordering is not cosmetic. An `identity` verdict on a citation whose address
-is wrong is meaningless -- you compared against whatever happened to sit at the
-wrong page. A `content` verdict on a citation whose identity is wrong is
-meaningless for the same reason. So the tree is also the pipeline, and a stage
-that has not cleared blocks the ones after it rather than reporting alongside
-them.
+`non_existent` is the answer *no*, and it is decisive on its own. It is not one
+defect among several — it says there is no object, so every check after it has
+no input. A pin-cite check with nothing to check the pin cite against does not
+return a wrong answer, it returns an undefined one. Grouping it with
+`wrong_pincite` under a shared "address" tag, as an earlier draft of this note
+did, puts the two opposite answers to the gate in the same box.
 
-All five existing labels map in, with nothing left over and nothing invented.
-
-### 6.3 What each tag carries
-
-The mechanism is **recorded, not labelled**. Every row carries the same
-structure whether or not it is a defect, so the tree can be cut differently
-later without re-annotating anything:
+It is also the cheapest question in the pipeline and the earliest answerable.
+126 of `aux_train`'s labels invent a reporter series, and no document can sit at
+an address whose namespace was never published — no retrieval, no allowance, no
+corpus.
 
 ```
-tag           address | identity | content | sound
-standing      internal | retrieved | absent
-fields        which agreed with the referent, which disagreed
-searches      which ran, what each returned, what it covers
+does any reading reach a document?
+│
+├── no ──> non_existent                     terminal; nothing downstream applies
+│          └── standing: internal | absent
+│
+└── yes ─> a document is in hand
+           ├── identity   it is not the case named
+           ├── locator    it is the right case, a locator field is not
+           └── content    it is the right case, it does not say this
 ```
 
-`standing` is the evidential strength, kept separate from the mechanism because
-it varies independently of it:
+Four tags, and the first one routes.
 
-- **`internal`** -- settled inside the document. The reporter series does not
-  exist; `F.2d` carries a 2014 date; a pin cite lies outside the case its own
-  citation names. No retrieval, and certain.
-- **`retrieved`** -- a referent was found and a field disagreed with it.
-- **`absent`** -- nothing was found. This is the weakest standing and the one
-  most often misreported, because absence from a corpus is a fact about the
-  corpus.
+### 6.3 Where the five corpus labels land
 
-`fields` is what section 2 counts to pick the referent. `searches` is what
-section 3 requires before absence means anything.
+| label | tag |
+|---|---|
+| `non_existent_citation` | **`non_existent`** — the gate answered no |
+| `case_name_mismatch` | `identity` |
+| `wrong_pincite` | `locator` |
+| `content_misrepresentation` | `content` |
+| `misquote` | `content` |
 
-### 6.4 What this buys
+Nothing left over, nothing invented. The three tags under the gate are ordered
+the same way as before and for the same reason: an `identity` verdict on a
+citation whose locator is wrong compared against whatever happened to sit at
+the wrong page, and a `content` verdict on a wrong identity is meaningless for
+the same reason. That ordering is the pipeline — a stage that has not cleared
+blocks the ones after it rather than reporting alongside them.
 
-Everything the seven labels would have said is still derivable, and none of it
-is committed to:
+### 6.4 The sub-type info under each tag
 
-- *wrong locator* against *wrong description* is `fields`, computed -- and can
-  be checked for whether it predicts anything before it is given a name.
-- *fabricated* against *unresolvable* is `standing: absent` plus the `searches`
-  record. No verdict has to be issued at all until coverage is queryable, and
-  section 7 says it is not.
-- *impossible* is `standing: internal`, which also picks up the arithmetic
-  contradictions in section 5 without a label of its own.
+Recorded, not labelled, so the tree can be recut without re-annotating.
 
-Three tags is what a reader can hold, and it is the granularity the data
-currently supports. The fourth level is there in the record when the data
-starts supporting it.
+**Under `non_existent`, `standing` is the whole substance**, because the tag is
+a claim about a failed search and is only as strong as that search:
+
+- **`internal`** — settled inside the document and certain. The reporter series
+  does not exist; `F.2d` carries a 2014 date; a pin cite lies outside the case
+  its own citation names. No retrieval performed, so no corpus can be wrong.
+- **`absent`** — every search came back empty. The weakest standing in the
+  taxonomy, and the one most often misreported: absence from a corpus is a fact
+  about the corpus. Carries the `searches` record from section 3 — which ran,
+  what each returned, what each covers — and until coverage is queryable this
+  is as far as a verdict may go. *Fabricated* against *unresolvable* is this
+  record, not a label.
+
+**Under the other three**, `fields` is what section 2 counts to pick the
+referent: which agreed with the document in hand, which disagreed. *Wrong
+locator* against *wrong description* falls out of it, computed, and can be
+tested for whether it predicts anything before it is given a name.
+
+### 6.5 What this buys
+
+Four tags is what a reader can hold, the first one is a routing decision rather
+than a judgement, and the granularity the seven labels would have committed to
+is present in the record for when the data supports it.
 
 ## 7. What this changes in the code
 
@@ -210,9 +225,11 @@ starts supporting it.
 3. **Coverage has to become a queryable property.** Section 3's second clause
    is unenforceable until a search can state which courts and years it covers.
    Until then `standing: absent` is as far as a verdict may go.
-4. **`standing: internal` needs no retrieval and is not built.** The invented
-   reporter series alone are 126 of `aux_train`'s labels, and they are the
-   cheapest and most certain findings available.
+4. **The gate is not built, and it is the first thing that runs.** `standing:
+   internal` needs no retrieval at all: the invented reporter series alone are
+   126 of `aux_train`'s labels, and they are the cheapest and most certain
+   findings available. Nothing downstream should run on a citation the gate
+   has answered no for.
 5. **`content` is 52% of the labelled defects and nothing in the project
    addresses it.** Recording it as a tag the pipeline does not yet reach is
    more honest than a taxonomy that does not mention it.
