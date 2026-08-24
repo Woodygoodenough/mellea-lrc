@@ -132,17 +132,23 @@ STATUS=$?
 ANSWERED=$(wc -l < "$LOG_DIR/locator-probe.checkpoint.jsonl" 2>/dev/null | tr -d ' ')
 say "probe exited $STATUS; checkpoint now holds ${ANSWERED:-0} answered locators"
 
-# Whatever allowance the locators left goes to the opinion documents the
-# checking stage reads. Those are a different endpoint and are not stored by
-# the probe, so until they are warm that stage needs a live service and cannot
-# be re-run offline. Enumerating them costs nothing -- it reads the locator
-# answers back out of the cache -- so this is safe to attempt every night even
-# when the probe has just spent everything.
+# Now the opinion documents the checking stage reads. They are a different
+# endpoint and the probe does not store them, so until they are warm that stage
+# needs a live service and cannot be re-run offline. Enumerating them costs
+# nothing -- it reads the locator answers back out of the cache.
+#
+# This runs on the *reserved* pool. Sharing the main allowance does not work:
+# the probe's job is to spend the day's budget, so it ends on `daily quota
+# exhausted` every night and warming got zero documents on every run it ever
+# made. The reserved pool is a separate token the probe never touches, so
+# warming has its own ~125 requests a night and the two stop competing.
+#
 # An opinion is the whole text of a decision, and on a cache miss the proxy
 # fetches it upstream and stores it before answering. At the default timeout
 # 2 of 12 gave up; the document is usually reachable, just slow.
-say "warming opinion documents with whatever allowance is left"
+say "warming opinion documents on the reserved pool"
 MELLEA_LRC_COURTLISTENER_TIMEOUT=120 \
+MELLEA_LRC_COURTLISTENER_POOL=reserved \
 uv run --env-file "$REPO/.env" python -m evaluations.lephantomcite.warm_opinions \
   --dataset "$DATASET" >> "$LOG" 2>&1
 say "opinion warming exited $?"

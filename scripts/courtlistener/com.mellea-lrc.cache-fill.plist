@@ -23,8 +23,8 @@
 
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Hour</key><integer>3</integer>
-    <key>Minute</key><integer>15</integer>
+    <key>Hour</key><integer>5</integer>
+    <key>Minute</key><integer>10</integer>
   </dict>
 
   <!-- The script keeps its own dated log; these catch anything that escapes it,
