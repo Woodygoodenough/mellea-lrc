@@ -99,37 +99,120 @@ The same tier catches an impossible combination of real fields: `F.2d` ended in
 1993, so `739 F.2d 131 (4th Cir. 2014)` is refuted by arithmetic. Section 3 of
 `unrecorded-defects.md` has three of these that are real drafting errors.
 
-## 6. The proposed labels
+## 6. Three tags, and the detail recorded underneath them
 
-The corpus's current `non_existent_citation` conflates section 3 and section 5,
-which have completely different evidential standing. Splitting them:
+The temptation here is a label per mechanism -- wrong volume, wrong series,
+wrong first page, wrong pin cite, fabricated, unresolvable. That is premature,
+and the corpus says so.
 
-| label | when |
-|---|---|
-| `sound` | a referent exists and every field agrees with it |
-| `impossible` | the reporter series does not exist, or the fields contradict each other by arithmetic — no search performed |
-| `wrong_locator` | the name is the referent; one or more of volume, reporter, first page or pin cite disagrees |
-| `wrong_description` | the locator is the referent; a party, court or year disagrees |
-| `ambiguous` | fields split evenly and no referent is better supported |
-| `unresolvable` | nothing resolves, and at least one of the three searches lacked reach |
-| `fabricated` | nothing resolves, and all three searches had reach |
+### 6.1 The only labelled distribution available is a generator's
 
-Every label above `sound` should carry the field that disagreed and the field
-count that decided the referent, because a verdict that does not say which
-field it convicted cannot be checked by a reader and cannot be appealed.
+| label | `aux_train` | `eval` |
+|---|---:|---:|
+| `content_misrepresentation` | 36.3% | 40.8% |
+| `non_existent_citation` | 16.0% | 10.0% |
+| `case_name_mismatch` | 16.0% | 19.6% |
+| `misquote` | 15.9% | 13.1% |
+| `wrong_pincite` | 15.8% | 16.5% |
+
+786 labelled citations in `aux_train`, four of the five classes within 0.2
+points of each other. That is a sampling plan, not a measurement. Nothing in
+either file says how often these defects occur in filings people actually
+served, so a schema calibrated on it is calibrated on the generator.
+
+Two further facts from the same table:
+
+- **`content_misrepresentation` and `misquote` are 52% of `aux_train`.** They
+  are about what the cited case *says*, and no amount of citation resolution
+  reaches them. A taxonomy built around resolution alone -- which is what a
+  labels-per-mechanism list becomes -- silently declares the largest half of
+  the observed defects out of scope.
+- **The 17 defects in `unrecorded-defects.md` came out of a corpus of 910
+  excerpts.** One free-text sample of that size is not enough to know whether
+  "wrong volume" and "wrong series" behave differently, and until they are
+  known to, they should not be different labels.
+
+### 6.2 The tree
+
+Three tags, ordered. Each is a different thing the citation gets wrong, and
+each is only meaningful once the one before it has cleared.
+
+| tag | the claim | the five corpus labels it holds |
+|---|---|---|
+| **`address`** | the locator does not lead where it says | `non_existent_citation`, `wrong_pincite` |
+| **`identity`** | it leads somewhere, but not to the case named | `case_name_mismatch` |
+| **`content`** | it leads to the right case, which does not say this | `content_misrepresentation`, `misquote` |
+
+The ordering is not cosmetic. An `identity` verdict on a citation whose address
+is wrong is meaningless -- you compared against whatever happened to sit at the
+wrong page. A `content` verdict on a citation whose identity is wrong is
+meaningless for the same reason. So the tree is also the pipeline, and a stage
+that has not cleared blocks the ones after it rather than reporting alongside
+them.
+
+All five existing labels map in, with nothing left over and nothing invented.
+
+### 6.3 What each tag carries
+
+The mechanism is **recorded, not labelled**. Every row carries the same
+structure whether or not it is a defect, so the tree can be cut differently
+later without re-annotating anything:
+
+```
+tag           address | identity | content | sound
+standing      internal | retrieved | absent
+fields        which agreed with the referent, which disagreed
+searches      which ran, what each returned, what it covers
+```
+
+`standing` is the evidential strength, kept separate from the mechanism because
+it varies independently of it:
+
+- **`internal`** -- settled inside the document. The reporter series does not
+  exist; `F.2d` carries a 2014 date; a pin cite lies outside the case its own
+  citation names. No retrieval, and certain.
+- **`retrieved`** -- a referent was found and a field disagreed with it.
+- **`absent`** -- nothing was found. This is the weakest standing and the one
+  most often misreported, because absence from a corpus is a fact about the
+  corpus.
+
+`fields` is what section 2 counts to pick the referent. `searches` is what
+section 3 requires before absence means anything.
+
+### 6.4 What this buys
+
+Everything the seven labels would have said is still derivable, and none of it
+is committed to:
+
+- *wrong locator* against *wrong description* is `fields`, computed -- and can
+  be checked for whether it predicts anything before it is given a name.
+- *fabricated* against *unresolvable* is `standing: absent` plus the `searches`
+  record. No verdict has to be issued at all until coverage is queryable, and
+  section 7 says it is not.
+- *impossible* is `standing: internal`, which also picks up the arithmetic
+  contradictions in section 5 without a label of its own.
+
+Three tags is what a reader can hold, and it is the granularity the data
+currently supports. The fourth level is there in the record when the data
+starts supporting it.
 
 ## 7. What this changes in the code
 
 1. **The name check and the first-page check currently answer separately.** They
-   are two of the eight fields. They should feed one referent decision rather
-   than each emitting a verdict, or the same citation gets convicted twice for
-   one error.
+   are two of the eight fields and they sit at two different levels of the
+   tree. They should feed one referent decision rather than each emitting a
+   verdict, or the same citation is convicted twice for one error -- and a name
+   check that fires on a wrong address is answering a question that has not
+   cleared yet.
 2. **Parallel citations are unused and are the cheapest strong evidence.** Both
    *Anderson* defects in section 2 are decided by them alone, offline, with no
    allowance spent. Nothing in the project reads them today.
 3. **Coverage has to become a queryable property.** Section 3's second clause
    is unenforceable until a search can state which courts and years it covers.
-   Until then no `fabricated` verdict is defensible and the label should not be
-   emitted at all.
-4. **`impossible` needs no retrieval and is not built.** It is the largest
-   single label class in `aux_train` and the cheapest to reach.
+   Until then `standing: absent` is as far as a verdict may go.
+4. **`standing: internal` needs no retrieval and is not built.** The invented
+   reporter series alone are 126 of `aux_train`'s labels, and they are the
+   cheapest and most certain findings available.
+5. **`content` is 52% of the labelled defects and nothing in the project
+   addresses it.** Recording it as a tag the pipeline does not yet reach is
+   more honest than a taxonomy that does not mention it.
