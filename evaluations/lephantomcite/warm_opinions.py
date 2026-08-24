@@ -58,6 +58,13 @@ logger = logging.getLogger(__name__)
 
 MIN_REQUEST_INTERVAL_SECONDS = 2.0
 
+# An opinion document is large, and on a cache miss the proxy fetches it
+# upstream and stores it before answering, so a timeout here is common and does
+# not mean the document is unreachable -- the store may well have completed. A
+# retry often lands on it, and costs nothing when it does.
+TIMEOUT_ATTEMPTS = 3
+TIMEOUT_BACKOFF_SECONDS = 10.0
+
 
 def opinion_ids_for(dataset: Path, client: CourtListenerClient) -> list[str]:
     """Every opinion document the resolved citations in the dataset name.
@@ -99,29 +106,34 @@ def warm(ids: list[str], client: CourtListenerClient) -> dict[str, int]:
     counts = {"stored": 0, "failed": 0, "remaining": 0}
     throttle = _Throttle(MIN_REQUEST_INTERVAL_SECONDS)
     for index, opinion_id in enumerate(ids):
-        throttle.wait()
-        try:
-            client.get_opinion(opinion_id)
-        except CourtListenerError as error:
-            detail = str(error.upstream_detail)
-            waiting = _refusal_seconds(detail)
-            if is_quota_refusal_for(detail):
-                counts["remaining"] = len(ids) - index
-                logger.error(
-                    "daily allowance spent after %s of %s opinions: %s",
-                    index,
-                    len(ids),
-                    detail[:120],
-                )
-                raise DailyQuotaExhausted(detail[:120]) from error
-            if waiting is not None and waiting < SHORT_REFUSAL_SECONDS:
-                logger.info("allowance returns in %ss; waiting", waiting)
-                time.sleep(waiting + 5)
-                continue
-            counts["failed"] += 1
-            logger.warning("could not read opinion %s: %s", opinion_id, error.message)
-            continue
-        counts["stored"] += 1
+        for attempt in range(TIMEOUT_ATTEMPTS):
+            throttle.wait()
+            try:
+                client.get_opinion(opinion_id)
+            except CourtListenerError as error:
+                detail = str(error.upstream_detail)
+                waiting = _refusal_seconds(detail)
+                if is_quota_refusal_for(detail):
+                    counts["remaining"] = len(ids) - index
+                    logger.error(
+                        "daily allowance spent after %s of %s opinions: %s",
+                        index,
+                        len(ids),
+                        detail[:120],
+                    )
+                    raise DailyQuotaExhausted(detail[:120]) from error
+                if waiting is not None and waiting < SHORT_REFUSAL_SECONDS:
+                    logger.info("allowance returns in %ss; waiting", waiting)
+                    time.sleep(waiting + 5)
+                    continue
+                if error.retryable and attempt < TIMEOUT_ATTEMPTS - 1:
+                    time.sleep(TIMEOUT_BACKOFF_SECONDS * (attempt + 1))
+                    continue
+                counts["failed"] += 1
+                logger.warning("could not read opinion %s: %s", opinion_id, error.message)
+                break
+            counts["stored"] += 1
+            break
     return counts
 
 

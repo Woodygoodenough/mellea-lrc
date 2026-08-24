@@ -138,7 +138,11 @@ say "probe exited $STATUS; checkpoint now holds ${ANSWERED:-0} answered locators
 # be re-run offline. Enumerating them costs nothing -- it reads the locator
 # answers back out of the cache -- so this is safe to attempt every night even
 # when the probe has just spent everything.
+# An opinion is the whole text of a decision, and on a cache miss the proxy
+# fetches it upstream and stores it before answering. At the default timeout
+# 2 of 12 gave up; the document is usually reachable, just slow.
 say "warming opinion documents with whatever allowance is left"
+MELLEA_LRC_COURTLISTENER_TIMEOUT=120 \
 uv run --env-file "$REPO/.env" python -m evaluations.lephantomcite.warm_opinions \
   --dataset "$DATASET" >> "$LOG" 2>&1
 say "opinion warming exited $?"
