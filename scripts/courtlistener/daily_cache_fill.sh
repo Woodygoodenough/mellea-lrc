@@ -137,20 +137,32 @@ say "probe exited $STATUS; checkpoint now holds ${ANSWERED:-0} answered locators
 # needs a live service and cannot be re-run offline. Enumerating them costs
 # nothing -- it reads the locator answers back out of the cache.
 #
-# This runs on the *reserved* pool. Sharing the main allowance does not work:
-# the probe's job is to spend the day's budget, so it ends on `daily quota
-# exhausted` every night and warming got zero documents on every run it ever
-# made. The reserved pool is a separate token the probe never touches, so
-# warming has its own ~125 requests a night and the two stop competing.
+# Warming takes the main allowance first. That was not always right: while the
+# probe still had locators to answer it spent the whole main budget every night
+# and warming got zero documents on every run it made, which is why warming was
+# moved to the reserved pool. The probe has since answered all 872 locators the
+# corpus contains and now exits in two seconds having spent nothing, so the main
+# allowance would otherwise go unused. If the corpus grows the probe takes its
+# share back automatically, because it still runs first.
+#
+# The reserved pass runs afterwards on a separate token the probe never touches.
+# It picks up where the main pass stopped, since a document already stored is
+# served from the cache and costs neither pool anything.
 #
 # An opinion is the whole text of a decision, and on a cache miss the proxy
 # fetches it upstream and stores it before answering. At the default timeout
 # 2 of 12 gave up; the document is usually reachable, just slow.
+say "warming opinion documents on the main pool"
+MELLEA_LRC_COURTLISTENER_TIMEOUT=120 \
+uv run --env-file "$REPO/.env" python -m evaluations.lephantomcite.warm_opinions \
+  --dataset "$DATASET" >> "$LOG" 2>&1
+say "main-pool warming exited $?"
+
 say "warming opinion documents on the reserved pool"
 MELLEA_LRC_COURTLISTENER_TIMEOUT=120 \
 MELLEA_LRC_COURTLISTENER_POOL=reserved \
 uv run --env-file "$REPO/.env" python -m evaluations.lephantomcite.warm_opinions \
   --dataset "$DATASET" >> "$LOG" 2>&1
-say "opinion warming exited $?"
+say "reserved-pool warming exited $?"
 say "=== run finished ==="
 exit 0
