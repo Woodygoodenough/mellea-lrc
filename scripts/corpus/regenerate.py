@@ -55,6 +55,7 @@ from typing import TYPE_CHECKING
 
 from mellea_lrc.preprocessing.margin_line_numbers import reclassify_margin_line_numbers
 from mellea_lrc.preprocessing.repeated_furniture import reclassify_repeated_furniture
+from scripts.corpus import build_case_names
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -178,6 +179,20 @@ def regenerate(benchmark: Path, output: Path) -> list[DocumentResult]:
 
     _write_annotations(output / "derived" / "extraction.jsonl", results)
     _write_annotations(output / "derived" / "extraction_locators.jsonl", results, kind="locator")
+
+    # The case names address offsets into the text this run just wrote, so they
+    # have to be rebuilt here rather than left over from the previous
+    # rendering. `build_case_names` reads `derived/extraction.jsonl` and the
+    # documents beside it, both of which now exist.
+    names = build_case_names.build(output)
+    checked, wrong = build_case_names.verify(names, output)
+    if wrong:
+        msg = f"{wrong} of {checked} case names do not slice out of the regenerated text"
+        raise SystemExit(msg)
+    (output / "derived" / "case_names.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in names), encoding="utf-8"
+    )
+    print(f"case names: {checked} verified against the regenerated text")
     return results
 
 
