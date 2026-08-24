@@ -97,6 +97,16 @@ class CourtListenerClient(CourtListenerServiceClient):
         """Initialize the client with its config and HTTP session."""
         self.config = config or CourtListenerConfig.from_env()
         self.session = session or requests.Session()
+        self.last_response_cached: bool | None = None
+        """Whether the last response was served from the proxy's cache.
+
+        A caching proxy marks a served-from-cache response, and such a response
+        cost no request allowance. A caller pacing itself against the allowance
+        needs to know that, or it throttles reads that spend nothing -- which is
+        minutes of idling per run, growing as the cache fills. `None` means the
+        question has not been asked yet or the service does not answer it, and
+        callers should then assume the allowance was spent.
+        """
 
     def lookup_citation(
         self,
@@ -299,6 +309,7 @@ class CourtListenerClient(CourtListenerServiceClient):
         return response
 
     def _response_payload(self, response: requests.Response) -> object:
+        self.last_response_cached = response.headers.get("x-cache", "").strip().lower() == "hit"
         try:
             return response.json()
         except ValueError as exc:

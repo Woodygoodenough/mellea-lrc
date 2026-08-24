@@ -15,7 +15,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from scripts.modal.courtlistener.api import build_app
+from scripts.modal.courtlistener.api import MAX_TOTAL_BURST_WAIT_SECONDS, build_app
 from scripts.modal.courtlistener.tokens import TokenPool
 
 THROTTLED = "Request was throttled. Rate limit exceeded: 125/day. Expected available in 53034 seconds."
@@ -256,3 +256,58 @@ def test_asking_for_a_reserved_pool_that_is_not_configured_is_an_error(
 
     assert response.status_code == 503
     assert upstream.requests == []
+
+
+BURST = "Request was throttled. Rate limit exceeded: 60/minute. Expected available in 12 seconds."
+
+
+@pytest.fixture
+def slept(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Record what the proxy would have slept, without spending the time."""
+    recorded: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        recorded.append(seconds)
+
+    monkeypatch.setattr("scripts.modal.courtlistener.api.asyncio.sleep", fake_sleep)
+    return recorded
+
+
+def test_a_burst_refusal_is_waited_out_rather_than_parking_the_token(
+    slept: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A per-minute throttle clears in seconds, so the token must stay in rotation."""
+    upstream = _Upstream([httpx.Response(429, text=BURST), httpx.Response(200, json=ANSWER)])
+    client, store = _client(upstream, monkeypatch=monkeypatch)
+
+    response = client.post("/citation-lookup/", data=LOOKUP)
+
+    assert response.status_code == 200
+    assert slept == [12.0]
+    assert upstream.tokens_used == ["t1", "t1"]
+    assert len(store) == 1
+
+
+def test_a_persistent_burst_refusal_is_refused_rather_than_held(
+    slept: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Holding the connection is what turned a throttle into an upstream timeout.
+
+    Each sleep was individually capped but their sum was not, so one request
+    could outlast any caller's timeout. The caller then recorded a timeout
+    against a service that was answering in under a second, and a warming run
+    spent forty minutes reporting network failures that had not happened. A
+    short `retry_after` is also the only thing distinguishing this from a spent
+    day, so it has to reach the caller.
+    """
+    upstream = _Upstream([httpx.Response(429, text=BURST)])
+    client, store = _client(upstream, monkeypatch=monkeypatch)
+
+    response = client.post("/citation-lookup/", data=LOOKUP)
+
+    assert response.status_code == 429
+    assert sum(slept) <= MAX_TOTAL_BURST_WAIT_SECONDS
+    assert json.loads(response.content)["retry_after_seconds"] == 12
+    assert store == {}

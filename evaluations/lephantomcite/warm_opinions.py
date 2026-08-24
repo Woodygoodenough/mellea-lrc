@@ -65,6 +65,14 @@ MIN_REQUEST_INTERVAL_SECONDS = 2.0
 TIMEOUT_ATTEMPTS = 3
 TIMEOUT_BACKOFF_SECONDS = 10.0
 
+# How often to report progress while working.
+#
+# Counts used to be logged only after the last document, so a run that was
+# interrupted -- by an exhausted allowance, or by hand -- reported nothing at
+# all, and the only way to learn what it had landed was to count the cache
+# directly. A long job has to say what it is doing while it is doing it.
+PROGRESS_EVERY = 25
+
 
 def opinion_ids_for(dataset: Path, client: CourtListenerClient) -> list[str]:
     """Every opinion document the resolved citations in the dataset name.
@@ -102,12 +110,36 @@ def opinion_ids_for(dataset: Path, client: CourtListenerClient) -> list[str]:
 
 
 def warm(ids: list[str], client: CourtListenerClient) -> dict[str, int]:
-    """Read each opinion once so the cache holds it. Returns what happened."""
-    counts = {"stored": 0, "failed": 0, "remaining": 0}
+    """Read each opinion once so the cache holds it. Returns what happened.
+
+    Documents already in the cache are read back at full speed. The throttle
+    exists to pace requests that reach CourtListener, and a cache hit does not
+    reach it, so pacing one buys nothing and costs the interval. Because a run
+    stops where its allowance ran out, what it already holds is a prefix of this
+    list -- so throttling hits meant every run began by idling once per document
+    it had already fetched, and that opening idle grew with every night's
+    progress.
+
+    Whether the last read was a hit is known only afterwards, so the pace
+    follows the previous document. That mispredicts exactly once, at the
+    boundary where the stored prefix ends, and costs one unpaced request.
+    """
+    counts = {"stored": 0, "cached": 0, "failed": 0, "remaining": 0}
     throttle = _Throttle(MIN_REQUEST_INTERVAL_SECONDS)
+    after_cache_hit = False
     for index, opinion_id in enumerate(ids):
+        if index and index % PROGRESS_EVERY == 0:
+            logger.info(
+                "%s of %s: %s newly stored, %s already cached, %s unread",
+                index,
+                len(ids),
+                counts["stored"],
+                counts["cached"],
+                counts["failed"],
+            )
         for attempt in range(TIMEOUT_ATTEMPTS):
-            throttle.wait()
+            if not after_cache_hit:
+                throttle.wait()
             try:
                 client.get_opinion(opinion_id)
             except CourtListenerError as error:
@@ -130,9 +162,11 @@ def warm(ids: list[str], client: CourtListenerClient) -> dict[str, int]:
                     time.sleep(TIMEOUT_BACKOFF_SECONDS * (attempt + 1))
                     continue
                 counts["failed"] += 1
+                after_cache_hit = False
                 logger.warning("could not read opinion %s: %s", opinion_id, error.message)
                 break
-            counts["stored"] += 1
+            after_cache_hit = bool(client.last_response_cached)
+            counts["cached" if after_cache_hit else "stored"] += 1
             break
     return counts
 
@@ -158,8 +192,9 @@ def main() -> None:
         logger.error("stopping; the cache keeps every document that landed: %s", exhausted.detail)
         sys.exit(0)
     logger.info(
-        "warmed %s, could not read %s, remaining %s",
+        "warmed %s, already cached %s, could not read %s, remaining %s",
         counts["stored"],
+        counts["cached"],
         counts["failed"],
         counts["remaining"],
     )
