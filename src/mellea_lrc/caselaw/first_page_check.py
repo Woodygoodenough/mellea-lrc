@@ -62,11 +62,15 @@ to be wrong in; the other direction accuses a correct citation.
 Of the 7 reported, 6 were checked back against the excerpt text by hand and
 are plain first-page errors -- ``Brady v. United States, 397 U.S. 757`` where
 the case starts at 742, ``Medtronic v. Lohr, 518 U.S. 480`` where it starts at
-470. The seventh, ``G & S Holdings LLC v. Cont'l Cas. Co., 697 F.3d 534``,
-**is unresolved**: the archive puts that case at 697 F.3d 514 and its own
-records around it are dense and internally consistent, but 534 is the citation
-in common use, and the cross-check that would settle it was not in the request
-cache. It is reported here as a finding and should be treated as a question.
+470. The seventh, ``G & S Holdings LLC v. Cont'l Cas. Co., 697 F.3d 534``, **is
+unresolved, and the weight of evidence is now against the archive rather than
+against the filing.** The archive gives that case a 30-page span, 514 to 544,
+where the median in that volume is 10 and only 9 of its 112 cases reach 25;
+its neighbours match ordinary usage exactly, *Naficy* at 504 and *S.C.
+Johnson* at 544; and no case appears to be cited at 697 F.3d 514 anywhere. The
+economical reading is that the archive's entry absorbed whatever occupied 514
+to 533 and took its first page. Searching for either citation did not settle
+it, so it stays a question -- but a caller should not report this one.
 """
 
 from __future__ import annotations

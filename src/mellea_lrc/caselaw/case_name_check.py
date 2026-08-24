@@ -87,6 +87,15 @@ It catches 99 of the 105 labelled wrong names it can reach, and 60% of what it
 calls a disagreement carries a label. Since an unlabelled citation is not a
 certified correct one, that 60% is a floor.
 
+**Those two figures depend on how a label is joined to a citation, and the
+join is not obvious.** The annotations key a defect to a string, which is
+sometimes a citation and sometimes a case name, so matching them to extracted
+citations can be done more than one way. Joining on volume, reporter and page
+-- which also reaches short forms -- gives 104 of 115 rather than 99 of 105,
+so recall reads 90% instead of 94%. **The two claims this module actually rests
+on are unaffected by the choice:** the disagreement count, and that nothing it
+clears carries a wrong-name label.
+
 **On filings with nothing inserted into them it finds nothing.** Over the 109
 sampled filings every flag is an artifact rather than a defect: a name the
 extractor damaged, or an abbreviation still unreconciled. That is the number to
