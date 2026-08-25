@@ -183,8 +183,26 @@ The neighbours it found were subsequent history, not parallels:
 ```
 
 Those are different dispositions at different addresses, so the first resolving
-says nothing about the second. The correct test -- does the neighbour's cluster
-itself list the unresolved address -- was still running when this was written.
+says nothing about the second.
+
+The correct test -- does the neighbour's cluster itself list the unresolved
+address -- kills the idea:
+
+```
+unresolved locator occurrences in eval : 354
+  with any neighbouring citation       : 329
+  neighbour's cluster lists the address: 2
+```
+
+Two of 354, and neither is a parallel: `651 F.2d 983` against `651 F.2d 999` is
+one case cited at two pages, not a second reporter. **The genuine rescue rate is
+zero.** The entire gap between this and the invalid 10% was subsequent history.
+
+So parallels remain worth something as a cross-check on citations that already
+resolve -- 93% have one, and two independent addresses agreeing is the only
+offline purchase found on the confirm-side asymmetry in [[locator-decides]] --
+but they do not raise the resolution ceiling. That ceiling has to be attacked by
+classifying what is in it, not by finding second addresses for it.
 
 The failed attempt surfaced two forms the pipeline has no concept of:
 
