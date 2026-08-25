@@ -209,15 +209,38 @@ The failed attempt surfaced two forms the pipeline has no concept of:
 * **Subsequent history.** `cert. denied`, `aff'd`, `rev'd`, `vacated` introduce
   a real address for a real disposition that is not the case being cited. Right
   now those go through the locator like anything else and, on failing, are
-  indistinguishable from fabrications. Cert-denial pages are also thinly indexed,
-  so some of the unresolved population is probably this rather than absence.
+  indistinguishable from fabrications.
 * **Westlaw citations** (`2015 WL 6531272`) have no reporter and can never
   resolve through CourtListener. They belong out of scope, the way
   `NON_CASE_SOURCES` already handles the Federal Register, rather than counted as
   unresolved.
 
-Both are offline and cheap, and both clean a denominator that currently makes
-resolution look worse than it is.
+Classifying the eval locators says how much either is worth:
+
+| | distinct locators |
+|---|---|
+| resolves | 864 |
+| unresolved: ordinary reporter | 260 |
+| unresolved: Westlaw | 57 |
+| unresolved: subsequent history | 11 |
+| not parsed as a locator | 36 |
+
+**Four fifths of the unresolved population is ordinary reporters CourtListener
+does not hold.** That is an archive coverage problem, not a classification one,
+and it agrees with the earlier finding that 68 of 90 unresolved citations were
+real cases printed only in Westlaw or LEXIS.
+
+So the two cleanups are worth much less than the previous paragraph implied.
+Westlaw is a real but modest gain -- 57 locators, moving resolution from 75% to
+79% of what is in scope. Subsequent history is 11, and the guess written above,
+that it made up a meaningful share of the unresolved, was wrong by about an
+order of magnitude. It is still worth recognising, because reporting a cert
+denial as a fabricated citation is a bad failure, but not as a way to raise the
+resolution rate. The 11 is also a floor: the marker was only looked for in the
+60 characters before the citation.
+
+No fabricated-series citations appear in this table at all, because eyecite
+never produces them -- which is section 3 seen from the other end.
 
 ## 7. Quote checking has a well-defined input
 
