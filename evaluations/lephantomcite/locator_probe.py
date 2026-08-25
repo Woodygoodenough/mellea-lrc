@@ -34,9 +34,8 @@ from enum import Enum
 from threading import Lock
 from typing import TYPE_CHECKING
 
-from reporters_db import EDITIONS, VARIATIONS_ONLY
-
 from mellea_lrc.core.citations import FullCaseCitation, ShortCaseCitation
+from mellea_lrc.core.reporter_series import find_impossible_series
 from mellea_lrc.courtlistener import CourtListenerClient, CourtListenerError
 from mellea_lrc.extraction import extract_from_plain_text
 
@@ -107,17 +106,17 @@ DEFAULT_MAX_WORKERS = 1
 # be exactly the false positive this vocabulary exists to prevent. They need
 # naming because eyecite types their short forms (`80 Fed. Reg. at 64,545`) as
 # short case citations, so they reach a lookup that then rejects the reporter.
-NON_CASE_SOURCES = frozenset({"fedreg", "congrec", "cfr", "usc", "stat"})
+# `fr` is the Federal Register again, as filings often abbreviate it. Without
+# it `75 FR at 32,026` reached the reporter rule, which reported the Federal
+# Register as a series that does not exist -- the false accusation the
+# vocabulary above exists to prevent, arriving through a spelling it missed.
+NON_CASE_SOURCES = frozenset({"fedreg", "fr", "congrec", "cfr", "usc", "stat"})
 
 # A citation that states volume, some reporter tokens, and a page, without the
 # reporter being a real series. Extraction refuses such a string, so it never
 # reaches a lookup, and the refusal is itself the finding.
 _LOCATOR_SHAPE = re.compile(r"\b\d+\s+(?P<reporter>[A-Za-z][A-Za-z0-9.'’ ]*?)\s+(?:at\s+)?\d+\b")
 _NON_ALNUM = re.compile(r"[^a-z0-9]")
-# Variations as well as canonical editions: `Fed. Appx.` is how a filing often
-# spells `F. App'x`, and calling a real reporter fabricated because a brief used
-# its common abbreviation would be the worst error this check could make.
-_KNOWN_REPORTERS = {_NON_ALNUM.sub("", name.lower()) for name in (*EDITIONS, *VARIATIONS_ONLY)}
 
 
 class DailyQuotaExhausted(RuntimeError):
@@ -363,19 +362,6 @@ def names_a_non_case_source(cited_text: str) -> bool:
     return any(is_non_case_source(match["reporter"]) for match in _LOCATOR_SHAPE.finditer(cited_text))
 
 
-def names_no_real_reporter(cited_text: str) -> bool:
-    """Whether the string is shaped like a locator but names no real reporter series.
-
-    A citation stating `446 Cal. Rptr. 4th 183` has a volume, a page and a
-    reporter that does not exist. Extraction declines it for that reason, so the
-    decline carries a finding rather than a failure.
-    """
-    for match in _LOCATOR_SHAPE.finditer(cited_text):
-        if _NON_ALNUM.sub("", match["reporter"].lower()) in _KNOWN_REPORTERS:
-            return False
-    return bool(_LOCATOR_SHAPE.search(cited_text))
-
-
 def summarize(results: Sequence[LookupResult]) -> dict[str, int]:
     """Count results by outcome, with every outcome present even at zero."""
     counts = dict.fromkeys((outcome.value for outcome in LookupOutcome), 0)
@@ -431,11 +417,18 @@ def _unparsed_result(cited_text: str) -> LookupResult:
             outcome=LookupOutcome.OUT_OF_SCOPE,
             detail="a real publication that is not a case reporter",
         )
-    if names_no_real_reporter(cited_text):
+    # `find_impossible_series` reports only a series that is impossible for a
+    # reporter family that exists. The rule this replaced refused any reporter
+    # missing from the database, which called `151 Fed 2nd 240` fabricated --
+    # a real citation, since `Fed.` is a recorded way of writing `F.` and its
+    # second series ran for seventy years. Absence from the database is not
+    # evidence, and the database is not exhaustive.
+    impossible = find_impossible_series(cited_text)
+    if impossible:
         return LookupResult(
             parts=None,
             outcome=LookupOutcome.REFUTED,
-            detail="no such reporter series",
+            detail=impossible[0].reason,
         )
     if is_short_form(cited_text):
         return LookupResult(

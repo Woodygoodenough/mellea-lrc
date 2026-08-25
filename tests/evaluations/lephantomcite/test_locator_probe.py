@@ -13,12 +13,13 @@ from evaluations.lephantomcite.locator_probe import (
     LookupResult,
     _append_checkpoint,
     _lookup_one,
+    _unparsed_result,
     is_short_form,
-    names_no_real_reporter,
     parse_locator,
     probe_locators,
     summarize,
 )
+from mellea_lrc.core.reporter_series import find_impossible_series
 from mellea_lrc.courtlistener import CourtListenerError
 
 
@@ -85,10 +86,14 @@ def test_a_fabricated_reporter_series_is_refuted_offline(fabricated: str) -> Non
     """No volume or page of a series that does not exist can exist.
 
     This is a positive finding rather than an absence, and it is reached before
-    any request is sent.
+    any request is sent. The rule itself lives in `mellea_lrc.core` and is
+    tested there; what matters here is that the probe turns it into a refutation
+    and says why.
     """
     assert parse_locator(fabricated) is None
-    assert names_no_real_reporter(fabricated)
+    result = _unparsed_result(fabricated)
+    assert result.outcome is LookupOutcome.REFUTED
+    assert "published only through series" in result.detail
 
 
 @pytest.mark.parametrize(
@@ -102,7 +107,7 @@ def test_a_fabricated_reporter_series_is_refuted_offline(fabricated: str) -> Non
 def test_a_real_reporter_is_never_refuted(real: str) -> None:
     """Calling a real series fabricated because a brief abbreviated it differently
     is the worst error this check could make, so variations count as real."""
-    assert not (parse_locator(real) is None and names_no_real_reporter(real))
+    assert not (parse_locator(real) is None and find_impossible_series(real))
 
 
 def test_absence_from_the_archive_is_not_refutation() -> None:
@@ -214,7 +219,7 @@ def test_an_unknown_case_reporter_is_still_refuted_by_the_lookup() -> None:
 
     # Reached through _lookup_one directly: extraction declines this string, so
     # probe_locators would refute it offline before ever sending a request.
-    looked_up = _lookup_one(client, LocatorParts("446", "Cal. Rptr. 4th", "183"))  # noqa: SLF001
+    looked_up = _lookup_one(client, LocatorParts("446", "Cal. Rptr. 4th", "183"))
 
     assert looked_up.outcome is LookupOutcome.REFUTED
 
@@ -308,3 +313,15 @@ def test_summarize_reports_every_outcome_including_zeroes() -> None:
 
     assert counts["resolved"] == 1
     assert set(counts) == {outcome.value for outcome in LookupOutcome}
+
+
+@pytest.mark.parametrize("cited", ["75 FR at 32,026", "80 Fed. Reg. at 64,545"])
+def test_the_federal_register_is_out_of_scope_however_it_is_abbreviated(cited: str) -> None:
+    """Both spellings name the same publication, and neither is a case reporter.
+
+    Only the long form was listed, so `75 FR at 32,026` fell through to the
+    reporter rule and came back refuted -- the Federal Register reported as a
+    series that does not exist, which is the false accusation the vocabulary
+    exists to prevent, arriving through a spelling it did not cover.
+    """
+    assert _unparsed_result(cited).outcome is LookupOutcome.OUT_OF_SCOPE
