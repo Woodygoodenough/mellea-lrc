@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Nightly CourtListener cache fill.
+  CourtListener cache fill, four times a day.
 
   launchd rather than cron because this runs on a laptop. cron silently skips a
   job whose time passed while the machine was asleep; launchd runs it on the
   next wake, which is the difference between the cache filling and not.
 
-  The hour only has to be roughly right. The daily allowance returns 24 hours
-  after each token's first use, so the moment it arrives drifts later every day
-  the job starts later, and no fixed time stays on the right side of it. The
-  script asks the proxy how long is left and waits, up to 90 minutes.
+  Four times a day rather than once, because the allowance is per token and
+  returns 24 hours after *that token's* first use. The windows therefore drift
+  apart from each other and from any fixed hour, and a single nightly run meets
+  whichever tokens happen to be open at 05:10 -- on 25 August that was roughly
+  one of three, and the main pool exhausted after about sixty requests instead
+  of its nominal 375. Every six hours, no token's window can open more than six
+  hours before something spends it.
+
+  Extra runs are close to free. A run that finds the allowance is hours away
+  stops rather than waiting (MAX_WAIT_SECONDS), and warming skips what the
+  cache already holds without pacing it, so a pass over 620 stored documents
+  costs seconds rather than the twenty minutes it once did. launchd will not
+  start a second copy while one is still running.
 -->
 <plist version="1.0">
 <dict>
@@ -22,10 +31,12 @@
   </array>
 
   <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key><integer>5</integer>
-    <key>Minute</key><integer>10</integer>
-  </dict>
+  <array>
+    <dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>10</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>10</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>10</integer></dict>
+    <dict><key>Hour</key><integer>23</integer><key>Minute</key><integer>10</integer></dict>
+  </array>
 
   <!-- The script keeps its own dated log; these catch anything that escapes it,
        such as a failure before the log is opened. -->
