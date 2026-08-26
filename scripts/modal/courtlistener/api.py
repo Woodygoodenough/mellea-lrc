@@ -12,7 +12,6 @@ annotations resolvable.
 exercised without Modal, R2, or a CourtListener token.
 """
 
-import asyncio
 import json
 import logging
 from collections.abc import Callable
@@ -23,6 +22,7 @@ from fastapi import FastAPI, Request, Response
 
 from scripts.modal.courtlistener.cache import build_envelope, cache_key, should_store
 from scripts.modal.courtlistener.tokens import (
+    MAX_BURST_WAIT_SECONDS,
     AllTokensExhausted,
     TokenPool,
     burst_wait_seconds,
@@ -34,17 +34,9 @@ logger = logging.getLogger(__name__)
 
 UPSTREAM_TIMEOUT_SECONDS = 45
 HTTP_TOO_MANY_REQUESTS = 429
-# How many times a burst refusal may be waited out before giving up on a request.
+# How many times a burst refusal may be retried on another token before giving
+# up on a request. Nothing sleeps here any more, so this only bounds rotation.
 BURST_RETRIES = 3
-# How long one request may spend waiting out burst refusals, across every retry.
-#
-# `MAX_BURST_WAIT_SECONDS` bounds a single sleep but nothing bounded their sum,
-# so a request could sit here for that cap times the retry count -- far past any
-# caller's timeout. The caller then reports an upstream timeout for a service
-# that was answering in under a second, which is exactly the wrong diagnosis and
-# hides a throttle behind a network-looking failure. Past this budget the caller
-# is told to come back, with the wait attached, instead of being held.
-MAX_TOTAL_BURST_WAIT_SECONDS = 30.0
 # A caller asked for an allowance this deployment does not have.
 HTTP_MISCONFIGURED = 503
 
@@ -167,13 +159,12 @@ async def _send(
     request is retried on the next one. When every token is parked the caller
     gets `AllTokensExhausted` and can stop rather than retry into a wall.
 
-    A burst limit is the opposite and is waited out in place, but only within
-    `MAX_TOTAL_BURST_WAIT_SECONDS`. Beyond it the caller is refused with the
-    remaining wait attached: a short wait is what tells the caller apart a
-    throttle from a spent day, so refusing quickly keeps that signal intact
-    where holding the connection destroys it.
+    A burst limit is counted per token and clears in seconds, so the token is
+    parked for exactly that long and the next one is tried at once. Nothing
+    sleeps inside a request: holding the connection idles every token for one
+    token's throttle, and past any caller's timeout it also arrives as an
+    upstream failure that never happened.
     """
-    waited = 0.0
     async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
         for _ in range(pool.size * (BURST_RETRIES + 1)):
             token = pool.acquire()
@@ -188,15 +179,12 @@ async def _send(
                 pool.park(token, response.text)
                 continue
             if is_burst_refusal(response.status_code, response.text):
-                # A short-window throttle clears in seconds. Waiting it out
-                # keeps the token; parking it would empty the pool over
-                # something that is not an exhausted allowance at all.
-                wait = burst_wait_seconds(response.text)
-                if waited + wait > MAX_TOTAL_BURST_WAIT_SECONDS:
-                    logger.info("burst wait budget spent after %.0fs; refusing", waited)
-                    raise AllTokensExhausted(wait)
-                await asyncio.sleep(wait)
-                waited += wait
+                # A short-window throttle clears in seconds and is counted per
+                # token, so this one steps aside for exactly that long and the
+                # next is tried immediately. It is not parked for the day --
+                # that would empty the pool over something that is not an
+                # exhausted allowance at all.
+                pool.park_briefly(token, burst_wait_seconds(response.text))
                 continue
             return (
                 response.status_code,
@@ -206,8 +194,8 @@ async def _send(
     # Every token refused within this request. Asking the pool once more raises
     # AllTokensExhausted carrying the earliest reset, which is what the caller
     # needs in order to stop rather than retry.
+    # Every token refused and each was parked, so `acquire` above raises with
+    # the soonest one back. Reaching here means a token freed up mid-loop and
+    # still refused, which is a short wait rather than a spent day.
     pool.acquire()
-    # The pool still has a usable token, so every refusal here was a burst
-    # limit. That is a 429 with a short wait, not a 500: the request is fine and
-    # will succeed shortly.
-    raise AllTokensExhausted(MAX_TOTAL_BURST_WAIT_SECONDS)
+    raise AllTokensExhausted(MAX_BURST_WAIT_SECONDS)

@@ -105,6 +105,23 @@ class TokenPool:
                 return token
         raise AllTokensExhausted(min(token.available_at for token in self.tokens) - moment)
 
+    def park_briefly(self, token: _Token, seconds: float, *, now: float | None = None) -> None:
+        """Take a token out of rotation for a short-window throttle.
+
+        Unlike `park`, this is not a spent allowance: the token is usable again
+        in seconds. It leaves rotation so the pool's other tokens are tried
+        **immediately**, because a per-minute limit is counted per token and
+        the others are very likely fine. Sleeping instead idles every token for
+        one token's throttle, which is what a night of warming spent 75 minutes
+        doing.
+
+        When every token is parked this way, `acquire` raises carrying the
+        soonest one back, so the caller waits the shortest remaining window
+        rather than the longest any single token named.
+        """
+        moment = time.monotonic() if now is None else now
+        token.available_at = max(token.available_at, moment + seconds)
+
     def park(self, token: _Token, body: str, *, now: float | None = None) -> None:
         """Take a refused token out of rotation until the upstream says it is back."""
         moment = time.monotonic() if now is None else now
