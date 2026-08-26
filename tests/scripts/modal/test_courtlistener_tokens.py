@@ -129,3 +129,51 @@ def test_the_cooldown_falls_back_when_no_reset_is_named() -> None:
     """A refusal without a reset still has to park the token for something."""
     assert cooldown_seconds(THROTTLED) == pytest.approx(53034.0)
     assert cooldown_seconds("Rate limit exceeded.") == pytest.approx(DEFAULT_COOLDOWN_SECONDS)
+
+
+DAY = "Request was throttled. Rate limit exceeded: 125/day.  Expected available in 53034 seconds."
+MINUTE = "Request was throttled. Rate limit exceeded: 60/minute. Expected available in 12 seconds."
+LONG_UNNAMED_WINDOW = "Request was throttled. Rate limit exceeded. Expected available in 21600 seconds."
+SHORT_UNNAMED_WINDOW = "Request was throttled. Rate limit exceeded. Expected available in 20 seconds."
+NO_WAIT_NAMED = "Request was throttled. Rate limit exceeded."
+
+
+@pytest.mark.parametrize(
+    ("body", "spent", "burst"),
+    [
+        (DAY, True, False),
+        (MINUTE, False, True),
+        (LONG_UNNAMED_WINDOW, True, False),
+        (SHORT_UNNAMED_WINDOW, False, True),
+        (NO_WAIT_NAMED, False, False),
+    ],
+)
+def test_a_refusal_is_classified_by_how_long_it_says_to_wait(
+    body: str,
+    spent: bool,
+    burst: bool,
+) -> None:
+    """The wording alone does not separate a spent allowance from a burst limit.
+
+    `LONG_UNNAMED_WINDOW` is the case that cost a night: six hours of refusal
+    that never says "per day". Read as a burst, its wait was capped at ninety
+    seconds and retried forever, so a warming pass stored one token's worth of
+    documents and then made no progress for forty-five minutes.
+
+    `NO_WAIT_NAMED` is neither, deliberately. A refusal that will not say when
+    it relents is not something to park a token for the hour over, nor to retry
+    in ninety seconds; it goes back to the caller as it arrived.
+    """
+    assert is_quota_refusal(429, body) is spent
+    assert is_burst_refusal(429, body) is burst
+
+
+def test_a_long_refusal_parks_for_what_it_actually_named() -> None:
+    """Capping this at the burst ceiling is what made the retry loop endless."""
+    pool = TokenPool.from_environment({"COURTLISTENER_API_TOKEN_1": "t1"})
+    pool.park(pool.tokens[0], LONG_UNNAMED_WINDOW)
+
+    with pytest.raises(AllTokensExhausted) as refusal:
+        pool.acquire()
+
+    assert refusal.value.retry_after_seconds > MAX_BURST_WAIT_SECONDS

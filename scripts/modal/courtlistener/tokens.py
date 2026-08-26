@@ -39,6 +39,20 @@ DEFAULT_COOLDOWN_SECONDS = 3600.0
 HTTP_TOO_MANY_REQUESTS = 429
 # A burst refusal clears quickly; wait rather than surrendering the token.
 MAX_BURST_WAIT_SECONDS = 90.0
+# Longer than this and a throttle is not a short window, whatever it calls
+# itself.
+#
+# The wording is not sufficient to tell the two apart. Classifying only by the
+# literal "N/day" meant any other phrasing was read as a burst, and a burst's
+# wait is capped at `MAX_BURST_WAIT_SECONDS` -- so a refusal naming hours was
+# retried every ninety seconds forever. On 26 August a warming pass stored 142
+# documents, roughly one token's daily allowance, and then spent 45 minutes
+# making no progress at all: it was waiting out a spent allowance ninety
+# seconds at a time, and would have until the day turned over.
+#
+# How long the upstream says to wait is what actually decides how to treat it,
+# and the client already reads it that way.
+BURST_HORIZON_SECONDS = 300.0
 
 
 class AllTokensExhausted(RuntimeError):
@@ -126,7 +140,15 @@ class TokenPool:
         """Take a refused token out of rotation until the upstream says it is back."""
         moment = time.monotonic() if now is None else now
         token.available_at = moment + cooldown_seconds(body)
-        logger.warning("parked %s for %.0fs after a quota refusal", token.label, token.available_at - moment)
+        # The body is logged because its wording is what this decision turns on,
+        # and a misreading of it cost a night of warming before anyone could see
+        # what the upstream had actually said.
+        logger.warning(
+            "parked %s for %.0fs after a quota refusal: %s",
+            token.label,
+            token.available_at - moment,
+            body[:160],
+        )
 
     @property
     def size(self) -> int:
@@ -135,21 +157,37 @@ class TokenPool:
 
 
 def is_quota_refusal(status_code: int, body: str) -> bool:
-    """Whether a refusal means the token's daily allowance is spent.
+    """Whether a refusal means the token's allowance is spent for a long while.
 
-    Only a per-day window counts. A per-minute burst limit is also reported as
-    "Rate limit exceeded", and treating that as exhaustion parks a token that is
-    fine seconds later -- enough of them and the whole pool empties in one
-    burst and then refuses every request.
+    A named per-day window counts, and so does any other throttle that says it
+    will not relent for `BURST_HORIZON_SECONDS`. Deciding on the words alone
+    read an hours-long refusal as a per-minute one and retried it every ninety
+    seconds indefinitely; how long the upstream says to wait is the part that
+    decides what to do about it.
     """
-    return status_code == HTTP_TOO_MANY_REQUESTS and bool(_DAILY_WINDOW.search(body))
+    if status_code != HTTP_TOO_MANY_REQUESTS or not _THROTTLED.search(body):
+        return False
+    if _DAILY_WINDOW.search(body):
+        return True
+    named = _RETRY_SECONDS.search(body)
+    return named is not None and float(named.group(1)) > BURST_HORIZON_SECONDS
 
 
 def is_burst_refusal(status_code: int, body: str) -> bool:
-    """Whether a refusal is a short-window throttle worth waiting out."""
+    """Whether a refusal is a short-window throttle worth stepping aside for.
+
+    A per-minute limit clears in seconds, so the token keeps its place in the
+    pool. Parking it for the day would empty the pool over something that is
+    not an exhausted allowance at all -- which is why this is not simply the
+    negation of a spent allowance: a refusal that names no wait at all is
+    neither, and is left to the caller rather than guessed at.
+    """
     if status_code != HTTP_TOO_MANY_REQUESTS or not _THROTTLED.search(body):
         return False
-    return not _DAILY_WINDOW.search(body)
+    if is_quota_refusal(status_code, body):
+        return False
+    named = _RETRY_SECONDS.search(body)
+    return named is not None and float(named.group(1)) <= BURST_HORIZON_SECONDS
 
 
 def burst_wait_seconds(body: str) -> float:
