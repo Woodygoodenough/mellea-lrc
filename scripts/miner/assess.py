@@ -51,18 +51,66 @@ _PARTY_FILING = re.compile(
     r"(?i)\b(motion|memorandum in (opposition|support)|response|reply|brief"
     r"|petition|complaint|declaration)\b"
 )
+# A description opening with one of these is the court speaking whatever else it
+# goes on to mention. `MEMORANDUM OPINION re 35 Special Motion to Dismiss` names
+# a motion, and reading that as a party filing lets an opinion into the corpus.
+_COURT_OPENING = re.compile(r"(?i)^\s*(memorandum opinion|opinion and order|opinion|order)\b")
+# The filing that answers a show-cause order is not the filing that provoked it.
+# It is counsel's explanation, filed after the accusation and usually citing
+# nothing at all -- which is why every one of these arrived with no citations.
+_ANSWERS_THE_ORDER = re.compile(
+    r"(?i)(response\s+to\s+(the\s+)?(court'?s?\s+)?(order\s+to\s+)?show\s+cause"
+    r"|in\s+response\s+to\s+(the\s+)?court'?s?\s+order"
+    r"|response\s+to\s+show\s+cause"
+    r"|motion\s+for\s+leave\s+to\s+correct)"
+)
 
 
 def is_court_document(description: str) -> bool:
     """Whether a docket description names something the court wrote.
 
-    Checked in this order because a description routinely carries both -- a
-    `MEMORANDUM in Opposition ... Signed by` is a party filing. Naming a party
-    document wins.
+    A description routinely carries both, so what it *opens* with decides. An
+    order or opinion names the motion it rules on, and matching "motion"
+    anywhere in the text let those into the corpus as party filings.
     """
-    if _PARTY_FILING.search(description or ""):
+    text = description or ""
+    if _COURT_OPENING.search(text):
+        return True
+    if _PARTY_FILING.search(text):
         return False
-    return bool(_COURT_DOCUMENT.search(description or ""))
+    return bool(_COURT_DOCUMENT.search(text))
+
+
+def answers_the_order(description: str) -> bool:
+    """Whether this filing is the reply to the accusation rather than its cause.
+
+    A show-cause order names two things in one sentence: the filing that
+    contained the fabricated citations, and the response it demands. The
+    resolver has no way to tell them apart from the sentence alone, and it
+    picked the response often enough to be the largest single source of wrong
+    pairings -- every one of them arriving with no citations in it at all,
+    because an apology cites nothing.
+    """
+    return bool(_ANSWERS_THE_ORDER.search(description or ""))
+
+
+# A born-digital filing runs to thousands of characters a page. A scan with no
+# text layer yields only the header stamp RECAP adds, which is under a hundred.
+# The distinction matters because a scan reads as a filing with no citations in
+# it, which is otherwise the signature of the wrong docket entry.
+SCANNED_CHARS_PER_PAGE = 200
+
+
+def page_count(path: pathlib.Path) -> int:
+    """Pages in a PDF, or 0 if it cannot be read."""
+    try:
+        done = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True, timeout=60)
+    except (subprocess.SubprocessError, OSError):
+        return 0
+    for line in done.stdout.splitlines():
+        if line.startswith("Pages:"):
+            return int(line.split()[1])
+    return 0
 
 
 def _normalise(citation: str) -> str:
@@ -123,11 +171,16 @@ def assess() -> dict:
             if outcome in SUSPICIOUS:
                 contradicted.add(key)
 
+        pages = page_count(path)
         rows.append({
             "entry": stem,
+            "pages": pages,
+            "chars": len(text),
+            "scanned": bool(pages and len(text) / pages < SCANNED_CHARS_PER_PAGE),
             "case": entry.get("case_name", ""),
             "court": entry.get("court", ""),
             "court_document": is_court_document(entry.get("desc", "")),
+            "answers_the_order": answers_the_order(entry.get("desc", "")),
             "citations": len(cites),
             "shared_with_order": len(cites & order_cites),
             "judged": len(judged),
@@ -140,13 +193,17 @@ def assess() -> dict:
 
 def report(assessment: dict) -> None:
     rows = assessment["filings"]
-    party = [r for r in rows if not r["court_document"]]
+    party = [r for r in rows
+             if not r["court_document"] and not r["answers_the_order"]]
 
     print(f"downloaded entries              : {len(rows)}")
-    print(f"  court documents (excluded)    : {len(rows) - len(party)}")
-    print(f"  party filings                 : {len(party)}")
+    print(f"  court documents (excluded)    : {sum(1 for r in rows if r['court_document'])}")
+    print(f"  answers to the order (excluded): {sum(1 for r in rows if r['answers_the_order'] and not r['court_document'])}")
+    print(f"  offending filings             : {len(party)}")
     print(f"    sharing citations with order: {sum(1 for r in party if r['shared_with_order'])}")
-    print(f"    with no citations at all    : {sum(1 for r in party if not r['citations'])}")
+    empty = [r for r in party if not r["citations"]]
+    print(f"    with no citations at all    : {len(empty)}"
+          f"  ({sum(1 for r in empty if r['scanned'])} of them scans with no text layer)")
 
     contradicted = sum(len(r["contradicted"]) for r in party)
     judged = sum(r["judged"] for r in party)

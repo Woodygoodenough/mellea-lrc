@@ -289,21 +289,34 @@ Four traps, each found by reading real orders and each now guarded:
    200 was wrong; entry 532 was real on a criminal docket. Removed.
 
 ### 8.4 Confirming the pairing
-Measured over the 38 downloaded entries that are party filings, by
-`scripts/miner/assess.py`:
+`scripts/miner/assess.py` separates what was downloaded into three kinds, and
+only the third is evidence:
 
-| | count |
-|---|---|
-| sharing at least one citation with the accusing order | 18 |
-| containing no citations at all | 11 |
-| remaining, sharing none | 9 |
+| kind | count | why excluded |
+|---|---|---|
+| court documents | 9 | the resolver picked another order, not the brief |
+| answers to the order | 3 | counsel's reply to the show-cause, filed after the accusation |
+| **offending filings** | **32** | — |
 
-Shared citations corroborate the pairing. **The 11 with no citations are almost
-certainly the wrong entry** — a filing accused of fabricated citations that
-contains none is not the filing meant. The 9 sharing none are ambiguous.
+**The answer to a show-cause order is not the filing that provoked it.** The
+order names both in one sentence, so the resolver cannot tell them apart from
+the sentence alone, and it picked the reply often enough to matter. Every one
+arrived with no citations in it, because an apology cites nothing.
 
-That leaves fewer than half the pairings corroborated, and it is the largest
-unresolved weakness in the corpus.
+**A description's opening word decides who wrote it.** `MEMORANDUM OPINION re
+35 Special Motion to Dismiss` names a motion, and matching "motion" anywhere in
+the text let three opinions into the corpus as party filings.
+
+Of the 32 offending filings, 16 share at least one citation with the order
+accusing them. Seven contain no citations at all, and **four of those are scans
+with no text layer** — 71 to 86 characters a page against thousands for a
+born-digital filing. Their citations are present and unreadable without OCR,
+which is a different problem from a wrong pairing. Of the remaining three, one
+is a single-page cover sheet and two are documents that plausibly cite nothing.
+
+So the corpus is in better condition than a raw count of empty filings
+suggests, but half the pairings still rest on nothing more than the resolver's
+choice.
 
 ### 8.5 Identifying the fabricated citations
 Two extraction rules were tried.
@@ -484,8 +497,8 @@ In order of how likely each is to be wrong.
    method yet.
 3. **The quotation extractor's error rate rests on 9 citations** — the 7 real
    and 2 fake that could be judged. Nothing is known about the other 22.
-4. **Only 18 of 38 pairings are corroborated** by shared citations, and 11
-   filings contain no citations at all, which means the wrong entry was picked.
+4. **Only 16 of 32 pairings are corroborated** by shared citations. The rest
+   rest on the resolver's choice alone.
 5. **Recall is entirely unmeasured.** Nothing has been checked against a
    published tracker, so the corpus may be badly incomplete in ways the search
    cannot see.
