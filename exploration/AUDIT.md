@@ -103,8 +103,9 @@ the cache directory for `mellea_lrc.caselaw.CapIndex`, which fetches volumes on
 demand and reads them back from here.
 
 ### 3.4 Miner exploration — 340 MB
-`local/orders/` (452 order PDFs), `local/accused/` (44 accused filing PDFs),
-and the derived JSON described in section 8.
+`local/orders/` (452 order PDFs), `local/accused/` (44 PDFs, of which **6 are
+court documents the resolver picked in error** — see section 8.6), and the
+derived JSON inventoried in section 13.
 
 ### 3.5 Not on disk
 An R2 read-through cache behind a Modal proxy holds CourtListener responses.
@@ -230,7 +231,7 @@ the search is the method. A tracker becomes a way to measure recall.
 | find the accused entry | `scripts/miner/resolve.py` | `accused_entries` | 79 orders name one |
 | rank candidates when none is named | `scripts/miner/rank_candidates.py` | `miner-widened.json` | 113 |
 | look the entry up on its docket | ad hoc | `miner-accused.json` | 120 entries |
-| download the accused filing | ad hoc | `local/accused/*.pdf` | 47 available, 44 on disk |
+| download the accused filing | ad hoc | `local/accused/*.pdf` | 47 available, 44 on disk, 38 actually party filings |
 
 Coverage of the 47: 58 cases across 32 courts.
 
@@ -335,16 +336,40 @@ text extraction, not by the rule:
   so a page stamp or the previous line runs into them
 
 ### 8.7 What is actually confirmed
-Two citations, using only offline data, in volumes that are held and densely
-covered:
+
+Restricted to party filings, and to citations the archive can judge, eleven
+distinct citations are contradicted across eight filings. Two of them are
+confirmed twice over, by the court and by the archive independently, and both
+sit in the same document — entry 353 of *Superb Motors Inc. v. Deo* (nyed),
+a memorandum in opposition:
 
 | citation | written as | printed at that page |
 |---|---|---|
-| `491 F.2d 56` | In re Marcus | *United States v. Melton*, pp. 45–58 |
-| `597 F.3d 381` | quoted for tortious interference | *Michigan Bell Telephone v. Covad*, pp. 370–392 |
+| `491 F.2d 56` | In re Marcus | *United States v. Melton* |
+| `85 A.D.3d 1510` | In re Amica Mut. Ins. Co. | *Leto v. Amrex Chemical Co.* |
 
-Both name a page that exists but holds a different case. That is the signature
-worth pursuing.
+The order names both. Its wording is worth quoting, because it describes the
+same procedure this check performs:
+
+> While Superb Plaintiffs pointed to only one case, "In re Amica Mut. Ins. Co.,
+> 85 A.D.3d 1510 (3rd Dept. 2011)," the Court independently found — with little
+> effort — another fake citation, "In re Marcus, 491 F.2d 56, 60 (2nd Cir.
+> 1974)".
+
+The quotation extractor of section 8.5 found *In re Marcus* and **missed** *In
+re Amica*; the archive check found both. The two methods are complementary and
+neither subsumes the other.
+
+**`597 F.3d 381` was previously listed here as confirmed and is not.** It came
+from the discarded first index. Under the corrected check its party name cannot
+be parsed out of the block quote that carries it, so nothing is asserted.
+
+One further finding is worth separating from the fabrication question. In entry
+40 of *Sherwood v. County of Botetourt*, `405 U.S. 150` is written for a case
+named Maryland; that citation is *Giglio v. United States*, and *Brady v.
+Maryland* is `373 U.S. 83`. A real case under a real name with the wrong
+citation attached is a distinct defect class, already recorded in
+`exploration/notes/right-case-wrong-citation.md`.
 
 ## 9. Errors made and corrected, kept on the record
 
@@ -366,6 +391,16 @@ These are here because each is easy to repeat.
    workload simply exceeds it.
 5. **`Document N` was nearly accepted as a docket reference form.** It is the
    page header.
+6. **A control was read as clean when it was not.** Court orders were used as
+   the false-positive baseline on the reasoning that judges do not fabricate
+   citations. True, but orders about fabrication *quote* the fabrications, so
+   part of the baseline is signal.
+7. **Six court documents sat in the accused-filing set and inflated every
+   figure taken from it.** The resolver had picked another order from the
+   docket rather than the offending brief. The single most incriminating
+   document in the corpus — 5 contradicted citations of 11 judged — was a
+   memorandum opinion listing the 42 invented authorities it was striking.
+   Filter accused entries by docket description before measuring anything.
 
 ## 10. Open decisions, unanswered
 
@@ -395,9 +430,9 @@ In order of how likely each is to be wrong.
 1. **The archive check does not currently separate accused filings from court
    orders** (3.7% against 2.5%, z = 1.03). Treat any claim that it detects
    fabrication independently as unsupported.
-2. **`597 F.3d 381` is weaker than `491 F.2d 56`.** Its volume file holds 116
-   cases with a largest page gap of 110, so absence is less conclusive. The F.2d
-   volume holds 302 cases with a largest gap of 22.
+2. **The two doubly-confirmed citations come from one filing.** Both are entry
+   353 of *Superb Motors*. A method demonstrated on a single document is not a
+   method yet.
 3. **The quotation extractor's error rate rests on 9 citations** — the 7 real
    and 2 fake that could be judged. Nothing is known about the other 22.
 4. **Only 24 of 47 pairings are corroborated** by shared citations.
@@ -407,7 +442,35 @@ In order of how likely each is to be wrong.
 6. **The docket cache figure of 291 is a floor from a truncated walk**, not a
    count of what the bucket holds.
 
-## 13. Reproducing any of it
+## 13. Derived artifacts
+
+Every file the miner writes, what produces it, and whether it is current. All
+are under `local/` and none are distributed.
+
+| file | written by | holds | current |
+|---|---|---|---|
+| `miner-all.json` | `discover.py` | 1,044 search hits | yes |
+| `miner-orders.json` | `discover.py` | 476 that are court orders | yes |
+| `miner-complaints.json` | `discover.py` | 212 hits with the accusation snippet | yes |
+| `miner-parsed.json` | `harvest.py` | 448 orders read, with `accused_entries` | yes |
+| `miner-widened.json` | `rank_candidates.py` | 113 ranked candidates where no entry is named | yes |
+| `miner-accused.json` | ad hoc | 120 accused entries, 47 marked available | yes |
+| `miner-verified.json` | ad hoc | citation overlap between each filing and its order | yes |
+| `miner-fakes.json` | ad hoc | 45 quotation-extracted candidate pairs | yes |
+| `miner-archive-check.json` | `archive_check.py` | every flagged citation, both corpora | yes |
+| `miner-ranked.json` | ad hoc | contradicted-citation count per document | yes |
+| `miner-confirmed.json` | ad hoc | flags split by whether the order also quoted them | yes |
+| `cap-index.json` | — | — | **deleted**; a second index that duplicated `CapIndex` |
+| `miner-namecheck.json` | — | — | **deleted**; written by the discarded first check |
+| `miner-capcheck.json` | — | — | **deleted**; written by the flawed coverage test |
+
+The files marked ad hoc are produced by short scripts written in a session
+scratchpad rather than committed. That is a real gap: sections 8.4, 8.7 and the
+per-document ranking cannot currently be rerun from the repository alone. Only
+`discover.py`, `harvest.py`, `resolve.py`, `rank_candidates.py` and
+`archive_check.py` are committed.
+
+## 14. Reproducing any of it
 
 `local/` is not distributed. An auditor needs:
 
