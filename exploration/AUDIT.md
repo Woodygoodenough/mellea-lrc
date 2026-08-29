@@ -258,10 +258,21 @@ Four traps, each found by reading real orders and each now guarded:
    200 was wrong; entry 532 was real on a criminal docket. Removed.
 
 ### 8.4 Confirming the pairing
-Of the 47 downloaded filings, 24 share at least one citation with the order
-accusing them, and 17 share three or more. The rest are not necessarily wrong —
-9 contain no citations at all, which usually means the wrong entry was picked,
-and 13 are ambiguous. **This is an open question, not a settled one.**
+Measured over the 38 downloaded entries that are party filings, by
+`scripts/miner/assess.py`:
+
+| | count |
+|---|---|
+| sharing at least one citation with the accusing order | 18 |
+| containing no citations at all | 11 |
+| remaining, sharing none | 9 |
+
+Shared citations corroborate the pairing. **The 11 with no citations are almost
+certainly the wrong entry** — a filing accused of fabricated citations that
+contains none is not the filing meant. The 9 sharing none are ambiguous.
+
+That leaves fewer than half the pairings corroborated, and it is the largest
+unresolved weakness in the corpus.
 
 ### 8.5 Identifying the fabricated citations
 Two extraction rules were tried.
@@ -435,7 +446,8 @@ In order of how likely each is to be wrong.
    method yet.
 3. **The quotation extractor's error rate rests on 9 citations** — the 7 real
    and 2 fake that could be judged. Nothing is known about the other 22.
-4. **Only 24 of 47 pairings are corroborated** by shared citations.
+4. **Only 18 of 38 pairings are corroborated** by shared citations, and 11
+   filings contain no citations at all, which means the wrong entry was picked.
 5. **Recall is entirely unmeasured.** Nothing has been checked against a
    published tracker, so the corpus may be badly incomplete in ways the search
    cannot see.
@@ -458,17 +470,18 @@ are under `local/` and none are distributed.
 | `miner-verified.json` | ad hoc | citation overlap between each filing and its order | yes |
 | `miner-fakes.json` | ad hoc | 45 quotation-extracted candidate pairs | yes |
 | `miner-archive-check.json` | `archive_check.py` | every flagged citation, both corpora | yes |
-| `miner-ranked.json` | ad hoc | contradicted-citation count per document | yes |
-| `miner-confirmed.json` | ad hoc | flags split by whether the order also quoted them | yes |
+| `miner-assessment.json` | `assess.py` | per-filing pairing, type, and contradictions | yes |
+| `miner-ranked.json` | ad hoc | superseded by `miner-assessment.json` | no |
+| `miner-confirmed.json` | ad hoc | superseded by `miner-assessment.json` | no |
 | `cap-index.json` | — | — | **deleted**; a second index that duplicated `CapIndex` |
 | `miner-namecheck.json` | — | — | **deleted**; written by the discarded first check |
 | `miner-capcheck.json` | — | — | **deleted**; written by the flawed coverage test |
 
-The files marked ad hoc are produced by short scripts written in a session
-scratchpad rather than committed. That is a real gap: sections 8.4, 8.7 and the
-per-document ranking cannot currently be rerun from the repository alone. Only
-`discover.py`, `harvest.py`, `resolve.py`, `rank_candidates.py` and
-`archive_check.py` are committed.
+`miner-accused.json`, `miner-verified.json` and `miner-fakes.json` are still
+produced by scratchpad scripts rather than committed code, so the download step
+and the quotation extractor cannot be rerun from the repository alone.
+Everything else can: `discover.py`, `harvest.py`, `resolve.py`,
+`rank_candidates.py`, `archive_check.py` and `assess.py` are committed.
 
 ## 14. Reproducing any of it
 
