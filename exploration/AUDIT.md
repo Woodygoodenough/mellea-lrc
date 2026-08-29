@@ -292,17 +292,40 @@ Two outcomes carry evidence — the page sits **inside** a different case, or a
 case begins there under a name that **contradicts** what was written. Court
 orders are the control, since judges write their own citations.
 
-| | accused filings | orders (control) |
+| | party filings (accused) | orders (control) |
 |---|---|---|
-| judged citations | 377 | 990 |
-| flagged | 17 | 22 |
-| **rate** | **4.5%** | **2.2%** |
+| documents | 38 | 120 |
+| judged citations | 246 | 896 |
+| distinct citations contradicted | 9 | 22 |
+| **rate** | **3.7%** | **2.5%** |
 
-**The 2.2% is the false positive floor, and 4.5% is not a fabrication rate.**
-Roughly half of what is flagged in the accused filings is expected to be wrong.
+**The difference is not significant** (z = 1.03, against 1.96 needed). On this
+sample the check does not distinguish an accused filing from an ordinary court
+order.
 
-The residual floor is caused by the source documents and the text extraction,
-not by the rule:
+Two findings explain why, and both matter more than the rates.
+
+**The archive cannot see most fabricated citations.** Of the 31 citations
+judges quoted as fabricated, 22 fall in volumes the archive does not hold — 71%
+invisible. Fabricated citations tend to name recent-sounding authority, and the
+digitisation ends well before those volumes. This is structural, not a coverage
+gap that more downloading fixes.
+
+**Six of the 44 downloaded "accused filings" are court documents,** not party
+briefs — the resolver picked another order rather than the offending
+memorandum. They must be excluded, because an order about fabrication quotes
+the fabrications and therefore looks exactly like a guilty filing. Including
+them produced an apparent 4.5% against 2.2%, roughly twice the control; the
+strongest single document (5 contradicted citations of 11 judged) was a
+memorandum opinion listing the 42 invented authorities it was striking, not a
+filing that contained them.
+
+Party filings and court documents are separated by their docket description:
+court documents match `memorandum opinion`, `order`, `signed by`, `show cause`
+and do not match `motion`, `response`, `reply`, `brief`, `petition`.
+
+The residual false positive floor is caused by the source documents and the
+text extraction, not by the rule:
 
 - typos judges made — `Untied States`, and *Chevron* cited as `National
   Resources Defense Counsel` for `Natural Resources Defense Council`
@@ -369,8 +392,9 @@ These are here because each is easy to repeat.
 
 In order of how likely each is to be wrong.
 
-1. **4.5% is not a fabrication rate.** It is a flag rate above a 2.2% floor, on
-   377 judged citations. The excess is about 2 points and the sample is small.
+1. **The archive check does not currently separate accused filings from court
+   orders** (3.7% against 2.5%, z = 1.03). Treat any claim that it detects
+   fabrication independently as unsupported.
 2. **`597 F.3d 381` is weaker than `491 F.2d 56`.** Its volume file holds 116
    cases with a largest page gap of 110, so absence is less conclusive. The F.2d
    volume holds 302 cases with a largest gap of 22.
