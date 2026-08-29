@@ -145,6 +145,16 @@ allowance is not stranded in one pool while a job blocks on the other. Moving
 tokens between pools would not raise the ceiling; four tokens is 500 a day
 however they are grouped.
 
+**Observed refills are far smaller than 125.** Over four consecutive warming
+runs on 29 August the usable allowance per refill was 31, 28, 17 and 4
+requests. A pool reports available, then refuses after roughly thirty. The
+cause is not visible from outside: `/health` reports only the token counts, not
+what each has left, and the scheduled cache-fill job was confirmed to spend
+nothing that day (all 1,068 opinions already cached). Either the tokens refill
+partially, or something else is drawing on them. Until the proxy reports
+per-token remaining allowance, plan against roughly 120 requests a day rather
+than 500.
+
 ## 5. Warming state
 
 | corpus | endpoint | state |
