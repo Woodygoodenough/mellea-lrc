@@ -379,39 +379,46 @@ text extraction, not by the rule:
 
 ### 8.7 What is actually confirmed
 
-Restricted to party filings, and to citations the archive can judge, eleven
-distinct citations are contradicted across eight filings. Two of them are
-confirmed twice over, by the court and by the archive independently, and both
-sit in the same document — entry 353 of *Superb Motors Inc. v. Deo* (nyed),
-a memorandum in opposition:
+All 31 judge-quoted candidate citations were resolved through CourtListener.
+Combined with the archive, ten are confirmed fabricated.
 
-| citation | written as | printed at that page |
+| how it fails | count |
+|---|---|
+| no such case at that citation | 4 |
+| resolves, but to a different case | 6 |
+| **confirmed fabricated** | **10** |
+| resolves and the name agrees — the judge quoted a real case | 7 |
+| Westlaw citation, unresolvable either way | 7 |
+| name could not be parsed from the quotation | 7 |
+
+Six of the ten are in *Sherwood v. County of Botetourt* (vawd), two in *Superb
+Motors Inc. v. Deo* (nyed), the rest singly.
+
+**Existence is the weaker test; the case name is the stronger one.** Six of the
+ten resolve perfectly well and are fabrications only because the name attached
+is not the case printed there. A checker asking only "does this citation
+resolve?" finds four of ten. Examples:
+
+| citation | written as | actually |
 |---|---|---|
 | `491 F.2d 56` | In re Marcus | *United States v. Melton* |
 | `85 A.D.3d 1510` | In re Amica Mut. Ins. Co. | *Leto v. Amrex Chemical Co.* |
+| `30 Va. App. 454` | Lafayette v. Commonwealth | *Pennington v. Superior Iron Works* |
+| `372 F. Supp. 2d 541` | Walker v. Bowen | *Ellis v. Costco Wholesale* |
+| `596 F. App'x 147` | Jackson v. Lehigh Valley Hosp. | *United States v. Ledesma-Nolasco* |
 
-The order names both. Its wording is worth quoting, because it describes the
-same procedure this check performs:
+**Westlaw citations cannot be checked at all.** All 7 returned no result, and
+so did every other Westlaw citation tried, including ones the judge was citing
+approvingly. CourtListener does not index them, so a not-found verdict on a
+`2021 WL 7540814` carries no information. That matters because 7 of the 31
+candidates are Westlaw, and fabricated citations favour that form — it looks
+authoritative and is the hardest to check.
 
-> While Superb Plaintiffs pointed to only one case, "In re Amica Mut. Ins. Co.,
-> 85 A.D.3d 1510 (3rd Dept. 2011)," the Court independently found — with little
-> effort — another fake citation, "In re Marcus, 491 F.2d 56, 60 (2nd Cir.
-> 1974)".
-
-The quotation extractor of section 8.5 found *In re Marcus* and **missed** *In
-re Amica*; the archive check found both. The two methods are complementary and
-neither subsumes the other.
-
-**`597 F.3d 381` was previously listed here as confirmed and is not.** It came
-from the discarded first index. Under the corrected check its party name cannot
-be parsed out of the block quote that carries it, so nothing is asserted.
-
-One further finding is worth separating from the fabrication question. In entry
-40 of *Sherwood v. County of Botetourt*, `405 U.S. 150` is written for a case
-named Maryland; that citation is *Giglio v. United States*, and *Brady v.
-Maryland* is `373 U.S. 83`. A real case under a real name with the wrong
-citation attached is a distinct defect class, already recorded in
-`exploration/notes/right-case-wrong-citation.md`.
+Two caveats on the ten. The count is conservative: the name parser requires an
+`X v. Y` shape, so `In re ...` citations fall into the unparsed bucket and the
+archive had to catch those separately. And one row that first appeared as a
+name mismatch, `267 F. Supp. 2d 425`, is a parsing failure rather than a
+fabrication and is excluded.
 
 ## 9. Errors made and corrected, kept on the record
 
@@ -469,9 +476,9 @@ These are here because each is easy to repeat.
 
 In order of how likely each is to be wrong.
 
-1. **The archive check does not currently separate accused filings from court
-   orders** (3.7% against 2.5%, z = 1.03). Treat any claim that it detects
-   fabrication independently as unsupported.
+1. **The archive check does not separate accused filings from court orders**
+   (3.7% against 2.5%, z = 1.03). It contributes confirmations, but it is not
+   a detector on its own.
 2. **The two doubly-confirmed citations come from one filing.** Both are entry
    353 of *Superb Motors*. A method demonstrated on a single document is not a
    method yet.
