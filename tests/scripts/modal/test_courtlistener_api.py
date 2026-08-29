@@ -334,3 +334,50 @@ def test_a_burst_refusal_does_not_park_a_token_for_the_day(
         pool.acquire()
 
     assert refusal.value.retry_after_seconds <= 12
+
+
+def test_health_reports_what_each_token_has_left(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pool that says "available" and then refuses is what this exists to explain."""
+    client, _ = _client(
+        _Upstream([httpx.Response(200, json={"ok": True})]),
+        tokens={"COURTLISTENER_API_TOKEN_1": "t1", "COURTLISTENER_API_TOKEN_2": "t2"},
+        monkeypatch=monkeypatch,
+    )
+    client.get("/dockets/1/")
+
+    body = client.get("/health").json()
+
+    assert [entry["token"] for entry in body["pool"]] == [
+        "COURTLISTENER_API_TOKEN_1",
+        "COURTLISTENER_API_TOKEN_2",
+    ]
+    assert sum(entry["served"] for entry in body["pool"]) == 1
+    assert all(entry["available_in"] == 0 for entry in body["pool"])
+
+
+def test_health_reports_the_wait_on_a_spent_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The upstream's own wording is the trustworthy part, so it is carried through."""
+    refusal = "Request was throttled. Rate limit exceeded: 125/day. Expected available in 3600 seconds."
+    client, _ = _client(
+        _Upstream([httpx.Response(429, text=refusal), httpx.Response(200, json={"ok": True})]),
+        tokens={"COURTLISTENER_API_TOKEN_1": "t1", "COURTLISTENER_API_TOKEN_2": "t2"},
+        monkeypatch=monkeypatch,
+    )
+    client.get("/dockets/1/")
+
+    spent = [entry for entry in client.get("/health").json()["pool"] if entry["available_in"]]
+
+    assert len(spent) == 1
+    assert spent[0]["available_in"] == 3600
+    assert "125/day" in spent[0]["last_refusal"]
+
+
+def test_health_reports_no_token_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    """/health is reachable by anything that can reach the proxy."""
+    client, _ = _client(
+        _Upstream([httpx.Response(200, json={})]),
+        tokens={"COURTLISTENER_API_TOKEN_1": "a-real-secret"},
+        monkeypatch=monkeypatch,
+    )
+
+    assert "a-real-secret" not in client.get("/health").text

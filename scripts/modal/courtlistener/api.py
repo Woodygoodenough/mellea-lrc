@@ -67,11 +67,21 @@ def build_app(
 
     @api.get("/health")
     def health() -> dict[str, Any]:
-        """Report that the service is up, and what it is configured with."""
+        """Report that the service is up, what it holds, and what each token has left.
+
+        The per-token detail is what a caller needs in order to decide whether
+        starting a sweep is worth it. Without it a pool reports "available",
+        refuses after a handful of requests, and there is no way from outside
+        to tell a token that refilled partially from one something else is
+        drawing on. Read the caveats on `TokenPool.status`: the counts are per
+        container and the container scales to zero.
+        """
         return {
             "status": "ok",
             "tokens": pool.size,
             "reserved_tokens": reserved_pool.size if reserved_pool is not None else 0,
+            "pool": pool.status(),
+            "reserved": reserved_pool.status() if reserved_pool is not None else [],
             **describe(),
         }
 

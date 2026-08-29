@@ -69,6 +69,10 @@ class _Token:
     value: str
     label: str
     available_at: float = 0.0
+    served: int = 0
+    """Requests this token answered since the container started."""
+    refusal: str = ""
+    """What the upstream last said when it refused this token."""
 
 
 @dataclass
@@ -116,6 +120,7 @@ class TokenPool:
             token = self.tokens[(self._cursor + offset) % len(self.tokens)]
             if token.available_at <= moment:
                 self._cursor = (self._cursor + offset + 1) % len(self.tokens)
+                token.served += 1
                 return token
         raise AllTokensExhausted(min(token.available_at for token in self.tokens) - moment)
 
@@ -140,6 +145,7 @@ class TokenPool:
         """Take a refused token out of rotation until the upstream says it is back."""
         moment = time.monotonic() if now is None else now
         token.available_at = moment + cooldown_seconds(body)
+        token.refusal = body.strip()[:200]
         # The body is logged because its wording is what this decision turns on,
         # and a misreading of it cost a night of warming before anyone could see
         # what the upstream had actually said.
@@ -154,6 +160,29 @@ class TokenPool:
     def size(self) -> int:
         """How many tokens the pool holds."""
         return len(self.tokens)
+
+    def status(self, *, now: float | None = None) -> list[dict[str, object]]:
+        """What each token has left, for a caller deciding whether to start work.
+
+        Reports the token's label, never its value.
+
+        **These numbers are per container and reset when one starts.** The
+        service scales to zero, so `served` counts only what this container has
+        sent, and a token parked in a container that has since gone away is
+        reported as usable here. `available_in` is what the upstream itself
+        said when it last refused, so it is the trustworthy half; `served` is a
+        floor on real consumption, never the whole of it.
+        """
+        moment = time.monotonic() if now is None else now
+        return [
+            {
+                "token": token.label,
+                "available_in": max(0, round(token.available_at - moment)),
+                "served": token.served,
+                "last_refusal": token.refusal,
+            }
+            for token in self.tokens
+        ]
 
 
 def is_quota_refusal(status_code: int, body: str) -> bool:

@@ -145,15 +145,29 @@ allowance is not stranded in one pool while a job blocks on the other. Moving
 tokens between pools would not raise the ceiling; four tokens is 500 a day
 however they are grouped.
 
-**Observed refills are far smaller than 125.** Over four consecutive warming
-runs on 29 August the usable allowance per refill was 31, 28, 17 and 4
-requests. A pool reports available, then refuses after roughly thirty. The
-cause is not visible from outside: `/health` reports only the token counts, not
-what each has left, and the scheduled cache-fill job was confirmed to spend
-nothing that day (all 1,068 opinions already cached). Either the tokens refill
-partially, or something else is drawing on them. Until the proxy reports
-per-token remaining allowance, plan against roughly 120 requests a day rather
-than 500.
+**A run that stops after ~30 requests has hit the per-minute limit, not the
+daily one.** CourtListener throttles on two windows and the 429 bodies look
+alike. A client that treats every refusal as a spent allowance quits about
+thirty requests in, having used a fraction of the day's budget. This was
+misread as the tokens refilling partially; they were not. Waiting out a refusal
+that names a short window, and only stopping on one that names hours, took a
+single warming run from 31 requests to 103.
+
+`/health` now reports what each token has left, which is how this was settled:
+the main tokens were parked for 30 seconds with no daily-limit message, while
+the reserved token carried an explicit `125/day` refusal with 1,006 seconds on
+it. The distinction is invisible without that endpoint.
+
+Two things the proxy already provides, and which were rebuilt by hand before
+being noticed:
+
+- **`x-cache: hit` or `miss` on every response**, surfaced by the client as
+  `CourtListenerClient.last_response_cached`. A cache hit spends no allowance,
+  so a caller pacing itself must read this rather than infer it from latency.
+- **`/health` per-token detail** — `available_in`, `served`, and the upstream's
+  own last refusal, by token label and never its value. The counts are per
+  container and the service scales to zero, so `served` is a floor; the wait is
+  what the upstream said and is the trustworthy half.
 
 ## 5. Warming state
 
@@ -161,22 +175,18 @@ than 500.
 |---|---|---|
 | opinions for the reference dataset | `get_opinion` | **1,068 of 1,068 — complete** |
 | citation lookups | `lookup_citation` | complete |
-| dockets for the reference dataset | `get_docket` | **unknown, and lower than previously recorded** |
+| dockets for the reference dataset | `get_docket` | **364 of 633 confirmed** |
 
 The 633 dockets are enumerated by looking up each resolved citation — all
 served from cache, so enumeration is free — and collecting `docket_id` from
 every cluster returned.
 
-**The docket figure previously given here, "at least 291 of 633", is not
-supported.** It came from a warming run reporting 291 consecutive cache hits,
-but a fresh walk over the enumeration above found only 19 of the first 50
-cached. The two runs were evidently walking different lists. Treat the cached
-fraction as unmeasured.
+Progress is recorded in `local/docket-warm.checkpoint.json`, so a run resumes
+rather than re-walking what is already confirmed. Counting is exact rather than
+inferred, because the proxy marks a cached response and the client exposes it.
 
-It cannot be measured cheaply either: the proxy does not signal whether a
-response came from cache, so a walk can only infer it from latency, and every
-miss spends allowance. Adding a cache-status header to the proxy would make
-this observable and is the obvious fix.
+The figure previously given here, "at least 291 of 633", was wrong: it came
+from a run reporting consecutive cache hits over a differently ordered list.
 
 Opinion warming was completed only after four defects were fixed, each hidden
 by the previous one: it was given leftover allowance rather than main-pool

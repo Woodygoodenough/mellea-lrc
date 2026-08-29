@@ -177,3 +177,39 @@ def test_a_long_refusal_parks_for_what_it_actually_named() -> None:
         pool.acquire()
 
     assert refusal.value.retry_after_seconds > MAX_BURST_WAIT_SECONDS
+
+
+def test_status_reports_what_each_token_has_left() -> None:
+    """A caller deciding whether to start work needs the per-token detail."""
+    pool = TokenPool.from_environment(
+        {"COURTLISTENER_API_TOKEN": "one", "COURTLISTENER_API_TOKEN_1": "two"}
+    )
+    pool.acquire(now=0.0)
+    pool.park(pool.tokens[1], "Rate limit exceeded: 125/day. Expected available in 600 seconds.", now=0.0)
+
+    status = pool.status(now=0.0)
+
+    assert [entry["token"] for entry in status] == [
+        "COURTLISTENER_API_TOKEN",
+        "COURTLISTENER_API_TOKEN_1",
+    ]
+    assert status[0]["available_in"] == 0
+    assert status[0]["served"] == 1
+    assert status[1]["available_in"] == 600
+    assert "125/day" in status[1]["last_refusal"]
+
+
+def test_status_never_reports_a_token_value() -> None:
+    """The report is read by anything that can reach /health, so it carries labels only."""
+    pool = TokenPool.from_environment({"COURTLISTENER_API_TOKEN": "a-real-secret"})
+
+    assert "a-real-secret" not in repr(pool.status())
+
+
+def test_a_parked_token_counts_no_further_requests() -> None:
+    """`served` counts what a token answered, so parking must not inflate it."""
+    pool = TokenPool.from_environment({"COURTLISTENER_API_TOKEN": "one"})
+    pool.acquire(now=0.0)
+    pool.park(pool.tokens[0], "Rate limit exceeded: 125/day. Expected available in 60 seconds.", now=0.0)
+
+    assert pool.status(now=0.0)[0]["served"] == 1
