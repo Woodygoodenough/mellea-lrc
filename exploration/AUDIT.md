@@ -151,11 +151,22 @@ however they are grouped.
 |---|---|---|
 | opinions for the reference dataset | `get_opinion` | **1,068 of 1,068 — complete** |
 | citation lookups | `lookup_citation` | complete |
-| dockets for the reference dataset | `get_docket` | **at least 291 of 633** |
+| dockets for the reference dataset | `get_docket` | **unknown, and lower than previously recorded** |
 
-The docket figure is a floor, not a measurement. The warming walk stops when
-allowance runs out, and the last run confirmed 291 cached before stopping
-(`local/docket-warm.log`). Nothing is known about the remaining 342.
+The 633 dockets are enumerated by looking up each resolved citation — all
+served from cache, so enumeration is free — and collecting `docket_id` from
+every cluster returned.
+
+**The docket figure previously given here, "at least 291 of 633", is not
+supported.** It came from a warming run reporting 291 consecutive cache hits,
+but a fresh walk over the enumeration above found only 19 of the first 50
+cached. The two runs were evidently walking different lists. Treat the cached
+fraction as unmeasured.
+
+It cannot be measured cheaply either: the proxy does not signal whether a
+response came from cache, so a walk can only infer it from latency, and every
+miss spends allowance. Adding a cache-status header to the proxy would make
+this observable and is the obvious fix.
 
 Opinion warming was completed only after four defects were fixed, each hidden
 by the previous one: it was given leftover allowance rather than main-pool
@@ -451,8 +462,8 @@ In order of how likely each is to be wrong.
 5. **Recall is entirely unmeasured.** Nothing has been checked against a
    published tracker, so the corpus may be badly incomplete in ways the search
    cannot see.
-6. **The docket cache figure of 291 is a floor from a truncated walk**, not a
-   count of what the bucket holds.
+6. **The docket cache fraction is unmeasured.** The figure of 291 previously
+   recorded here was wrong; see section 5.
 
 ## 13. Derived artifacts
 
