@@ -175,7 +175,7 @@ being noticed:
 |---|---|---|
 | opinions for the reference dataset | `get_opinion` | **1,068 of 1,068 — complete** |
 | citation lookups | `lookup_citation` | complete |
-| dockets for the reference dataset | `get_docket` | **364 of 633 confirmed** |
+| dockets for the reference dataset | `get_docket` | **633 of 633 — complete** |
 
 The 633 dockets are enumerated by looking up each resolved citation — all
 served from cache, so enumeration is free — and collecting `docket_id` from
@@ -453,9 +453,9 @@ These are here because each is easy to repeat.
 
 ## 10. Open decisions, unanswered
 
-1. **How to spend remaining allowance** — finishing the docket cache (342 left)
-   against fetching the 253 queued candidate filings from the widened reader.
-   Together about 581 requests, a bit over one day at full allowance.
+1. ~~How to spend remaining allowance between the docket cache and the queued
+   filings.~~ Settled: the docket cache is complete, so the allowance goes to
+   the miner.
 2. **What to do with the 9 accused filings containing no citations** (likely
    wrong entry picked) and the 13 with no shared citations (ambiguous).
 3. **Whether findings attach to citations or to spans.** Half the reference
