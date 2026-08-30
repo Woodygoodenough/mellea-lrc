@@ -38,8 +38,27 @@ from mellea_lrc.caselaw import CapIndex, NameVerdict, PageOutcome, compare_case_
 CAP_DIR = pathlib.Path("local/cap")
 
 
+REPORTERS = pathlib.Path("local/cap-reporters.json")
+"""The archive's own list of the 401 reporters it publishes.
+
+Fetched once from `static.case.law/ReportersMetadata.json`.
+"""
+
+
 def known_slugs(cap_dir: pathlib.Path = CAP_DIR) -> set[str]:
-    """The reporter slugs held on disk, taken from the volume filenames."""
+    """Every reporter slug the archive publishes, not merely those downloaded.
+
+    Deriving this from the volume files on disk conflates two different
+    answers. A reporter the archive publishes but whose volume is not yet
+    downloaded should come back as `volume_unavailable` -- a statement about
+    this machine, and fixable by fetching it, since the archive charges nothing
+    and rate-limits nothing. A reporter it never carried should come back as
+    itself. Reading the slugs off the filenames reported both as the latter,
+    which is how 57% of the corpus was written off as unjudgeable when most of
+    it was a download away.
+    """
+    if REPORTERS.exists():
+        return {r["slug"] for r in json.loads(REPORTERS.read_text())}
     slugs = set()
     for path in cap_dir.glob("*-*.json"):
         match = re.match(r"(.+)-\d+\.json$", path.name)

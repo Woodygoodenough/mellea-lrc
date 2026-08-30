@@ -391,22 +391,30 @@ orders are the control, since judges write their own citations.
 
 | | party filings (accused) | orders (control) |
 |---|---|---|
-| documents | 38 | 120 |
-| judged citations | 246 | 896 |
-| distinct citations contradicted | 9 | 22 |
-| **rate** | **3.7%** | **2.5%** |
+| documents | 77 | 120 |
+| judged citations | 1,160 | 1,929 |
+| flagged | 68 | 88 |
+| **rate** | **5.9%** | **4.6%** |
 
-**The difference is not significant** (z = 1.03, against 1.96 needed). On this
-sample the check does not distinguish an accused filing from an ordinary court
-order.
+**The rates still do not separate** — z = 1.60, against 1.96 needed. Filling
+the archive tripled how many citations could be judged and moved the gap from
+1.2 points to 1.3; it did not turn the check into a detector. What the archive
+produces is specific confirmed citations, not a rate that distinguishes a
+guilty filing from an innocent one.
 
-Two findings explain why, and both matter more than the rates.
+Restricted to the 77 offending filings, 58 citations of 826 judged are
+contradicted, and **eight are confirmed twice over** — named by the court and
+contradicted by the printed record — against two before the archive was filled.
 
-**The archive cannot see most fabricated citations.** Of the 31 citations
-judges quoted as fabricated, 22 fall in volumes the archive does not hold — 71%
-invisible. Fabricated citations tend to name recent-sounding authority, and the
-digitisation ends well before those volumes. This is structural, not a coverage
-gap that more downloading fixes.
+The control remains contaminated: an order about fabricated citations quotes
+them, so some of its 88 flags are real fabrications rather than errors, and
+that contamination grows as more of the corpus becomes judgeable.
+
+**~~The archive cannot see most fabricated citations.~~** This claim was wrong
+and is kept only as a marker. It rested on counting a reporter as unavailable
+when its volume merely had not been downloaded. See section 8.8: fetching the
+volumes is free and unmetered, and doing so took the judgeable share of the
+corpus from 43% to 92%.
 
 **Six of the 44 downloaded "accused filings" are court documents,** not party
 briefs — the resolver picked another order rather than the offending
