@@ -473,6 +473,32 @@ archive had to catch those separately. And one row that first appeared as a
 name mismatch, `267 F. Supp. 2d 425`, is a parsing failure rather than a
 fabrication and is excluded.
 
+### 8.8 What the miner cannot see
+
+The reference dataset labels three citation-shaped defect classes. Counting only
+the citation-shaped spans, they are roughly even:
+
+| class | spans | share |
+|---|---|---|
+| wrong pincite | 53 | 39% |
+| case name mismatch | 52 | 38% |
+| non-existent citation | 31 | 23% |
+
+**The miner detects two of the three.** Its ten confirmed fabrications are six
+name mismatches and four non-existent citations. It has found no wrong
+pinpoints, and cannot: the archive says which case occupies a page, never
+whether the proposition cited to it appears there. Deciding that needs the
+opinion text. Across all 77 filings, not one citation even lands inside its
+correctly named case, which is where a wrong pinpoint would show up.
+
+So the corpus is evidence about two classes and silent on the third — the one
+tied for largest. Any claim that a checker "catches what courts catch" has to
+say which class it means.
+
+**Most citations cannot be judged offline at all.** Of roughly 1,800 citations
+in the 77 filings, 627 name a volume the archive does not hold and 403 a
+reporter it does not carry — 57% unjudgeable, before any rule runs.
+
 ## 9. Errors made and corrected, kept on the record
 
 These are here because each is easy to repeat.
