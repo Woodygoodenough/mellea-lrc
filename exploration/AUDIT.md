@@ -531,15 +531,28 @@ A sample of what the enlarged archive finds:
 | `26 Va. App. 505` | Peal v. Commonwealth | *Bolesta v. Commonwealth* |
 | `509 B.R. 360` | In re Salamon | *Wieland v. Gordon (In re Gordon)* |
 
-**Splitting the 52 into "invented" and "real case, wrong citation" was tried
-and does not work yet.** The two are different defect classes and the archive
-holds 705,593 case names, so the question looks answerable offline: does a case
-by the written name exist anywhere? Matching against that index by shared words
-is far too loose — it paired *Wheeler v. United States* with *Foster Wheeler
-Corp. v. United States*, and *Klein v. McGauley* with *Kemp, Klein, Umphrey &
-Endelman*. The resulting 21/29 split is not reported because it is not
-supported. A usable version needs the match to be exact or near-exact, and the
-candidate set to be generated from the whole name rather than two of its words.
+**Splitting the 52 into "wholly invented" and "real case, wrong citation
+attached" does not work, and three attempts are recorded so the next person can
+skip them.** The two are different defect classes and the archive holds 705,593
+case names, so the question looks answerable offline: does a case by the
+written name exist anywhere?
+
+1. *Matching by shared words* is far too loose. It paired *Wheeler v. United
+   States* with *Foster Wheeler Corp. v. United States*, and *Klein v.
+   McGauley* with *Kemp, Klein, Umphrey & Endelman*.
+2. *Comparing the parties separately* returns nothing at all.
+   `compare_case_name` is built for whole captions and answers `UNDECIDED` for
+   a single party — `Brady` against `Brady` included — so splitting on `v.`
+   destroys the comparison rather than sharpening it.
+3. *Exact matching* is sound but uninformative. 13 of the 52 written names
+   appear verbatim in the archive, and most are captions that recur across
+   hundreds of unrelated cases: *People v. Smith*, *Phillips v. Phillips*,
+   *Doe v. United States*, *United States v. Baker*. A match says the caption
+   is a common one, not that the cited case is real.
+
+The split stays undetermined. It would need matching on the citation as well as
+the name, which is the thing under suspicion. Nothing here weakens the 52: each
+is a citation whose page holds a different case, however the name arose.
 
 A hand check of eight of the 52 found all eight sound, with the classic
 signature: a plausible case name on a real volume and page that holds a
