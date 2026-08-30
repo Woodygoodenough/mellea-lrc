@@ -505,6 +505,20 @@ The archive can judge only 55 of the 254; the rest name a volume or reporter it
 does not hold. So this is 10 contradicted out of 55 judged, and the remaining
 199 wait on the lookup service.
 
+**A contradiction needs a two-party name behind it.** Resolving the first 12
+through the lookup service returned four defects, but two rest on a written
+name of `Jones` or `State Officers` — a fragment, not a caption. A bare surname
+against a different caption is not evidence, because the surname may simply be
+how the brief short-formed a case it named in full elsewhere. Requiring
+`X v. Y` leaves two of the twelve:
+
+| citation | written as | lookup says |
+|---|---|---|
+| `10 So. 3d 676` | QBE Ins. Corp. v. Dome Constr. Corp. | *D.A. v. State* |
+| `148 Ariz. 17` | Ellsworth v. Am. Arbitration Ass\'n | no such case |
+
+Twelve of 254 is far too few to project a rate from.
+
 **Party names must come from eyecite, not from a pattern over the quotation.**
 A first attempt read the name with a regex and flagged sixteen, of which about
 five were sentence text rather than a caption — `527 U.S. 526` is *Kolstad v.
