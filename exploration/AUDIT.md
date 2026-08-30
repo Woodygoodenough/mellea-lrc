@@ -491,7 +491,7 @@ filing is on disk:
 
 Checking those 254 against the printed archive costs nothing. It can judge 55
 of them — the rest name a volume or reporter it does not hold — and contradicts
-eight, in seven different cases:
+**ten**, in eight different cases, every one carrying a full caption:
 
 | citation | written as | printed as |
 |---|---|---|
@@ -502,13 +502,20 @@ eight, in seven different cases:
 | `74 F.3d 224` | Mitchell v. Gilmore | *Interstate Erectors, Inc.* |
 | `576 F. Supp. 2d 370` | Feliciano v. Riverbay Corp. | *Plymouth County Retirement Ass\'n* |
 | `529 F.3d 613` | Christian v. Harris County, Tex. | *Mayfield v. Tex. Dep\'t of Criminal Justice* |
+| `186 F. Supp. 3d 1140` | Lang v. City of Omaha | *PW Arms, Inc. v. United States* |
 | `826 F.3d 116` | Cardenas v. Young | *United States v. Rowland* |
+| `491 F.2d 56` | In re Marcus | *United States v. Melton* |
 
-Two more were dropped for resting on a bare surname rather than a caption.
-**One of those, `491 F.2d 56`, is a fabrication the court named in terms** — it
-is *In re Marcus*, and the parser returns only `Marcus` because an `In re`
-caption has no second party. So the caption requirement is conservative and
-loses real defects; the count of eight is a floor.
+**Reading the name is where this method is fragile, and two attempts at it were
+wrong.** A regex over the quotation captured sentence text and produced five
+false positives. Rejecting any candidate containing an ordinary word then went
+too far the other way: `of`, `the` and `in` are everywhere in real captions —
+*Miller v. Indiana Dep\'t of Corr.*, *Church of the Lukumi Babalu Aye* — and
+throwing them out left a bare surname that the caption test discarded. What
+works is rejecting only words that never appear in a caption (`cited`,
+`argues`, `filed`, `motion`), capping the length at nine words, and recovering
+a one-party caption from the quotation, since eyecite returns `Marcus` for
+*In re Marcus* and nothing more.
 
 **Party names must come from eyecite, not from a pattern over the quotation.**
 A first attempt read the name with a regex and flagged sixteen, of which about
