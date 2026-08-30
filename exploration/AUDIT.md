@@ -473,7 +473,44 @@ archive had to catch those separately. And one row that first appeared as a
 name mismatch, `267 F. Supp. 2d 425`, is a parsing failure rather than a
 fabrication and is excluded.
 
-### 8.8 What the miner cannot see
+### 8.8 The orders are a better source than the filings
+
+The pipeline in 8.2 spends most of its effort obtaining the accused filing, and
+two thirds of them cannot be obtained at all. But **the order quotes the
+fabricated citations**, so for the citation itself the filing is not needed.
+
+Reading all 448 orders for quoted citations, rather than only those whose
+filing is on disk:
+
+| | filings route | orders route |
+|---|---|---|
+| orders alleging fabrication | — | 108 |
+| cases | 6 | **101** |
+| distinct candidate citations | 31 | **254** |
+| checkable (not Westlaw) | 9 | **202** |
+
+Checking those 254 against the printed archive, at no API cost, contradicts 16.
+About five of those are the name parser grabbing sentence text rather than a
+case name — `527 U.S. 526` is *Kolstad v. American Dental Ass\'n*, correctly
+cited, flagged because the parser truncated "Am. D". The other eleven are
+plausible fabrications in eleven different cases, for example:
+
+| citation | written as | printed as |
+|---|---|---|
+| `667 F.2d 300` | Collins v. Loisel | *Melia v. United States* |
+| `929 F.3d 1113` | G.C. v. United States | *Menendez-Gonzalez v. Barr* |
+| `29 A.D.3d 432` | Klein v. McGauley | *Ullah v. Kelly* |
+| `74 F.3d 224` | Mitchell v. Gilmore | *Interstate Erectors, Inc.* |
+
+**This route is not subject to the RECAP ceiling at all**, because it never
+needs the filing. It is the cheaper half of the method and was reached last
+rather than first. The 202 checkable citations are queued for resolution.
+
+Its limit is the same one described in 8.8: an order quotes the citation, not
+the passage, so it can show a name or existence defect and never a wrong
+pinpoint.
+
+### 8.9 What the miner cannot see
 
 The reference dataset labels three citation-shaped defect classes. Counting only
 the citation-shaped spans, they are roughly even:
