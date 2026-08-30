@@ -262,7 +262,8 @@ the search is the method. A tracker becomes a way to measure recall.
 | find the accused entry | `scripts/miner/resolve.py` | `accused_entries` | 79 orders name one |
 | rank candidates when none is named | `scripts/miner/rank_candidates.py` | `miner-widened.json` | 113 |
 | look the entry up on its docket | ad hoc | `miner-accused.json` | 120 entries |
-| download the accused filing | ad hoc | `local/accused/*.pdf` | 47 available, 44 on disk, 38 actually party filings |
+| look candidates up and filter them | ad hoc | `local/miner-candidates.json` | 42 of 288 done, 19 usable |
+| download the accused filing | ad hoc | `local/accused/*.pdf` | 63 on disk, 51 offending filings |
 
 Coverage of the 47: 58 cases across 32 courts.
 
@@ -296,7 +297,7 @@ only the third is evidence:
 |---|---|---|
 | court documents | 9 | the resolver picked another order, not the brief |
 | answers to the order | 3 | counsel's reply to the show-cause, filed after the accusation |
-| **offending filings** | **32** | — |
+| **offending filings** | **51** | — |
 
 **The answer to a show-cause order is not the filing that provoked it.** The
 order names both in one sentence, so the resolver cannot tell them apart from
@@ -307,16 +308,18 @@ arrived with no citations in it, because an apology cites nothing.
 35 Special Motion to Dismiss` names a motion, and matching "motion" anywhere in
 the text let three opinions into the corpus as party filings.
 
-Of the 32 offending filings, 16 share at least one citation with the order
-accusing them. Seven contain no citations at all, and **four of those are scans
-with no text layer** — 71 to 86 characters a page against thousands for a
-born-digital filing. Their citations are present and unreadable without OCR,
-which is a different problem from a wrong pairing. Of the remaining three, one
-is a single-page cover sheet and two are documents that plausibly cite nothing.
+Applying both tests at lookup time, before anything is downloaded, is what
+makes working the candidate queue affordable: of the first 42 candidates, 13
+were rejected on their description and 19 were usable filings.
 
-So the corpus is in better condition than a raw count of empty filings
-suggests, but half the pairings still rest on nothing more than the resolver's
-choice.
+Of the 51 offending filings, 22 share at least one citation with the order
+accusing them. Thirteen contain no citations at all, and **six of those are
+scans with no text layer** — 71 to 86 characters a page against thousands for a
+born-digital filing. Their citations are present and unreadable without OCR,
+which is a different problem from a wrong pairing.
+
+So fewer than half the pairings are corroborated by anything beyond the
+resolver's choice, and that remains the corpus's weakest property.
 
 ### 8.5 Identifying the fabricated citations
 Two extraction rules were tried.
@@ -497,7 +500,7 @@ In order of how likely each is to be wrong.
    method yet.
 3. **The quotation extractor's error rate rests on 9 citations** — the 7 real
    and 2 fake that could be judged. Nothing is known about the other 22.
-4. **Only 16 of 32 pairings are corroborated** by shared citations. The rest
+4. **Only 22 of 51 pairings are corroborated** by shared citations. The rest
    rest on the resolver's choice alone.
 5. **Recall is entirely unmeasured.** Nothing has been checked against a
    published tracker, so the corpus may be badly incomplete in ways the search
@@ -521,6 +524,8 @@ are under `local/` and none are distributed.
 | `miner-verified.json` | ad hoc | citation overlap between each filing and its order | yes |
 | `miner-fakes.json` | ad hoc | 45 quotation-extracted candidate pairs | yes |
 | `miner-archive-check.json` | `archive_check.py` | every flagged citation, both corpora | yes |
+| `miner-candidates.json` | ad hoc | widened entries looked up, with description and availability | yes |
+| `miner-resolved.json` | ad hoc | CourtListener verdict on each quoted candidate citation | yes |
 | `miner-assessment.json` | `assess.py` | per-filing pairing, type, and contradictions | yes |
 | `miner-ranked.json` | ad hoc | superseded by `miner-assessment.json` | no |
 | `miner-confirmed.json` | ad hoc | superseded by `miner-assessment.json` | no |

@@ -134,10 +134,36 @@ def full_citations(text: str) -> set[str]:
 def assess() -> dict:
     entries = {f"{e['docket_id']}_{e['entry']}": e
                for e in json.loads(pathlib.Path("local/miner-accused.json").read_text())}
+    # Entries reached through the widened reader are recorded separately, in the
+    # shape that lookup returns rather than the shape resolution produced.
+    candidates = pathlib.Path("local/miner-candidates.json")
+    if candidates.exists():
+        for stem, found in json.loads(candidates.read_text()).items():
+            if "error" in found or stem in entries:
+                continue
+            entries[stem] = {
+                "docket_id": found["docket"],
+                "entry": found["entry"],
+                "desc": found.get("desc", ""),
+                "case_name": "",
+                "court": "",
+                "available": found.get("available", False),
+            }
     parsed = json.loads(pathlib.Path("local/miner-parsed.json").read_text())
     orders_by_docket = collections.defaultdict(list)
     for order in parsed:
         orders_by_docket[order["docket_id"]].append(order)
+    # An order that named no entry has its candidates recorded by the widened
+    # reader instead, so the pairing for those filings lives there. Without it
+    # every widened filing reads as corroborated by nothing.
+    widened = pathlib.Path("local/miner-widened.json")
+    if widened.exists():
+        for order in json.loads(widened.read_text()):
+            orders_by_docket[order["docket_id"]].append({
+                "docket_id": order["docket_id"],
+                "document_id": order["document_id"],
+                "accused_entries": order.get("accused_entries") or [],
+            })
 
     quoted = collections.defaultdict(set)
     for pair in json.loads(pathlib.Path("local/miner-fakes.json").read_text()):
