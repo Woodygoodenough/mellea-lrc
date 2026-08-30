@@ -262,8 +262,9 @@ the search is the method. A tracker becomes a way to measure recall.
 | find the accused entry | `scripts/miner/resolve.py` | `accused_entries` | 79 orders name one |
 | rank candidates when none is named | `scripts/miner/rank_candidates.py` | `miner-widened.json` | 113 |
 | look the entry up on its docket | ad hoc | `miner-accused.json` | 120 entries |
-| look candidates up and filter them | ad hoc | `local/miner-candidates.json` | 42 of 288 done, 19 usable |
-| download the accused filing | ad hoc | `local/accused/*.pdf` | 63 on disk, 51 offending filings |
+| look candidates up and filter them | ad hoc | `local/miner-candidates.json` | 92 of 295 done, 33 usable |
+| download the accused filing | ad hoc | `local/accused/*.pdf` | 77 on disk, 65 offending filings |
+| read the scans | ad hoc | `local/accused-ocr/*.txt` | 6 filings, 66 citations recovered |
 
 Coverage of the 47: 58 cases across 32 courts.
 
@@ -297,7 +298,7 @@ only the third is evidence:
 |---|---|---|
 | court documents | 9 | the resolver picked another order, not the brief |
 | answers to the order | 3 | counsel's reply to the show-cause, filed after the accusation |
-| **offending filings** | **51** | — |
+| **offending filings** | **65** | — |
 
 **The answer to a show-cause order is not the filing that provoked it.** The
 order names both in one sentence, so the resolver cannot tell them apart from
@@ -312,14 +313,24 @@ Applying both tests at lookup time, before anything is downloaded, is what
 makes working the candidate queue affordable: of the first 42 candidates, 13
 were rejected on their description and 19 were usable filings.
 
-Of the 51 offending filings, 22 share at least one citation with the order
-accusing them. Thirteen contain no citations at all, and **six of those are
-scans with no text layer** — 71 to 86 characters a page against thousands for a
-born-digital filing. Their citations are present and unreadable without OCR,
-which is a different problem from a wrong pairing.
+Of the 65 offending filings, 33 share at least one citation with the order
+accusing them. Ten contain no citations at all.
 
-So fewer than half the pairings are corroborated by anything beyond the
-resolver's choice, and that remains the corpus's weakest property.
+**Six filings were scans with no text layer** — 71 to 86 characters a page
+against thousands for a born-digital filing — so they read as citing nothing,
+which is otherwise the signature of a wrong pairing. OCR recovered 66 citations
+across them and moved five out of that bucket, taking corroborated pairings
+from 28 to 33. Text is kept in `local/accused-ocr/` and preferred when longer
+than what the PDF yields.
+
+**Contradictions found in OCR text are not evidence.** Four of the eighteen
+come from recognised pages, and one of those is `550 U.S. 544` — *Bell Atlantic
+v. Twombly*, among the most cited cases in federal practice, flagged only
+because recognition garbled the name. Excluding them leaves the rate where it
+was, at 3.4%.
+
+So roughly half the pairings are corroborated by anything beyond the resolver's
+choice, and that remains the corpus's weakest property.
 
 ### 8.5 Identifying the fabricated citations
 Two extraction rules were tried.
@@ -500,7 +511,7 @@ In order of how likely each is to be wrong.
    method yet.
 3. **The quotation extractor's error rate rests on 9 citations** — the 7 real
    and 2 fake that could be judged. Nothing is known about the other 22.
-4. **Only 22 of 51 pairings are corroborated** by shared citations. The rest
+4. **Only 33 of 65 pairings are corroborated** by shared citations. The rest
    rest on the resolver's choice alone.
 5. **Recall is entirely unmeasured.** Nothing has been checked against a
    published tracker, so the corpus may be badly incomplete in ways the search

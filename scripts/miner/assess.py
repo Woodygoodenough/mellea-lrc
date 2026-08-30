@@ -43,6 +43,13 @@ from mellea_lrc.caselaw import CapIndex
 from scripts.miner.archive_check import SUSPICIOUS, check_text, known_slugs, pdf_text
 
 ACCUSED_DIR = pathlib.Path("local/accused")
+OCR_DIR = pathlib.Path("local/accused-ocr")
+"""Text recovered from filings that were scanned rather than filed digitally.
+
+A scan carries its citations as pixels, so it reads as a filing citing nothing
+-- which is otherwise the signature of the wrong docket entry. Running OCR over
+the six in this corpus recovered 66 citations that were being counted as absent.
+"""
 ORDERS_DIR = pathlib.Path("local/orders")
 CAP_DIR = pathlib.Path("local/cap")
 
@@ -176,7 +183,10 @@ def assess() -> dict:
     for path in sorted(ACCUSED_DIR.glob("*.pdf")):
         stem = path.stem
         entry = entries.get(stem, {})
+        recognised = OCR_DIR / f"{stem}.txt"
         text = pdf_text(path)
+        if recognised.exists() and len(recognised.read_text()) > len(text):
+            text = recognised.read_text()
         cites = full_citations(text)
 
         # citations of the order or orders that accuse this entry
