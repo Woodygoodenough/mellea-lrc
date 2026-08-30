@@ -262,9 +262,9 @@ the search is the method. A tracker becomes a way to measure recall.
 | find the accused entry | `scripts/miner/resolve.py` | `accused_entries` | 79 orders name one |
 | rank candidates when none is named | `scripts/miner/rank_candidates.py` | `miner-widened.json` | 113 |
 | look the entry up on its docket | ad hoc | `miner-accused.json` | 120 entries |
-| look candidates up and filter them | ad hoc | `local/miner-candidates.json` | 92 of 295 done, 33 usable |
-| download the accused filing | ad hoc | `local/accused/*.pdf` | 77 on disk, 65 offending filings |
-| read the scans | ad hoc | `local/accused-ocr/*.txt` | 6 filings, 66 citations recovered |
+| look candidates up and filter them | ad hoc | `local/miner-candidates.json` | 143 of 243 done, 47 usable |
+| download the accused filing | ad hoc | `local/accused/*.pdf` | 91 on disk, 77 offending filings |
+| read the scans | ad hoc | `local/accused-ocr/*.txt` | 7 filings, 72 citations recovered |
 
 Coverage of the 47: 58 cases across 32 courts.
 
@@ -298,7 +298,7 @@ only the third is evidence:
 |---|---|---|
 | court documents | 9 | the resolver picked another order, not the brief |
 | answers to the order | 5 | counsel's reply to the show-cause, filed after the accusation |
-| **offending filings** | **63** | — |
+| **offending filings** | **77** | — |
 
 **The answer to a show-cause order is not the filing that provoked it.** The
 order names both in one sentence, so the resolver cannot tell them apart from
@@ -313,8 +313,8 @@ Applying both tests at lookup time, before anything is downloaded, is what
 makes working the candidate queue affordable: of the first 42 candidates, 13
 were rejected on their description and 19 were usable filings.
 
-Of the 63 offending filings, 33 share at least one citation with the order
-accusing them. Nine contain no citations at all.
+Of the 77 offending filings, 38 share at least one citation with the order
+accusing them. Thirteen contain no citations at all.
 
 Docket text interleaves cross-references — `RESPONSE to re 187 to the Court's
 Order to Show Cause` — so the two halves of the phrase cannot be required to
@@ -322,11 +322,10 @@ sit together. Both classifiers are covered by
 `tests/scripts/miner/test_assess_classifiers.py`, because they carry most of
 the corpus's quality.
 
-**Six filings were scans with no text layer** — 71 to 86 characters a page
+**Seven filings were scans with no text layer** — 71 to 86 characters a page
 against thousands for a born-digital filing — so they read as citing nothing,
-which is otherwise the signature of a wrong pairing. OCR recovered 66 citations
-across them and moved five out of that bucket, taking corroborated pairings
-from 28 to 33. Text is kept in `local/accused-ocr/` and preferred when longer
+which is otherwise the signature of a wrong pairing. OCR recovered 72 citations
+across them and moved six out of that bucket. Text is kept in `local/accused-ocr/` and preferred when longer
 than what the PDF yields.
 
 **Contradictions found in OCR text are not evidence.** Four of the eighteen
@@ -517,7 +516,7 @@ In order of how likely each is to be wrong.
    method yet.
 3. **The quotation extractor's error rate rests on 9 citations** — the 7 real
    and 2 fake that could be judged. Nothing is known about the other 22.
-4. **Only 33 of 63 pairings are corroborated** by shared citations. The rest
+4. **Only 38 of 77 pairings are corroborated** by shared citations. The rest
    rest on the resolver's choice alone.
 5. **Recall is entirely unmeasured.** Nothing has been checked against a
    published tracker, so the corpus may be badly incomplete in ways the search
