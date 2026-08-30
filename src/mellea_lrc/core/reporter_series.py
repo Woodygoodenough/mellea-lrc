@@ -35,6 +35,10 @@ from reporters_db import EDITIONS, VARIATIONS_ONLY
 # are written both ways, so both are accepted.
 _SERIES_SUFFIX = re.compile(r"^(?P<family>.*?)\s*(?P<series>\d+)\s*(?:d|st|nd|rd|th)$")
 
+# The publisher a reporter is issued by, which the database appends to an
+# edition name and a citation almost never carries.
+_PUBLISHER_SUFFIX = re.compile(r"\s*\([^()]*\)\s*$")
+
 # A citation whose reporter carries a series suffix. The volume and page are
 # required: they are what make this an address rather than a mention of a
 # reporter, and without them there is nothing to be wrong about.
@@ -110,8 +114,15 @@ class _Family:
 
 
 def _split(name: str) -> tuple[str, int]:
-    """A reporter name as its family and the series it names."""
-    match = _SERIES_SUFFIX.match(name)
+    """A reporter name as its family and the series it names.
+
+    A trailing publisher comes off first. The database names several editions
+    `A.F.T.R.2d (RIA)` and `U.C.C. Rep. Serv. 2d (West)`, and the series suffix
+    has to end the string to be read -- so the publisher hid it, those families
+    were recorded as reaching only a first series, and every real second-series
+    citation to them was reported as naming a series that does not exist.
+    """
+    match = _SERIES_SUFFIX.match(_PUBLISHER_SUFFIX.sub("", name).strip())
     if match is None:
         return name, 1
     return match.group("family"), int(match.group("series"))

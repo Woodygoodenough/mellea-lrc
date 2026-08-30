@@ -103,3 +103,24 @@ def test_the_reason_names_the_family_and_both_series() -> None:
     (found,) = find_impossible_series("531 N.E.4th 224")
 
     assert found.reason == ("N.E.4th names series 4 of N.E., which was published only through series 3.")
+
+
+def test_a_publisher_suffix_does_not_hide_the_series() -> None:
+    """The database names some editions `A.F.T.R.2d (RIA)`, and the series must survive it.
+
+    A series suffix has to end the string to be read, so a trailing publisher
+    hid it. Those families were recorded as reaching only a first series, and
+    every real second-series citation to them was reported as impossible --
+    which is how the rule's only firing over 120 court orders came to be a
+    false positive on two real reporters.
+    """
+    assert find_impossible_series("105 A.F.T.R.2d 2010") == ()
+    assert find_impossible_series("69 U.C.C. Rep. Serv. 2d 890") == ()
+
+
+def test_the_publisher_fix_does_not_blunt_the_rule() -> None:
+    found = find_impossible_series("531 N.E.4th 224")
+
+    assert len(found) == 1
+    assert found[0].series == 4
+    assert found[0].highest_published_series == 3

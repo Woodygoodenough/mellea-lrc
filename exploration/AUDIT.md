@@ -215,8 +215,22 @@ matches nothing and is returned as no citation rather than a bad one. Every
 later stage therefore never sees it.
 
 Design constraints worth checking: it only reports an impossible series *of a
-family that exists*; `_normalise` strips whitespace, periods and case; and
-variations inherit the canonical family's series set.
+family that exists*; `_normalise` strips whitespace, periods and case;
+variations inherit the canonical family's series set; and a trailing publisher
+is removed before the series is read.
+
+**Measured against the mined corpus, this rule finds nothing.** Over 77 filings
+that courts found to contain fabricated citations, it fires zero times. Real
+fabrications name *real* reporter series and get the volume, page, or case name
+wrong; they do not invent `N.E.4th`. Its only firing over 120 court orders was
+a false positive on `A.F.T.R.2d` and `U.C.C. Rep. Serv. 2d`, both real — the
+database appends a publisher to those edition names, and the series suffix has
+to end the string to be read, so the family looked like it stopped at series 1.
+Fixed, with tests.
+
+That is a reason to rank it low for merging, not to remove it: the defect class
+is real and eyecite cannot see it at all, but nothing in this corpus exhibits
+it.
 
 This rule replaced `names_no_real_reporter` in
 `evaluations/lephantomcite/locator_probe.py`, which was deleted. `"fr"` was
