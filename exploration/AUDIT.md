@@ -276,6 +276,7 @@ the search is the method. A tracker becomes a way to measure recall.
 | find the accused entry | `scripts/miner/resolve.py` | `accused_entries` | 79 orders name one |
 | rank candidates when none is named | `scripts/miner/rank_candidates.py` | `miner-widened.json` | 113 |
 | look the entry up on its docket | ad hoc | `miner-accused.json` | 120 entries |
+| take quoted citations from every order | `quoted_citations.py` | `local/miner-quoted-all.json` | 254 candidates, 101 cases |
 | look candidates up and filter them | ad hoc | `local/miner-candidates.json` | 143 of 243 done, 47 usable |
 | download the accused filing | ad hoc | `local/accused/*.pdf` | 91 on disk, 77 offending filings |
 | read the scans | ad hoc | `local/accused-ocr/*.txt` | 7 filings, 72 citations recovered |
@@ -655,11 +656,12 @@ are under `local/` and none are distributed.
 | `miner-namecheck.json` | — | — | **deleted**; written by the discarded first check |
 | `miner-capcheck.json` | — | — | **deleted**; written by the flawed coverage test |
 
-`miner-accused.json`, `miner-verified.json` and `miner-fakes.json` are still
-produced by scratchpad scripts rather than committed code, so the download step
-and the quotation extractor cannot be rerun from the repository alone.
+`miner-accused.json` and `miner-verified.json` are still produced by scratchpad
+scripts, so the download step cannot be rerun from the repository alone.
 Everything else can: `discover.py`, `harvest.py`, `resolve.py`,
-`rank_candidates.py`, `archive_check.py` and `assess.py` are committed.
+`rank_candidates.py`, `archive_check.py`, `assess.py` and
+`quoted_citations.py` are committed, the last with tests over the name reading
+that failed twice.
 
 ## 14. Reproducing any of it
 
