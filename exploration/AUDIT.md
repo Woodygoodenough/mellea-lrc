@@ -297,8 +297,8 @@ only the third is evidence:
 | kind | count | why excluded |
 |---|---|---|
 | court documents | 9 | the resolver picked another order, not the brief |
-| answers to the order | 3 | counsel's reply to the show-cause, filed after the accusation |
-| **offending filings** | **65** | — |
+| answers to the order | 5 | counsel's reply to the show-cause, filed after the accusation |
+| **offending filings** | **63** | — |
 
 **The answer to a show-cause order is not the filing that provoked it.** The
 order names both in one sentence, so the resolver cannot tell them apart from
@@ -313,8 +313,14 @@ Applying both tests at lookup time, before anything is downloaded, is what
 makes working the candidate queue affordable: of the first 42 candidates, 13
 were rejected on their description and 19 were usable filings.
 
-Of the 65 offending filings, 33 share at least one citation with the order
-accusing them. Ten contain no citations at all.
+Of the 63 offending filings, 33 share at least one citation with the order
+accusing them. Nine contain no citations at all.
+
+Docket text interleaves cross-references — `RESPONSE to re 187 to the Court's
+Order to Show Cause` — so the two halves of the phrase cannot be required to
+sit together. Both classifiers are covered by
+`tests/scripts/miner/test_assess_classifiers.py`, because they carry most of
+the corpus's quality.
 
 **Six filings were scans with no text layer** — 71 to 86 characters a page
 against thousands for a born-digital filing — so they read as citing nothing,
@@ -511,7 +517,7 @@ In order of how likely each is to be wrong.
    method yet.
 3. **The quotation extractor's error rate rests on 9 citations** — the 7 real
    and 2 fake that could be judged. Nothing is known about the other 22.
-4. **Only 33 of 65 pairings are corroborated** by shared citations. The rest
+4. **Only 33 of 63 pairings are corroborated** by shared citations. The rest
    rest on the resolver's choice alone.
 5. **Recall is entirely unmeasured.** Nothing has been checked against a
    published tracker, so the corpus may be badly incomplete in ways the search

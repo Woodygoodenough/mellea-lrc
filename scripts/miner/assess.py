@@ -66,10 +66,14 @@ _COURT_OPENING = re.compile(r"(?i)^\s*(memorandum opinion|opinion and order|opin
 # It is counsel's explanation, filed after the accusation and usually citing
 # nothing at all -- which is why every one of these arrived with no citations.
 _ANSWERS_THE_ORDER = re.compile(
-    r"(?i)(response\s+to\s+(the\s+)?(court'?s?\s+)?(order\s+to\s+)?show\s+cause"
-    r"|in\s+response\s+to\s+(the\s+)?court'?s?\s+order"
-    r"|response\s+to\s+show\s+cause"
-    r"|motion\s+for\s+leave\s+to\s+correct)"
+    # A docket description interleaves cross-references -- "RESPONSE to re 187
+    # to the Court's Order to Show Cause" -- so the two halves cannot be
+    # required to sit next to each other.
+    r"(?:response|reply|answer)\b.{0,60}?\border\s+to\s+show\s+cause"
+    r"|(?:response|reply)\s+to\s+show\s+cause"
+    r"|in\s+response\s+to\s+(?:the\s+)?court'?s?\s+order"
+    r"|motion\s+for\s+leave\s+to\s+correct",
+    re.IGNORECASE,
 )
 
 
