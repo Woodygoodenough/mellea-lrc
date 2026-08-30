@@ -337,6 +337,13 @@ was, at 3.4%.
 So roughly half the pairings are corroborated by anything beyond the resolver's
 choice, and that remains the corpus's weakest property.
 
+**Corroboration does not measurably predict contradictions.** Filings that
+share a citation with their accusing order are contradicted at 4.4% (16 of 362
+judged) against 2.5% for those that share none (4 of 157). The direction is
+right and the difference is not significant — z = 1.02 against 1.96 needed. If
+corroborated pairings really are the correct ones, this is the sample being too
+small to show it, not evidence that they are the same.
+
 ### 8.5 Identifying the fabricated citations
 Two extraction rules were tried.
 
