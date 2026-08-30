@@ -489,35 +489,26 @@ filing is on disk:
 | distinct candidate citations | 31 | **254** |
 | checkable (not Westlaw) | 9 | **202** |
 
-Checking those 254 against the printed archive costs nothing and contradicts
-ten, in nine different cases:
+Checking those 254 against the printed archive costs nothing. It can judge 55
+of them — the rest name a volume or reporter it does not hold — and contradicts
+eight, in seven different cases:
 
 | citation | written as | printed as |
 |---|---|---|
-| `491 F.2d 56` | In re Marcus | *United States v. Melton* |
 | `929 F.3d 1113` | G.C. v. United States | *Menendez-Gonzalez v. Barr* |
+| `804 F. Supp. 2d 1` | Perez v. Horizon Lines, Inc. | *Furniture Brands International* |
 | `29 A.D.3d 432` | Klein v. McGauley | *Ullah v. Kelly* |
+| `714 F.2d 1366` | United States v. Mississippi Power | *Transorient Navigators Co.* |
 | `74 F.3d 224` | Mitchell v. Gilmore | *Interstate Erectors, Inc.* |
-| `529 F.3d 613` | Christian v. Harris County | *Mayfield v. Texas Dep't of Criminal Justice* |
+| `576 F. Supp. 2d 370` | Feliciano v. Riverbay Corp. | *Plymouth County Retirement Ass\'n* |
+| `529 F.3d 613` | Christian v. Harris County, Tex. | *Mayfield v. Tex. Dep\'t of Criminal Justice* |
 | `826 F.3d 116` | Cardenas v. Young | *United States v. Rowland* |
 
-The archive can judge only 55 of the 254; the rest name a volume or reporter it
-does not hold. So this is 10 contradicted out of 55 judged, and the remaining
-199 wait on the lookup service.
-
-**A contradiction needs a two-party name behind it.** Resolving the first 12
-through the lookup service returned four defects, but two rest on a written
-name of `Jones` or `State Officers` — a fragment, not a caption. A bare surname
-against a different caption is not evidence, because the surname may simply be
-how the brief short-formed a case it named in full elsewhere. Requiring
-`X v. Y` leaves two of the twelve:
-
-| citation | written as | lookup says |
-|---|---|---|
-| `10 So. 3d 676` | QBE Ins. Corp. v. Dome Constr. Corp. | *D.A. v. State* |
-| `148 Ariz. 17` | Ellsworth v. Am. Arbitration Ass\'n | no such case |
-
-Twelve of 254 is far too few to project a rate from.
+Two more were dropped for resting on a bare surname rather than a caption.
+**One of those, `491 F.2d 56`, is a fabrication the court named in terms** — it
+is *In re Marcus*, and the parser returns only `Marcus` because an `In re`
+caption has no second party. So the caption requirement is conservative and
+loses real defects; the count of eight is a floor.
 
 **Party names must come from eyecite, not from a pattern over the quotation.**
 A first attempt read the name with a regex and flagged sixteen, of which about
