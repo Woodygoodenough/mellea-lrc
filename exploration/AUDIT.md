@@ -531,6 +531,22 @@ A sample of what the enlarged archive finds:
 | `26 Va. App. 505` | Peal v. Commonwealth | *Bolesta v. Commonwealth* |
 | `509 B.R. 360` | In re Salamon | *Wieland v. Gordon (In re Gordon)* |
 
+**Splitting the 52 into "invented" and "real case, wrong citation" was tried
+and does not work yet.** The two are different defect classes and the archive
+holds 705,593 case names, so the question looks answerable offline: does a case
+by the written name exist anywhere? Matching against that index by shared words
+is far too loose — it paired *Wheeler v. United States* with *Foster Wheeler
+Corp. v. United States*, and *Klein v. McGauley* with *Kemp, Klein, Umphrey &
+Endelman*. The resulting 21/29 split is not reported because it is not
+supported. A usable version needs the match to be exact or near-exact, and the
+candidate set to be generated from the whole name rather than two of its words.
+
+A hand check of eight of the 52 found all eight sound, with the classic
+signature: a plausible case name on a real volume and page that holds a
+different case. `State v. Kelleher, 181 Conn. 618, 879 A.2d 222 (2005)` is the
+clearest — volume 181 of the Connecticut Reports is from 1980, and the page
+holds *Papcun v. Papcun*.
+
 **This displaces the lookup service as the main instrument.** Resolving through
 CourtListener costs allowance that arrives at roughly one request an hour once
 a day's budget is gone; the archive costs nothing and now answers 176 of 254.
