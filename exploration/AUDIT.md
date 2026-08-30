@@ -489,18 +489,28 @@ filing is on disk:
 | distinct candidate citations | 31 | **254** |
 | checkable (not Westlaw) | 9 | **202** |
 
-Checking those 254 against the printed archive, at no API cost, contradicts 16.
-About five of those are the name parser grabbing sentence text rather than a
-case name — `527 U.S. 526` is *Kolstad v. American Dental Ass\'n*, correctly
-cited, flagged because the parser truncated "Am. D". The other eleven are
-plausible fabrications in eleven different cases, for example:
+Checking those 254 against the printed archive costs nothing and contradicts
+ten, in nine different cases:
 
 | citation | written as | printed as |
 |---|---|---|
-| `667 F.2d 300` | Collins v. Loisel | *Melia v. United States* |
+| `491 F.2d 56` | In re Marcus | *United States v. Melton* |
 | `929 F.3d 1113` | G.C. v. United States | *Menendez-Gonzalez v. Barr* |
 | `29 A.D.3d 432` | Klein v. McGauley | *Ullah v. Kelly* |
 | `74 F.3d 224` | Mitchell v. Gilmore | *Interstate Erectors, Inc.* |
+| `529 F.3d 613` | Christian v. Harris County | *Mayfield v. Texas Dep't of Criminal Justice* |
+| `826 F.3d 116` | Cardenas v. Young | *United States v. Rowland* |
+
+The archive can judge only 55 of the 254; the rest name a volume or reporter it
+does not hold. So this is 10 contradicted out of 55 judged, and the remaining
+199 wait on the lookup service.
+
+**Party names must come from eyecite, not from a pattern over the quotation.**
+A first attempt read the name with a regex and flagged sixteen, of which about
+five were sentence text rather than a caption — `527 U.S. 526` is *Kolstad v.
+American Dental Ass\'n*, cited correctly, flagged because the regex captured
+"Kolstad v. Am. D" from mid-sentence. Reading eyecite's parsed parties, and
+rejecting any that still contains ordinary sentence words, removes all five.
 
 **This route is not subject to the RECAP ceiling at all**, because it never
 needs the filing. It is the cheaper half of the method and was reached last
