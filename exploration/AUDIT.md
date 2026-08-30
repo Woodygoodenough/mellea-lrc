@@ -490,22 +490,43 @@ filing is on disk:
 | distinct candidate citations | 31 | **254** |
 | checkable (not Westlaw) | 9 | **202** |
 
-Checking those 254 against the printed archive costs nothing. It can judge 55
-of them — the rest name a volume or reporter it does not hold — and contradicts
-**ten**, in eight different cases, every one carrying a full caption:
+Checking those 254 against the printed archive costs nothing and contradicts
+**52 citations across 32 cases**.
+
+**The archive's coverage gap was not structural. It was volumes not yet
+downloaded.** This note previously said that fabricated citations name
+recent-sounding authority the digitisation never reached, and that no amount of
+downloading would fix it. That was wrong. The archive publishes every volume at
+`static.case.law` with no key and no rate limit, and
+`mellea_lrc.caselaw.CapIndex` fetches on demand. Fetching the 120 volumes the
+candidates referenced took minutes and cost nothing:
+
+| | before | after |
+|---|---|---|
+| candidates the archive can judge | 55 | 176 |
+| contradicted | 10 | **52** |
+| cases | 8 | **32** |
+
+25 of the 120 are genuinely absent, and 13 reporters are ones the archive never
+carried — `WL` and `U.S. Dist. LEXIS` are vendor identifiers rather than
+reporters, and `F.4th` began after the digitisation stopped. That residue is
+structural; the rest was not.
+
+A sample of what the enlarged archive finds:
 
 | citation | written as | printed as |
 |---|---|---|
-| `929 F.3d 1113` | G.C. v. United States | *Menendez-Gonzalez v. Barr* |
-| `804 F. Supp. 2d 1` | Perez v. Horizon Lines, Inc. | *Furniture Brands International* |
-| `29 A.D.3d 432` | Klein v. McGauley | *Ullah v. Kelly* |
-| `714 F.2d 1366` | United States v. Mississippi Power | *Transorient Navigators Co.* |
-| `74 F.3d 224` | Mitchell v. Gilmore | *Interstate Erectors, Inc.* |
-| `576 F. Supp. 2d 370` | Feliciano v. Riverbay Corp. | *Plymouth County Retirement Ass\'n* |
-| `529 F.3d 613` | Christian v. Harris County, Tex. | *Mayfield v. Tex. Dep\'t of Criminal Justice* |
-| `186 F. Supp. 3d 1140` | Lang v. City of Omaha | *PW Arms, Inc. v. United States* |
-| `826 F.3d 116` | Cardenas v. Young | *United States v. Rowland* |
-| `491 F.2d 56` | In re Marcus | *United States v. Melton* |
+| `489 Mich. 292` | People v. Smith | *People v. Lee* |
+| `921 P.2d 466` | Dale v. Bennett | *Khan v. Khan* |
+| `370 S.W.3d 708` | Pope v. Redwing | *Severance v. Patterson* |
+| `200 Ill. App. 3d 782` | Krause v. Meyers | *Lynch Imports, Ltd. v. Frey* |
+| `26 Va. App. 505` | Peal v. Commonwealth | *Bolesta v. Commonwealth* |
+| `509 B.R. 360` | In re Salamon | *Wieland v. Gordon (In re Gordon)* |
+
+**This displaces the lookup service as the main instrument.** Resolving through
+CourtListener costs allowance that arrives at roughly one request an hour once
+a day's budget is gone; the archive costs nothing and now answers 176 of 254.
+The lookup service is for what the archive cannot hold.
 
 **Reading the name is where this method is fragile, and two attempts at it were
 wrong.** A regex over the quotation captured sentence text and produced five
