@@ -617,6 +617,50 @@ say which class it means.
 in the 77 filings, 627 name a volume the archive does not hold and 403 a
 reporter it does not carry — 57% unjudgeable, before any rule runs.
 
+## 8.10 Promoting a mined filing, and scoring it against the court
+
+A mined filing is a PDF, so it enters the corpus through the same preprocessing
+the pipeline uses for any PDF, and the existing validation runner reads the
+result without modification. `scripts/miner/promote.py` does the conversion and
+records provenance; `scripts/miner/score.py` compares the verdicts to what the
+court said.
+
+**The score is not against an annotator.** There is no benchmark entry for a
+mined filing. What there is instead is an order in which a judge stated which
+citations were fabricated, so the question is whether the pipeline flags what a
+court flagged.
+
+State: 77 filings promoted, 46 carrying at least one court-named citation, 12
+validated and scored.
+
+| | count |
+|---|---|
+| citations validated | 211 |
+| flagged by the pipeline | 30 |
+| court-named citations present in these documents | 7 |
+| of those, caught | **5** |
+
+Three things govern how this reads.
+
+**The court's list is a floor.** An order says enough to justify a sanction: it
+quotes some invented citations and describes the rest — one says "more than
+three dozen (forty-two to be exact)" and names a handful. A citation the order
+does not name is not thereby sound, so the 25 flags with no court counterpart
+are not false positives by default.
+
+**Only 7 of the court-named citations appear in these 12 documents.** The order
+names citations on a docket, and the filing that contained them is one of
+several. Attaching a docket's list to every filing on it overstates what is
+checkable per document.
+
+**A label is a citation together with the name written beside it.**
+`539 F. App'x 937` is condemned in one filing as *United States v. Baker* and
+cited soundly in another as *Williams v. Morahan*, the case actually printed
+there. An earlier version matched on volume and page alone and scored that
+sound citation as a miss.
+
+Both errors that produced a wrong number are recorded in section 9.
+
 ## 9. Errors made and corrected, kept on the record
 
 These are here because each is easy to repeat.
@@ -641,7 +685,15 @@ These are here because each is easy to repeat.
    the false-positive baseline on the reasoning that judges do not fabricate
    citations. True, but orders about fabrication *quote* the fabrications, so
    part of the baseline is signal.
-7. **Six court documents sat in the accused-filing set and inflated every
+7. **A citation that resolved to nothing carries no candidate list**, and those
+   are precisely the fabricated ones. The first scorer read only candidates, so
+   the pipeline's clearest findings were invisible and it scored 1 of 4 where
+   the truth was better.
+8. **The promotion manifest was written once at the end of a run.** A run
+   stopped partway left 48 documents preprocessed and 3 recorded, so restarting
+   would have redone about fifteen minutes of OCR. This was the third
+   background job written that way; all now checkpoint per item.
+9. **Six court documents sat in the accused-filing set and inflated every
    figure taken from it.** The resolver had picked another order from the
    docket rather than the offending brief. The single most incriminating
    document in the corpus — 5 contradicted citations of 11 judged — was a
