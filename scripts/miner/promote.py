@@ -53,19 +53,29 @@ def _entries() -> dict[str, dict]:
 
 
 def _court_named_citations() -> dict[int, list[dict]]:
-    """Citations a court quoted as fabricated, keyed by docket.
+    """Citations **confirmed** fabricated, keyed by docket.
 
-    Keyed by docket rather than by entry because the order names the citation,
-    not which of the docket's filings it sits in. Matching it to a filing is
-    the promoted document's job, not the manifest's.
+    Not the quotation extractor's candidates. Those are every citation an order
+    puts in quotation marks, and an order about fabricated citations quotes
+    sound ones too -- its own supporting authority, and the parts of the brief
+    it is describing. Using them as labels scored the pipeline wrong for
+    agreeing that `556 U.S. 662` is *Ashcroft v. Iqbal*, which it is.
+
+    A label is a candidate the printed record contradicts: the page holds a
+    different case than the name written beside it. That is the set in
+    `miner-quoted-contradicted.json`.
     """
     named: dict[int, list[dict]] = collections.defaultdict(list)
+    confirmed = pathlib.Path("local/miner-quoted-contradicted.json")
     quoted = pathlib.Path("local/miner-quoted-all.json")
-    if not quoted.exists():
+    if not (confirmed.exists() and quoted.exists()):
         return named
+    contradicted = {row["citation"] for row in json.loads(confirmed.read_text())}
     orders = {f"{o['docket_id']}_{o['document_id']}": o["docket_id"]
               for o in json.loads(pathlib.Path("local/miner-parsed.json").read_text())}
     for row in json.loads(quoted.read_text()):
+        if row["citation"] not in contradicted:
+            continue
         docket = orders.get(row["order"])
         if docket is not None:
             named[docket].append({"citation": row["citation"], "written": row["written"]})
@@ -113,6 +123,13 @@ def promote(limit: int | None = None) -> list[dict]:
             "court_named_citations": named.get(entry["docket_id"], []),
         })
         already.add(text_file.stem)
+    # Labels are refreshed on every run, not only for new documents. What
+    # counts as a confirmed fabrication changes as the archive fills, and a row
+    # written under an earlier definition would otherwise keep scoring against
+    # it.
+    for row in manifest:
+        if "error" not in row:
+            row["court_named_citations"] = named.get(row["docket_id"], [])
     MANIFEST.write_text(json.dumps(manifest, indent=1))
 
     promoted = 0

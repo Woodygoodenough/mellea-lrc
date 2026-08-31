@@ -630,34 +630,41 @@ mined filing. What there is instead is an order in which a judge stated which
 citations were fabricated, so the question is whether the pipeline flags what a
 court flagged.
 
-State: 77 filings promoted, 46 carrying at least one court-named citation, 12
-validated and scored.
+State: 77 filings promoted, 20 carrying at least one confirmed fabricated
+citation, 24 validated and scored.
 
 | | count |
 |---|---|
-| citations validated | 211 |
-| flagged by the pipeline | 30 |
-| court-named citations present in these documents | 7 |
-| of those, caught | **5** |
+| citations validated | 492 |
+| flagged by the pipeline | 37 |
+| confirmed fabrications present in these documents | 3 |
+| of those, caught | **2** |
 
-Three things govern how this reads.
+**Two of three is too small to mean anything yet**, and it is smaller than it
+looks it should be for a reason worth stating: a confirmed fabrication has to
+appear in one of the documents already validated, and only 52 citations are
+confirmed across 32 cases.
+
+**An earlier figure of 5 of 7 was measured against the wrong labels and is
+withdrawn.** The manifest carried the quotation extractor's *candidates* --
+every citation an order puts in quotation marks. An order about fabricated
+citations quotes sound ones too: its own supporting authority, and the parts of
+the brief it is describing. That set includes `556 U.S. 662`, which is
+*Ashcroft v. Iqbal*, and `30 F.4th 335`, which is *Doe v. Princeton*. Both are
+cited correctly, and the pipeline was being scored wrong for saying so. A label
+is now only a candidate the printed record contradicts.
+
+Two further cautions hold regardless of sample size.
 
 **The court's list is a floor.** An order says enough to justify a sanction: it
-quotes some invented citations and describes the rest — one says "more than
-three dozen (forty-two to be exact)" and names a handful. A citation the order
-does not name is not thereby sound, so the 25 flags with no court counterpart
-are not false positives by default.
-
-**Only 7 of the court-named citations appear in these 12 documents.** The order
-names citations on a docket, and the filing that contained them is one of
-several. Attaching a docket's list to every filing on it overstates what is
-checkable per document.
+quotes some invented citations and describes the rest -- one says "more than
+three dozen (forty-two to be exact)" and names a handful. So the 35 flags with
+no confirmed counterpart are not false positives by default.
 
 **A label is a citation together with the name written beside it.**
 `539 F. App'x 937` is condemned in one filing as *United States v. Baker* and
 cited soundly in another as *Williams v. Morahan*, the case actually printed
-there. An earlier version matched on volume and page alone and scored that
-sound citation as a miss.
+there.
 
 Both errors that produced a wrong number are recorded in section 9.
 
@@ -685,15 +692,20 @@ These are here because each is easy to repeat.
    the false-positive baseline on the reasoning that judges do not fabricate
    citations. True, but orders about fabrication *quote* the fabrications, so
    part of the baseline is signal.
-7. **A citation that resolved to nothing carries no candidate list**, and those
+7. **The scoring labels were candidates rather than confirmed fabrications**,
+   so the pipeline was marked wrong for agreeing that *Ashcroft v. Iqbal* is
+   real. Labels are now only what the printed record contradicts, and they are
+   refreshed on every run, because what counts as confirmed changes as the
+   archive fills.
+8. **A citation that resolved to nothing carries no candidate list**, and those
    are precisely the fabricated ones. The first scorer read only candidates, so
    the pipeline's clearest findings were invisible and it scored 1 of 4 where
    the truth was better.
-8. **The promotion manifest was written once at the end of a run.** A run
+9. **The promotion manifest was written once at the end of a run.** A run
    stopped partway left 48 documents preprocessed and 3 recorded, so restarting
    would have redone about fifteen minutes of OCR. This was the third
    background job written that way; all now checkpoint per item.
-9. **Six court documents sat in the accused-filing set and inflated every
+10. **Six court documents sat in the accused-filing set and inflated every
    figure taken from it.** The resolver had picked another order from the
    docket rather than the offending brief. The single most incriminating
    document in the corpus — 5 contradicted citations of 11 judged — was a
