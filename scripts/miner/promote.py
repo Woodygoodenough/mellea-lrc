@@ -94,6 +94,27 @@ def promote(limit: int | None = None) -> list[dict]:
     already = {row["document"] for row in manifest}
     named = _court_named_citations()
 
+    # Preprocessing is the expensive half -- about twenty seconds of OCR per
+    # filing -- so a document whose text is already written is never run again.
+    # Recovering its manifest row from the text on disk costs nothing, and
+    # without it an interrupted run repeats work it has already done.
+    entries = _entries()
+    for text_file in sorted(CORPUS_DIR.glob("*.txt")):
+        if text_file.stem in already:
+            continue
+        entry = entries.get(text_file.stem)
+        if entry is None:
+            continue
+        body = text_file.read_text(encoding="utf-8")
+        manifest.append({
+            "document": text_file.stem, "docket_id": entry["docket_id"], "entry": entry["entry"],
+            "case": entry.get("case_name", ""), "court": entry.get("court", ""),
+            "description": entry.get("desc", "")[:160], "characters": len(body),
+            "court_named_citations": named.get(entry["docket_id"], []),
+        })
+        already.add(text_file.stem)
+    MANIFEST.write_text(json.dumps(manifest, indent=1))
+
     promoted = 0
     for path, entry in promotable():
         if path.stem in already:
@@ -119,6 +140,7 @@ def promote(limit: int | None = None) -> list[dict]:
             "court_named_citations": named.get(entry["docket_id"], []),
         })
         promoted += 1
+        MANIFEST.write_text(json.dumps(manifest, indent=1))    # survive a kill
         print(f"  {path.stem:<18} {len(document.text):>7} chars"
               f"  {len(named.get(entry['docket_id'], [])):>3} court-named citations", flush=True)
     MANIFEST.write_text(json.dumps(manifest, indent=1))
