@@ -647,6 +647,25 @@ Over the nine:
 | confirmed fabrications present | 2 |
 | of those, caught | **2** |
 
+**The pipeline flags more than the court enumerated, and some of it looks
+real.** Of the 30 flags over those nine documents, 13 are name mismatches and
+17 are citations that resolve to nothing; only 2 carry a confirmed label. That
+is expected — an order justifies a sanction rather than labelling a document —
+but it means the other 28 need characterising before they can be called
+either findings or noise.
+
+Of the 24 unlabelled "no such case" flags, 15 name Westlaw and are
+uninformative: CourtListener does not index Westlaw citations, so a not-found
+verdict on one says nothing. The remaining 9 name printed reporters that
+CourtListener does index — `497 F. Supp. 3d 1025`, `945 F.3d 1242` and the
+like — in filings a court had already condemned for fabrication. Those are
+worth pursuing.
+
+They cannot be settled offline. Every one falls in a volume the archive does
+not hold, and unlike the earlier coverage gap this one is real: `F. Supp. 3d`
+past volume 400 and `F.3d` past 945 are 2019 onward, and the digitisation ends
+before them. `static.case.law` returns 404 for each.
+
 Two of two is not a rate. It is the honest size of what has been measured
 cleanly, and it will stay small until the refusals are cleared: a confirmed
 fabrication has to fall inside a fully checked document, and only 52 citations
