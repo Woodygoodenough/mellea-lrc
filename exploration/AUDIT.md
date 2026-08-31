@@ -640,6 +640,22 @@ citation, 24 validated and scored.
 | confirmed fabrications present in these documents | 3 |
 | of those, caught | **2** |
 
+**Most of the corpus was never actually checked.** Of 1,769 citations in the
+serialized runs, only 236 reached a verdict; 833 were refused with HTTP 429 and
+recorded as failed nodes. `evaluations/validation/run_mellea_lrc.py` treats a
+refusal as a failure and carries on, so a run took its full wall clock and its
+full model spend to validate about an eighth of what it read.
+
+`scripts/miner/validate.py` waits the refusal out and asks again, which takes
+the refused share from 47% to about 15%. Every figure below is from the runs
+made before that, so it is drawn from the minority of citations that got
+through.
+
+**A missed label is usually an unchecked one.** All seven misses in the larger
+scoring pass carry no verdict at all rather than a wrong one — the lookup was
+refused. The pipeline did not clear them; it never saw them. Recall against
+this corpus cannot be read until the refusals are gone.
+
 **Two of three is too small to mean anything yet**, and it is smaller than it
 looks it should be for a reason worth stating: a confirmed fabrication has to
 appear in one of the documents already validated, and only 52 citations are
