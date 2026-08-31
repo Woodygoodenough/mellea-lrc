@@ -1,0 +1,18 @@
+[
+ {
+  "name_abbreviation": "Chevron U. S. A. Inc. v. Natural Resources Defense Council, Inc.",
+  "first_page": "837",
+  "last_page": "866",
+  "decision_date": "1984-06-25",
+  "court": {"name_abbreviation": "U.S."},
+  "citations": [{"type": "official", "cite": "467 U.S. 837"}]
+ },
+ {
+  "name_abbreviation": "Hishon v. King & Spalding",
+  "first_page": "69",
+  "last_page": "79",
+  "decision_date": "1984-05-22",
+  "court": {"name_abbreviation": "U.S."},
+  "citations": [{"type": "official", "cite": "467 U.S. 69"}]
+ }
+]

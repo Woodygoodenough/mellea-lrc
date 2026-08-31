@@ -1,0 +1,14 @@
+[
+ {"name_abbreviation": "Cooper v. Dupnik", "first_page": "1220", "last_page": "1258",
+  "decision_date": "1992-05-08", "court": {"name_abbreviation": "9th Cir."},
+  "citations": [{"type": "official", "cite": "963 F.2d 1220"}]},
+ {"name_abbreviation": "United States v. Fine", "first_page": "1258", "last_page": "1258",
+  "decision_date": "1992-05-12", "court": {"name_abbreviation": "9th Cir."},
+  "citations": [{"type": "official", "cite": "963 F.2d 1258"}]},
+ {"name_abbreviation": "Ferdik v. Bonzelet", "first_page": "1258", "last_page": "1264",
+  "decision_date": "1992-05-14", "court": {"name_abbreviation": "9th Cir."},
+  "citations": [{"type": "official", "cite": "963 F.2d 1258"}]},
+ {"name_abbreviation": "Sher v. Johnson", "first_page": "1357", "last_page": "1366-1376",
+  "decision_date": "1990-08-17", "court": {"name_abbreviation": "9th Cir."},
+  "citations": [{"type": "official", "cite": "963 F.2d 1357"}]}
+]

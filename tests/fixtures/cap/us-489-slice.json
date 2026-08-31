@@ -1,0 +1,68 @@
+[
+ {
+  "name_abbreviation": "City of Canton v. Harris",
+  "first_page": "378",
+  "last_page": "400",
+  "decision_date": "1989-02-28",
+  "court": {
+   "name_abbreviation": "U.S.",
+   "id": 9009,
+   "name": "Supreme Court of the United States"
+  },
+  "citations": [
+   {
+    "type": "official",
+    "cite": "489 U.S. 378"
+   },
+   {
+    "type": "parallel",
+    "cite": "103 L. Ed. 2d 412"
+   },
+   {
+    "type": "parallel",
+    "cite": "109 S. Ct. 1197"
+   },
+   {
+    "type": "vendor",
+    "cite": "1989 U.S. LEXIS 1200"
+   },
+   {
+    "type": "vendor",
+    "cite": "SCDB 1988-044"
+   }
+  ]
+ },
+ {
+  "name_abbreviation": "Dugger v. Adams",
+  "first_page": "401",
+  "last_page": "425",
+  "decision_date": "1989-02-28",
+  "court": {
+   "name_abbreviation": "U.S.",
+   "id": 9009,
+   "name": "Supreme Court of the United States"
+  },
+  "citations": [
+   {
+    "type": "official",
+    "cite": "489 U.S. 401"
+   },
+   {
+    "type": "parallel",
+    "cite": "103 L. Ed. 2d 435"
+   },
+   {
+    "type": "parallel",
+    "cite": "109 S. Ct. 1211"
+   },
+   {
+    "type": "vendor",
+    "cite": "1989 U.S. LEXIS 1198"
+   },
+   {
+    "type": "vendor",
+    "cite": "SCDB 1988-045"
+   }
+  ]
+ }
+]
