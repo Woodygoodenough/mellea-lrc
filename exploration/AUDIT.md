@@ -699,9 +699,28 @@ default** — this is the "court's list is a floor" caution turning up as a
 concrete instance, and it means recall against the quoted list understates the
 pipeline rather than flattering it.
 
-The other four in that document — `497 F. Supp. 3d 1025`, `409 F. Supp. 3d
-1122`, `416 F. Supp. 3d 1131`, `400 F. Supp. 3d 1122` — carry equally plausible
-names and are unverified. They are the obvious next thing to check by hand.
+**But the next one checked is real, and that is the more important finding.**
+`United States v. Begay, 497 F. Supp. 3d 1025 (D.N.M. 2020)` exists — a
+memorandum opinion of Judge Browning in CR 14-0747 JB. CourtListener returned
+no result for it.
+
+So a `not_found` verdict on a recent printed reporter is weak evidence in both
+directions. CourtListener indexes `F. Supp. 3d` and `F.3d`, but its coverage of
+volumes from 2019 onward is incomplete, and that is exactly the range in which
+fabricated citations cluster. Two of the five unresolvable citations in this
+filing have been checked: one is invented and one is real.
+
+This is the same shape as the Westlaw blind spot but less absolute, and it is
+worse for being invisible: a Westlaw citation is recognisably uncheckable from
+its form, while `497 F. Supp. 3d 1025` looks like something the service should
+know.
+
+**A not-found verdict should be weighted by whether the service's coverage of
+that reporter and volume range can be relied on.** Nothing in the pipeline does
+that today, and the corpus cannot supply it — establishing coverage means
+sampling known-real citations by volume range and measuring the miss rate.
+That is a bounded piece of work and it would make every not-found verdict
+readable.
 
 Two of two is not a rate. It is the honest size of what has been measured
 cleanly, and it will stay small until the refusals are cleared: a confirmed
