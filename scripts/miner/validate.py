@@ -34,6 +34,10 @@ SERIALIZED = pathlib.Path("local/mined-serialized")
 MAX_WAIT_SECONDS = 2400.0
 
 
+class AllowanceSpent(RuntimeError):
+    """The daily allowance is gone, so no further document can be validated."""
+
+
 class PatientClient(CourtListenerClient):
     """A client that waits out a refusal instead of reporting it as a failure."""
 
@@ -44,8 +48,14 @@ class PatientClient(CourtListenerClient):
             except CourtListenerError as refusal:
                 detail = refusal.upstream_detail if isinstance(refusal.upstream_detail, dict) else {}
                 wait = detail.get("retry_after_seconds")
-                if wait is None or float(wait) > MAX_WAIT_SECONDS:
+                if wait is None:
                     raise
+                if float(wait) > MAX_WAIT_SECONDS:
+                    # A wait measured in hours is the daily allowance, not a
+                    # burst. Continuing writes a run for every remaining
+                    # document in which nothing was checked, and those look
+                    # like results. Stop instead and leave them for later.
+                    raise AllowanceSpent(f"allowance returns in {float(wait) / 3600:.1f}h")
                 print(f"    allowance refused, waiting {float(wait) / 60:.1f}min", flush=True)
                 time.sleep(float(wait) + 2)
 
@@ -67,9 +77,13 @@ async def run(paths: list[pathlib.Path]) -> None:
     client = PatientClient()
     session = start_mellea_session_from_env()
     for path in paths:
-        validated = await validate_document(
-            extract_from_plain_text(path.read_text(encoding="utf-8"), source_path=path.stem),
-            client=client, session=session)
+        try:
+            validated = await validate_document(
+                extract_from_plain_text(path.read_text(encoding="utf-8"), source_path=path.stem),
+                client=client, session=session)
+        except AllowanceSpent as spent:
+            print(f"  stopping: {spent}. {len(paths) - paths.index(path)} documents left for later.")
+            return
         serialized = serialize_validated_document(validated)
         refused = sum(1 for citation in serialized["citations"]
                       for node in citation.get("nodes", [])
