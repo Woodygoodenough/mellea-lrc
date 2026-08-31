@@ -50,7 +50,7 @@ an earlier nested chain of five document types (`PreprocessedDocument` →
 | `local/` | all data; **git-ignored, never distributed** |
 | `tests/` | 59 test files |
 
-Branch is `experiment/lephantomcite`. Two remotes: `origin`
+Branch is `experiment/reference-dataset`. Two remotes: `origin`
 (`gt-csse/mellea-lrc`, the primary repo) and `woody-fork`
 (`Woodygoodenough/mellea-lrc`).
 
