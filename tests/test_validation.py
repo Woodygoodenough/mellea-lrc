@@ -1232,3 +1232,25 @@ def test_a_crowded_page_the_name_does_not_match_is_still_deferred() -> None:
 
     assert selection.outcome is CandidateSelectionOutcome.DEFERRED_OVER_LIMIT
     assert selection.selected_candidate_count == 0
+
+
+def test_a_locator_is_ambiguous_on_two_clusters_whatever_status_came_with_them() -> None:
+    """CourtListener answers a multi-case locator with 300 usually and 200 sometimes.
+
+    Requiring 300 made the second form fall through to the unreachable branch
+    and raise, stopping a whole validation run. The cluster count is what
+    decides; the status it arrived with does not.
+    """
+    extracted = _document(FullCaseCitation(volume="1", reporter="F.2d", page="2"))
+    clusters = (
+        CourtListenerOpinionCluster(case_name="First"),
+        CourtListenerOpinionCluster(case_name="Second"),
+    )
+    client = LookupClient(CourtListenerCitationLookup(citation="1 F.2d 2", status=200, clusters=clusters))
+
+    lookup = _validate(extracted, client).citations[0].nodes[0]
+
+    assert lookup.status is ValidationNodeStatus.SUCCEEDED
+    assert lookup.outcome is LocatorLookupOutcome.AMBIGUOUS
+    assert lookup.candidate_count == 2
+    assert lookup.cluster is None
