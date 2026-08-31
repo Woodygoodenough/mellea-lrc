@@ -92,6 +92,22 @@ def _same_case(written: str | None, cited: str | None) -> bool:
     return not (a and b) or bool(a & b)
 
 
+def refused(document: str) -> int:
+    """Citations in one run whose lookup was refused rather than answered.
+
+    A refused citation is not a verdict. Counting one as "the pipeline did not
+    flag it" reads a rate limit as a judgement, so a document holding any is
+    reported separately rather than mixed into the measurement.
+    """
+    path = SERIALIZED / f"{document}.json"
+    if not path.exists():
+        return 0
+    run = json.loads(path.read_text())
+    return sum(1 for citation in run.get("citations", [])
+               for node in citation.get("nodes", [])
+               if node.get("status") == "failed")
+
+
 def score() -> list[dict]:
     manifest = json.loads(MANIFEST.read_text())
     rows = []
@@ -117,6 +133,7 @@ def score() -> list[dict]:
         named = {locator_key(c["citation"]) for c in entry.get("court_named_citations", [])}
         rows.append({
             "document": entry["document"],
+            "refused": refused(entry["document"]),
             "case": entry.get("case", ""),
             "citations_validated": len(verdicts),
             "flagged_by_pipeline": sum(1 for v, _ in verdicts.values() if v in FLAGGED),
@@ -133,8 +150,10 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     rows = score()
+    complete = [row for row in rows if not row["refused"]]
+    partial = [row for row in rows if row["refused"]]
     total = collections.Counter()
-    for row in rows:
+    for row in complete:
         for key in ("citations_validated", "flagged_by_pipeline",
                     "court_named_in_this_document", "court_named_and_caught"):
             total[key] += row[key]
@@ -142,7 +161,8 @@ if __name__ == "__main__":
             print(f"  {row['document']:<18} {row['citations_validated']:>3} cites"
                   f"  {row['flagged_by_pipeline']:>3} flagged"
                   f"  {row['court_named_and_caught']}/{row['court_named_in_this_document']} court-named caught")
-    print(f"\ndocuments scored              : {len(rows)}")
+    print(f"\ndocuments fully checked       : {len(complete)}"
+          f"   (excluded, holding refusals: {len(partial)})")
     print(f"citations validated           : {total['citations_validated']}")
     print(f"flagged by the pipeline       : {total['flagged_by_pipeline']}")
     print(f"court-named, present here     : {total['court_named_in_this_document']}")

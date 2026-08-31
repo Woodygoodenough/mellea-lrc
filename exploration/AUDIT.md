@@ -631,14 +631,26 @@ citations were fabricated, so the question is whether the pipeline flags what a
 court flagged.
 
 State: 77 filings promoted, 20 carrying at least one confirmed fabricated
-citation, 24 validated and scored.
+citation, 28 validated.
+
+**Only a document in which every citation was actually checked can be scored.**
+A refused lookup is not a verdict, and counting one as "the pipeline did not
+flag it" reads a rate limit as a judgement. Nine documents are complete;
+nineteen hold refusals and are excluded.
+
+Over the nine:
 
 | | count |
 |---|---|
-| citations validated | 492 |
-| flagged by the pipeline | 37 |
-| confirmed fabrications present in these documents | 3 |
+| citations validated | 101 |
+| flagged by the pipeline | 30 |
+| confirmed fabrications present | 2 |
 | of those, caught | **2** |
+
+Two of two is not a rate. It is the honest size of what has been measured
+cleanly, and it will stay small until the refusals are cleared: a confirmed
+fabrication has to fall inside a fully checked document, and only 52 citations
+are confirmed across 32 cases.
 
 **Most of the corpus was never actually checked.** Of 1,769 citations in the
 serialized runs, only 236 reached a verdict; 833 were refused with HTTP 429 and
