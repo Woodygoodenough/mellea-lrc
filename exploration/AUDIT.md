@@ -93,19 +93,37 @@ the file carries both `list_hallucinations` and `list_hallucination_types`,
 whose keys differ in 183 of 390 eval rows — only the first matches the
 published counts. Any figure must name which field it used.
 
-### 3.3 Caselaw Access Project — 4.2 GB
-`local/cap/`, 2,770 published reporter volumes as JSON, one file per volume,
+### 3.3 Caselaw Access Project — 5.5 GB
+`local/cap/`, 3,757 published reporter volumes as JSON, one file per volume,
 named `{reporter-slug}-{volume}.json`. This is Harvard's digitisation of the
 printed reporters, fetched from `static.case.law` — no key, no rate limit.
+`local/cap-reporters.json` holds the archive's own list of the 401 reporters it
+publishes, which is what decides whether an absent volume is fetchable or
+simply not carried.
 
 This is not a dataset of citations to check. It is the answer key. It is also
 the cache directory for `mellea_lrc.caselaw.CapIndex`, which fetches volumes on
 demand and reads them back from here.
 
-### 3.4 Miner exploration — 340 MB
-`local/orders/` (452 order PDFs), `local/accused/` (44 PDFs, of which **6 are
-court documents the resolver picked in error** — see section 8.6), and the
-derived JSON inventoried in section 13.
+**Fetch what a corpus cites before concluding anything from a gap.** The store
+began at 2,770 volumes, and the missing ones were mistaken for a limit of the
+digitisation. Fetching the 1,256 volumes the mined corpus references took
+minutes and cost nothing. What remains genuinely absent is recent: `F. Supp. 3d`
+past volume 400 and `F.3d` past 945 are 2019 onward, and `static.case.law`
+returns 404 for them.
+
+`local/.metadata_never_index` keeps Spotlight from indexing all of this. Without
+it the machine spends hours indexing 5.5 GB that will never be searched from
+Finder.
+
+### 3.4 Miner exploration — 360 MB
+`local/orders/` (452 order PDFs) and `local/accused/` (91 PDFs, of which 9 are
+court documents and 5 are replies to a show-cause order — see section 8.4).
+
+`local/mined-corpus/` holds the 77 that are offending filings, converted to text
+and ready for validation, with `manifest.json` carrying provenance and labels.
+`local/mined-serialized/` holds one validated run per document.
+`local/accused-ocr/` holds text recovered from the seven that were scans.
 
 ### 3.5 Not on disk
 An R2 read-through cache behind a Modal proxy holds CourtListener responses.
