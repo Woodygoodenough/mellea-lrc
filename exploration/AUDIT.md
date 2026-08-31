@@ -684,6 +684,25 @@ not hold, and unlike the earlier coverage gap this one is real: `F. Supp. 3d`
 past volume 400 and `F.3d` past 945 are 2019 onward, and the digitisation ends
 before them. `static.case.law` returns 404 for each.
 
+**At least one of the nine is a genuine fabrication the labels did not carry.**
+All nine sit in one document — entry 283 of *Coomer v. Lindell*, the MyPillow
+sanctions case. The filing cites `Perkins v. Fed. Fruit & Produce Co., 945 F.3d
+1242, 1251 (10th Cir. 2019)`. There is a real *Perkins v. Federal Fruit &
+Produce Co.*, but it is a District of Colorado case at `861 F. Supp. 2d 1285`,
+not a Tenth Circuit decision, and `945 F.3d 1242` is one of the citations that
+case's sanctions proceedings concern.
+
+That matters for how the scoring reads. The pipeline flagged it; the court's
+quoted list did not contain it, so the scorer counted it as a flag without a
+label rather than a catch. **The 35 unlabelled flags are not noise by
+default** — this is the "court's list is a floor" caution turning up as a
+concrete instance, and it means recall against the quoted list understates the
+pipeline rather than flattering it.
+
+The other four in that document — `497 F. Supp. 3d 1025`, `409 F. Supp. 3d
+1122`, `416 F. Supp. 3d 1131`, `400 F. Supp. 3d 1122` — carry equally plausible
+names and are unverified. They are the obvious next thing to check by hand.
+
 Two of two is not a rate. It is the honest size of what has been measured
 cleanly, and it will stay small until the refusals are cleared: a confirmed
 fabrication has to fall inside a fully checked document, and only 52 citations
