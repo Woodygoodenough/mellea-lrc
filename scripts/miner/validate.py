@@ -73,7 +73,6 @@ def unvalidated(labelled_first: bool = True) -> list[pathlib.Path]:
 
 
 async def run(paths: list[pathlib.Path]) -> None:
-    SERIALIZED.mkdir(parents=True, exist_ok=True)
     client = PatientClient()
     session = start_mellea_session_from_env()
     for path in paths:
@@ -97,6 +96,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=5)
     args = parser.parse_args()
+    SERIALIZED.mkdir(parents=True, exist_ok=True)
     todo = unvalidated()
     print(f"{len(todo)} documents unvalidated; running {min(args.limit, len(todo))}")
     asyncio.run(run(todo[:args.limit]))

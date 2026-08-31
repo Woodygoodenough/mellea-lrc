@@ -39,7 +39,6 @@ from eyecite import get_citations
 from eyecite.models import FullCaseCitation
 
 from mellea_lrc.caselaw import CapIndex
-
 from scripts.miner.archive_check import SUSPICIOUS, check_text, known_slugs, pdf_text
 
 ACCUSED_DIR = pathlib.Path("local/accused")

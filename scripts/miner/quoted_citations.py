@@ -87,7 +87,7 @@ def clean_party(name: str | None) -> str | None:
     """
     if not name:
         return None
-    name = re.split(r"\n\s*\n", name)[-1].replace("\n", " ").strip(" ,;“”\"")
+    name = re.split(r"\n\s*\n", name)[-1].replace("\n", " ").strip(' ,;“”"')
     if not name or SENTENCE_ONLY.search(name):
         return None
     return None if len(name.split()) > LONGEST_CAPTION_WORDS else name

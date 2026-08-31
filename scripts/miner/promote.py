@@ -30,7 +30,6 @@ import pathlib
 import re
 
 from mellea_lrc.preprocessing import preprocess
-
 from scripts.miner.assess import answers_the_order, is_court_document
 
 ACCUSED_DIR = pathlib.Path("local/accused")

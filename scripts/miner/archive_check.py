@@ -87,7 +87,7 @@ def _trim_bleed(name: str | None) -> str | None:
     """
     if not name:
         return name
-    return re.split(r"\n\s*\n", name)[-1].replace("\n", " ").strip(" ,;“”\"")
+    return re.split(r"\n\s*\n", name)[-1].replace("\n", " ").strip(' ,;“”"')
 
 
 def _written_name(citation: FullCaseCitation) -> str | None:
