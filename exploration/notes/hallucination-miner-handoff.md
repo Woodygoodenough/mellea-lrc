@@ -111,7 +111,7 @@ there.
 ones** — 3.7% against 2.5% on court orders, which is inside chance. It produces
 specific confirmed citations, not a detector.
 
-`exploration/AUDIT.md` on `experiment/reference-dataset` has the full record,
+`exploration/AUDIT.md` on `experiment/general-explorations` has the full record,
 including the errors worth not repeating.
 
 ## 7. Standing constraints
