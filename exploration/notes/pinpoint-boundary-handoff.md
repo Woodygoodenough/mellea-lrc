@@ -117,7 +117,45 @@ class the hallucination miner cannot see at all — a court's order quotes the
 fabricated citation, never the passage — so nothing measures it today. See
 §8.9 of `exploration/AUDIT.md` on `experiment/general-explorations`.
 
-## 7. What is on this branch
+## 7. Worth considering: read the whole opinion, not just the cited page
+
+Everything above checks the **cited page**. That answers "is the proposition
+there" and nothing else, so two very different filings get the same verdict:
+
+- the case does not discuss this at all — a misrepresentation
+- the case discusses it squarely, at page 570, and the brief wrote 555 — a
+  wrong pincite
+
+The second is a smaller sin and a different finding. Today both come back as
+"the page does not support it", which tells the reader less than we know.
+
+Retrieving the whole opinion and asking where the support actually sits would
+separate them, and would let the tool say something more useful than a verdict:
+*the proposition is supported, at page 570, not the page you cited.*
+
+**The structure needed is nearly there already.** `extract_reporter_page`
+parses `html_with_citations` and walks its star-pagination markers, collecting
+`(citation index, page label, offset)` for the whole document — then returns a
+single slice. Keeping the map instead of discarding it gives a page-addressed
+view of the entire opinion, which is what lets a model answer *where* rather
+than only *whether*, in the reporter's own page numbers rather than character
+offsets a reader cannot use.
+
+Three cautions, in the spirit of section 4:
+
+- **Widening the search widens the false-accusation surface.** A model given
+  the whole opinion and asked "is this supported anywhere" will find something
+  in a long opinion more often than it should. The section 2 boundary still
+  binds: different subject, or states the contrary.
+- **A right proposition at a wrong page is a defect the corpus barely
+  measures.** It is the largest labelled class at 39% and the miner cannot see
+  it at all, so this is where the evaluation is thinnest and where a new
+  capability is hardest to check. Build the measurement alongside it.
+- **Cost.** A pinpoint check against one page is cheap; against a full opinion
+  it is not, and opinions run long. Decide early whether this runs always, or
+  only after the cited page fails.
+
+## 8. What is on this branch
 
 - `src/mellea_lrc/validation/quotation/` — `verbatim.py` and `quotation_check.py`,
   the deterministic answer to questions 2 and 3, with 16 tests
@@ -134,7 +172,7 @@ claim needs the citation tree, which is on `experiment/citation-tree` with its
 own brief. Read that first — the tree is what turns one authority into several
 checkable claims about several pages.
 
-## 8. Standing constraints
+## 9. Standing constraints
 
 Nothing is committed or pushed to `origin` without asking; work goes to
 `woody-fork`. No dataset is pushed anywhere; `local/` is git-ignored.
