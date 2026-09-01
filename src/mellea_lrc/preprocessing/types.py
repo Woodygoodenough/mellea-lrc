@@ -19,6 +19,13 @@ class PreprocessingMetadata:
 
     backend: PreprocessingBackend = PreprocessingBackend.PLAIN_TEXT
     backend_version: str | None = None
+    margin_line_numbers_dropped: int | None = None
+    """How many pleading-paper margin line numbers were removed, if the rule ran.
+
+    ``None`` means the rule did not run, which is not the same as zero. The two
+    settings produce different text and therefore different offsets, so a
+    document has to record which one it was rendered under.
+    """
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
