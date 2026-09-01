@@ -4,6 +4,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from mellea_lrc.core.documents import SourceFormat, SourceMetadata
+from mellea_lrc.preprocessing.document_index import index_table_spans
 from mellea_lrc.preprocessing.types import (
     PreprocessedDocument,
     PreprocessingBackend,
@@ -51,6 +52,7 @@ def preprocess_with_docling(path: Path | str) -> PreprocessedDocument:
     converter = DocumentConverter()
     result = converter.convert(str(source_path))
     text = result.document.export_to_text()  # Ensure to normalize all characters to Unicode TODO
+    index_spans = index_table_spans(result.document)
 
     return PreprocessedDocument(
         source_metadata=SourceMetadata(
@@ -58,6 +60,7 @@ def preprocess_with_docling(path: Path | str) -> PreprocessedDocument:
             format=_source_format(source_path),
         ),
         text=text,
+        index_spans=index_spans,
         preprocessing_metadata=PreprocessingMetadata(
             backend=PreprocessingBackend.DOCLING,
             backend_version=_docling_version(),

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from mellea_lrc.core.documents import DocumentBase
+from mellea_lrc.core.spans import Span
 
 
 class PreprocessingBackend(str, Enum):
@@ -27,6 +28,13 @@ class PreprocessedDocument(DocumentBase):
 
     text: str
     preprocessing_metadata: PreprocessingMetadata
+    index_spans: tuple[Span, ...] = ()
+    """Regions of `text` holding a table of authorities, which cites nothing.
+
+    An index entry lists a case; it attaches no proposition to it and makes no
+    claim about any page. Empty when the backend cannot tell -- plain text
+    carries no structure, so absence here means unknown rather than none.
+    """
 
     def __post_init__(self) -> None:
         if not self.text:
