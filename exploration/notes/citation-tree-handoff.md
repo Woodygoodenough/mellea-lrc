@@ -33,7 +33,7 @@ This connects to a gap measured elsewhere. The reference dataset labels three
 citation-shaped defect classes at roughly even weight, and **wrong pincite is
 the largest at 39%** — the one class the hallucination miner cannot see at all,
 because an order quotes the citation and not the passage. See section 8.9 of
-`exploration/AUDIT.md` on `experiment/reference-dataset`. The tree is the structure
+`exploration/AUDIT.md` on `experiment/general-explorations`. The tree is the structure
 that makes those claims addressable.
 
 ## 3. What the module already gets right
@@ -83,7 +83,7 @@ side needs to be redone against the current `reporter_page.py` rather than
 lifted.
 
 The original commits, if you want to read what was done there, are `9ed7161`
-and `85e3310` on `experiment/reference-dataset`.
+and `85e3310` on `experiment/general-explorations`.
 
 ## 6. Standing constraints
 
