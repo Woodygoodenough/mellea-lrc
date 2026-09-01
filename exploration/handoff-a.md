@@ -7,7 +7,7 @@ Newest entry first. Written by Track A for Track B. See
 
 ## 2026-08-22 — opening state
 
-Branch `experiment/reference-dataset` at `a4c7bff`. Everything below is already
+Branch `experiment/general-explorations` at `a4c7bff`. Everything below is already
 committed and pushed to `woody-fork`.
 
 **What is finished on A's side and will not move under you:**
@@ -95,4 +95,4 @@ no further lead; the two stay in the denominator.
 
 **If you are a subagent with an isolated worktree, check your base.** Worktrees
 created by the Agent tool branch from the default branch, not from
-`experiment/reference-dataset`. See section 2 of `parallel-work.md`.
+`experiment/general-explorations`. See section 2 of `parallel-work.md`.

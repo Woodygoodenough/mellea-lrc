@@ -1,7 +1,7 @@
 # Overnight session, 21 August 2026
 
 What was checked, built and measured while you were asleep. Everything here is
-committed on `experiment/reference-dataset`, except the backend fix which is also on
+committed on `experiment/general-explorations`, except the backend fix which is also on
 its own branch `fix/strict-structured-output`.
 
 ---

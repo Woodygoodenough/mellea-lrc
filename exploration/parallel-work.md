@@ -10,7 +10,7 @@ the first kind require holding the whole project in view and being willing to
 discard earlier work, and two agents doing that in parallel produce conclusions
 that have to be reconciled rather than combined.
 
-Head of `experiment/reference-dataset` when this was written: `9db046d`.
+Head of `experiment/general-explorations` when this was written: `9db046d`.
 
 ---
 
@@ -51,25 +51,25 @@ its own branch.
 isolated worktree by the Agent tool is branched from the repository's default
 branch, not from whatever the parent agent has checked out. The first subagent
 run on this project was handed instructions referring to a module and a
-function parameter that exist on `experiment/reference-dataset` and not on `main`;
+function parameter that exist on `experiment/general-explorations` and not on `main`;
 it was working from `main` and correctly reported both as missing. It adapted
 and the work was still usable, but only because it said so rather than guessing.
 
-    git merge-base --is-ancestor experiment/reference-dataset HEAD && echo ok
+    git merge-base --is-ancestor experiment/general-explorations HEAD && echo ok
 
-If that fails, rebase or branch again from `experiment/reference-dataset` before
+If that fails, rebase or branch again from `experiment/general-explorations` before
 starting, and say in your report which base you used.
 
 ```bash
 git fetch woody-fork
-git worktree add ../mellea-lrc-b -b experiment/reference-dataset-b experiment/reference-dataset
+git worktree add ../mellea-lrc-b -b experiment/general-explorations-b experiment/general-explorations
 cd ../mellea-lrc-b
 uv sync
 cp ../mellea-lrc/.env .          # secrets are gitignored and not carried by a worktree
-git push -u woody-fork experiment/reference-dataset-b
+git push -u woody-fork experiment/general-explorations-b
 ```
 
-Merge into `experiment/reference-dataset` when a piece is finished, not
+Merge into `experiment/general-explorations` when a piece is finished, not
 continuously.
 
 ---
