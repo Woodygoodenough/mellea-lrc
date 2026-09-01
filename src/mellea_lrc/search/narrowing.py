@@ -12,14 +12,23 @@ archive holds more than once, and `validation/candidate_selection.py` then picks
 out the records carrying the case name the filing wrote. Narrowing is for what
 is left: a page where the name matched nothing, or matched too many.
 
-**Which fields are actually available depends on the route.** A record from the
-citation-lookup endpoint carries a case name and a decision date and **no
-court** -- the payload has no court field, which is why
+**Measured, this separates nothing on the ambiguous-locator route, and it is
+not wired into that route for exactly that reason.** Over 659 locators, merging
+and the case name leave nine ambiguous locators, and this module separates none
+of them. Two reasons, both structural. A record from the citation-lookup
+endpoint carries **no court** -- the payload has no court field, which is why
 `validation/court_retrieval` fetches the docket to get one, a request per
-candidate. A search result does carry `court_id`. So on the ambiguous-locator
-route the court comparison never fires and the year and the names do the work;
-on a search route all three do. Nothing here treats the absent court as a
-disagreement, so the two routes need no separate code path.
+candidate -- so the court comparison cannot fire there. And each of the nine is
+a table of decisions from one court in one year, so the year separates nothing
+either. Section 4 of `exploration/notes/agentic-search-population.md` has the
+measurement.
+
+A search result does carry `court_id` and `dateFiled`, so all three comparisons
+are available on a search route, where a query returning 111 results is
+currently deferred whole. **Whether they separate anything there is unmeasured**,
+because a search is not cacheable and the measurement costs request allowance.
+That is what this module is waiting on, and if the answer is that it separates
+nothing there either, it should be deleted rather than kept.
 
 Three rules keep this from becoming a way to hide findings.
 
