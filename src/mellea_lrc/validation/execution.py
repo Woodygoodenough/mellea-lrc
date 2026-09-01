@@ -475,7 +475,12 @@ class CitationValidationRunner:
         validation = validation.append(selection)
         if not selection.selected_candidate_count:
             return validation
-        candidates = lookup.candidate_clusters[: selection.selected_candidate_count]
+        if selection.selected_indices is None:
+            candidates = lookup.candidate_clusters[: selection.selected_candidate_count]
+        else:
+            # A selection made by matching the filing's case name picks records
+            # out of the middle of a long list, so it carries their positions.
+            candidates = tuple(lookup.candidate_clusters[i] for i in selection.selected_indices)
         if len(candidates) != selection.selected_candidate_count:
             msg = "Locator candidate payload is shorter than its selected candidate count"
             raise ValueError(msg)
