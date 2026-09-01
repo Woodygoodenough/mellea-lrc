@@ -26,6 +26,13 @@ if TYPE_CHECKING:
 DEFAULT_BASE_URL = "https://www.courtlistener.com/api/rest/v4/"
 DEFAULT_USER_AGENT = "mellea-lrc (+https://github.com/gt-csse/mellea-lrc)"
 
+# Enough for a citation lookup, which returns a small record. An opinion
+# document is the whole text of a decision and on a cache miss the proxy has to
+# fetch it upstream and store it before answering, so a bulk read of opinions
+# wants longer -- 2 of 12 timed out at 45 seconds. `MELLEA_LRC_COURTLISTENER_TIMEOUT`
+# raises it without making every other caller wait as long for a failure.
+DEFAULT_TIMEOUT_SECONDS = 45
+
 
 @dataclass(frozen=True, slots=True)
 class CourtListenerConfig:
@@ -33,12 +40,27 @@ class CourtListenerConfig:
 
     base_url: str = DEFAULT_BASE_URL
     token: str | None = None
+    pool: str | None = None
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
 
     @classmethod
     def from_env(cls) -> CourtListenerConfig:
-        """Load the API base URL and single API token from the environment."""
+        """Load the API base URL, token, and request pool from the environment.
+
+        `MELLEA_LRC_COURTLISTENER_POOL` selects a named request allowance on a
+        caching proxy that offers one. It is how a small targeted run reaches an
+        allowance a bulk sweep has not spent; against CourtListener directly it
+        is inert, because the header means nothing there.
+        """
         token = os.getenv("COURTLISTENER_API_TOKEN", "").strip() or None
-        return cls(base_url=os.getenv("COURTLISTENER_BASE_URL", DEFAULT_BASE_URL), token=token)
+        pool = os.getenv("MELLEA_LRC_COURTLISTENER_POOL", "").strip() or None
+        timeout = os.getenv("MELLEA_LRC_COURTLISTENER_TIMEOUT", "").strip()
+        return cls(
+            base_url=os.getenv("COURTLISTENER_BASE_URL", DEFAULT_BASE_URL),
+            token=token,
+            pool=pool,
+            timeout_seconds=float(timeout) if timeout else DEFAULT_TIMEOUT_SECONDS,
+        )
 
 
 class CourtListenerError(RuntimeError):
@@ -75,6 +97,16 @@ class CourtListenerClient(CourtListenerServiceClient):
         """Initialize the client with its config and HTTP session."""
         self.config = config or CourtListenerConfig.from_env()
         self.session = session or requests.Session()
+        self.last_response_cached: bool | None = None
+        """Whether the last response was served from the proxy's cache.
+
+        A caching proxy marks a served-from-cache response, and such a response
+        cost no request allowance. A caller pacing itself against the allowance
+        needs to know that, or it throttles reads that spend nothing -- which is
+        minutes of idling per run, growing as the cache fills. `None` means the
+        question has not been asked yet or the service does not answer it, and
+        callers should then assume the allowance was spent.
+        """
 
     def lookup_citation(
         self,
@@ -173,7 +205,7 @@ class CourtListenerClient(CourtListenerServiceClient):
                 url,
                 data=data,
                 headers=self._headers(),
-                timeout=45,
+                timeout=self.config.timeout_seconds,
             )
         except requests.Timeout as exc:
             raise CourtListenerError(
@@ -203,7 +235,7 @@ class CourtListenerClient(CourtListenerServiceClient):
                 url,
                 params=params,
                 headers=self._headers(),
-                timeout=45,
+                timeout=self.config.timeout_seconds,
             )
         except requests.Timeout as exc:
             raise CourtListenerError(
@@ -228,7 +260,9 @@ class CourtListenerClient(CourtListenerServiceClient):
         """GET one docket without coupling it to citation lookup."""
         url = urljoin(self.config.base_url.rstrip("/") + "/", f"dockets/{docket_id}/")
         try:
-            response = self.session.request("GET", url, headers=self._headers(), timeout=45)
+            response = self.session.request(
+                "GET", url, headers=self._headers(), timeout=self.config.timeout_seconds
+            )
         except requests.Timeout as exc:
             raise CourtListenerError(
                 "CourtListener request timed out", failure_type="upstream_timeout", retryable=True, url=url
@@ -252,7 +286,9 @@ class CourtListenerClient(CourtListenerServiceClient):
             f"{resource}/{resource_id}/",
         )
         try:
-            response = self.session.request("GET", url, headers=self._headers(), timeout=45)
+            response = self.session.request(
+                "GET", url, headers=self._headers(), timeout=self.config.timeout_seconds
+            )
         except requests.Timeout as exc:
             raise CourtListenerError(
                 "CourtListener request timed out",
@@ -273,6 +309,7 @@ class CourtListenerClient(CourtListenerServiceClient):
         return response
 
     def _response_payload(self, response: requests.Response) -> object:
+        self.last_response_cached = response.headers.get("x-cache", "").strip().lower() == "hit"
         try:
             return response.json()
         except ValueError as exc:
@@ -289,6 +326,8 @@ class CourtListenerClient(CourtListenerServiceClient):
         headers = {"Accept": "application/json", "User-Agent": DEFAULT_USER_AGENT}
         if self.config.token:
             headers["Authorization"] = f"Token {self.config.token}"
+        if self.config.pool:
+            headers["x-cl-pool"] = self.config.pool
         return headers
 
 
