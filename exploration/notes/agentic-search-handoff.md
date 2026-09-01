@@ -22,8 +22,10 @@ could act on. Sections 2 and 3 of `agentic-search-population.md`.
 **The ambiguous locator**, where CourtListener returns more cases at the page
 than the pipeline will look at, is 94 citations, and three moves that send no
 request settle 85 of them. The nine left over are tables of unpublished
-decisions, and section 5.1 of `agentic-search-population.md` argues that six of
-those nine are decidable from records the lookup already returned.
+decisions, and no query can settle them either: section 11 of
+`open-ended-search.md` established that a table page's dispositions are
+reachable by citation lookup and absent from search. Sections 4 to 6 of
+`agentic-search-population.md`.
 
 What remains untested is the **search route** itself: the 79 locators the lookup
 found nothing for, and what a query returns when it runs. A search result set
@@ -33,8 +35,9 @@ query returning 111 results is deferred whole today. Section 7 of
 and unlike everything else here it costs request allowance.
 
 **Do not build the loop before that measurement.** Everything the ambiguous
-route needed turned out to be free, and a loop written for it would have been a
-loop for nine citations.
+route could use turned out to be free, and what was left over could not be
+reached by a query at all. A loop written for that route would have had nothing
+to do.
 
 ## 2. Why search is the one stage that earns this
 
