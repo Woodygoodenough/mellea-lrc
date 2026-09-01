@@ -131,6 +131,16 @@ class CandidateSelectionOutcome(str, Enum):
 
     ALL_SELECTED = "all_selected"
     DEFERRED_OVER_LIMIT = "deferred_over_limit"
+    NARROWED_BY_CASE_NAME = "narrowed_by_case_name"
+    """Too many candidates to evaluate, but the filing's own case name picks out
+    a few of them.
+
+    A page of unpublished decisions holds many unrelated cases, so the volume
+    and page cannot choose between them and the case name can. Reaching this
+    outcome means the name matched; failing to match is not recorded here,
+    because it does not distinguish a filing naming a case that is not on the
+    page from an archive holding only part of the page.
+    """
 
 
 class CandidateEvaluationOutcome(str, Enum):
@@ -309,6 +319,14 @@ class MelleaCaseNameQueryPreparationNode:
     status_message: str | None = None
     outcome_message: str | None = None
     error: str | None = None
+    year: str | None = None
+    """The year the citation states, when it states one, and the query used it.
+
+    Recorded because it changes what a miss means. A search narrowed to a range
+    of years that finds nothing has not established that the case is absent,
+    only that it is absent from those years, and a reader of the result has to
+    be able to tell the two apart.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -358,6 +376,22 @@ class CandidateSelectionNode:
     depends_on: tuple[str, ...]
     status_message: str | None = None
     outcome_message: str | None = None
+    selected_indices: tuple[int, ...] | None = None
+    """Which candidates were chosen, when the choice is not simply the first few.
+
+    ``None`` means the leading ``selected_candidate_count`` records, which is
+    what a count-based decision produces. A selection made by matching the
+    filing's case name picks particular records out of the middle of a long
+    list, and those positions have to travel with the decision.
+    """
+    distinct_case_count: int | None = None
+    """How many separate cases the returned records amount to, when known.
+
+    A citation lookup often returns the same decision more than once, so
+    `total_candidate_count` counts records rather than cases. The limit is
+    applied to this figure where it is available, and both are kept so the
+    difference between them is visible in the record rather than inferred.
+    """
 
 
 @dataclass(frozen=True, slots=True)

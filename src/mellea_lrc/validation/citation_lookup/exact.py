@@ -97,7 +97,14 @@ def run_exact_locator_lookup(
             status_message="Exact locator lookup completed.",
             outcome_message="CourtListener could not parse the locator as a citation.",
         )
-    if lookup.status == HTTP_MULTIPLE_CHOICES and len(lookup.clusters) > 1:
+    # More than one cluster is what makes a locator ambiguous, whatever status
+    # the upstream paired with it. CourtListener answers a locator that resolves
+    # to several cases with 300 most of the time and with 200 sometimes, and
+    # requiring 300 turned the second form into a crash: `226 citations` into a
+    # mined filing, validation stopped on an AssertionError. The 27-document
+    # corpus never produced one, so nothing caught it until a filing pulled
+    # from RECAP did.
+    if len(lookup.clusters) > 1:
         return ExactLocatorLookupNode(
             node_id=node_id,
             status=ValidationNodeStatus.SUCCEEDED,
