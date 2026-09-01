@@ -188,18 +188,100 @@ def either_margin(items: Items, *, min_numbers: int = 5) -> set[int]:
     return found
 
 
-# --- R4: everything ----------------------------------------------------------
+# --- R4: tolerate a misread digit --------------------------------------------
+
+
+def mostly_ascends(items: Items, column: list[int], *, share: float = 0.8) -> bool:
+    """Whether most of the column is numbered down the page.
+
+    Strict ascent is unusable on scanned filings. In document 013 the OCR reads
+    the 9 of every margin as a 6, so all 28 numbers are present and in place and
+    the sequence still reads `7, 8, 6, 10` -- one misread digit rejecting the
+    whole page, on every page, and 660 numbers left in the body as a result.
+
+    So the question is not whether the column ascends but whether it is
+    *mostly* an ascending run: the longest increasing subsequence must cover
+    `share` of it. A margin with a misread digit keeps 27 of 28. A column of
+    arbitrary table values does not, and a column of repeated page numbers has
+    a longest increasing subsequence of one.
+    """
+    ordered = sorted(column, key=lambda i: -items[i]["t"])
+    values = [line_number_value(items[i]["text"]) or 0 for i in ordered]
+
+    # Longest strictly increasing subsequence, O(n^2) on columns of ~28.
+    best = [1] * len(values)
+    for later in range(len(values)):
+        for earlier in range(later):
+            if values[earlier] < values[later]:
+                best[later] = max(best[later], best[earlier] + 1)
+    return bool(values) and max(best) >= share * len(values)
+
+
+def tolerant(items: Items, *, min_numbers: int = 5) -> set[int]:
+    """`current`, but the column must also be mostly numbered down the page."""
+    found: set[int] = set()
+    for page, indices in by_page(items).items():
+        edge = prose_edge(items, indices)
+        if edge is None:
+            continue
+        for column in right_aligned_columns(items, numeric_indices(items, indices)):
+            if len(column) >= min_numbers and items[column[0]]["r"] <= edge and mostly_ascends(items, column):
+                found.update(column)
+    return found
+
+
+# --- R5: side-agnostic, without any sequence test -----------------------------
+
+
+def either_side_only(items: Items, *, min_numbers: int = 5) -> set[int]:
+    """`current` with the position test widened to both margins, nothing else.
+
+    Isolates the cost of dropping the left-hand assumption, which `either_margin`
+    confounds with the sequence test.
+    """
+    found: set[int] = set()
+    for page, indices in by_page(items).items():
+        prose = [i for i in indices if line_number_value(items[i]["text"]) is None]
+        if not prose:
+            continue
+        left_edge = median(items[i]["l"] for i in prose)
+        right_edge = median(items[i]["r"] for i in prose)
+        for column in right_aligned_columns(items, numeric_indices(items, indices)):
+            outside = items[column[0]]["r"] <= left_edge or items[column[0]]["l"] >= right_edge
+            if len(column) >= min_numbers and outside:
+                found.update(column)
+    return found
+
+
+# --- R6: everything that survived --------------------------------------------
 
 
 def combined(items: Items) -> set[int]:
-    """Cross-page confirmation, ascending sequence, either side."""
-    return cross_page(items) | either_margin(items)
+    """Cross-page confirmation, tolerant sequence test, either margin."""
+    found: set[int] = set()
+    confirmed = cross_page(items)
+    for page, indices in by_page(items).items():
+        prose = [i for i in indices if line_number_value(items[i]["text"]) is None]
+        if not prose:
+            continue
+        left_edge = median(items[i]["l"] for i in prose)
+        right_edge = median(items[i]["r"] for i in prose)
+        for column in right_aligned_columns(items, numeric_indices(items, indices)):
+            outside = items[column[0]]["r"] <= left_edge or items[column[0]]["l"] >= right_edge
+            if len(column) >= min_numbers_default and outside and mostly_ascends(items, column):
+                found.update(column)
+    return found | confirmed
+
+
+min_numbers_default = 5
 
 
 RULES = {
     "current": current,
     "ascending": ascending,
+    "tolerant": tolerant,
     "cross_page": cross_page,
     "either_margin": either_margin,
+    "either_side_only": either_side_only,
     "combined": combined,
 }
