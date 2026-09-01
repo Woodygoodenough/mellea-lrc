@@ -1,18 +1,29 @@
 # Agentic retrieval: make the whole search stage a loop
 
-A brief for whoever builds this. The branch carries the domain tiers and
-nothing else — the work is ahead of you, not behind.
+The design brief for the search loop. `agentic-search-population.md` carries the
+counts it rests on and should be read alongside it.
 
-## 1. What is being proposed
+## 1. What is being built
 
-Today the pipeline searches once. It prepares query terms from the case name,
-asks CourtListener, and takes what comes back. If that returns nothing useful,
-the citation ends unresolved.
+The search stage becomes a loop that owns **the whole stage**, CourtListener
+included: issue a query, read what came back, and decide what to do next —
+narrow the candidates already in hand, reformulate, widen, switch index, or go
+to the open web. It stops when it has an answer or has spent its budget.
 
-The proposal is to replace that with a loop that owns **the entire search
-stage**, CourtListener included: issue a query, read what came back, and decide
-what to do next — reformulate, widen, narrow, switch index, or go to the open
-web. Then stop when it has an answer or has spent its budget.
+The case it exists for is the **ambiguous locator**: CourtListener returns more
+cases at the cited page than the pipeline will look at, and something has to
+decide which one the filing meant. `validation/candidate_selection.py` caps
+candidate evaluation at three, so a locator with more clusters than that is
+deferred with zero candidates evaluated. That is 23 of the 1,334 citations in
+the corpus measured in `agentic-search-population.md`, and the node's own
+message names what is missing: "further refinement is needed before selecting
+candidates."
+
+The case it does **not** exist for is the unresolved locator — CourtListener
+holding nothing at the cited page. Section 2 of `agentic-search-population.md`
+counts that bucket at 94, of which 91 are labelled sound, 70 name a Westlaw or
+LEXIS record that the search endpoint cannot reach at all, and 15 are reporter
+citations a name search could act on.
 
 ## 2. Why search is the one stage that earns this
 
@@ -21,8 +32,14 @@ lookup are functions: same input, same output, and dynamism buys nothing but
 variance.
 
 Search is different in kind. **The next query depends on what the last one
-returned**, and "no results" is information that should change the query rather
-than end the attempt. That is the shape a loop exists for.
+returned.** With 32 clusters at one page, which field separates them depends on
+what those 32 have in common, and that is knowable only from having seen them.
+That is the shape a loop exists for.
+
+The loop's cheapest move costs no request. The clusters are already in hand from
+the locator lookup, so narrowing them by case name, year or court is free, and
+the budget in section 5 covers only what follows when that fails to separate
+them.
 
 So this is not a retreat from the project's architecture. It sharpens it:
 deterministic where the answer is a lookup, agentic where the answer requires
@@ -96,29 +113,41 @@ before designing the loop. In particular: CourtListener throttles on two
 windows whose 429 bodies look nearly identical, one clearing in thirty seconds
 and one in hours, and treating them alike costs most of a day.
 
-## 6. On LangGraph
+## 6. No LangGraph
 
-Justified, but not for the obvious reason. The loop is four or five states and
-a plain `while` would express that.
+The loop is four or five states and a plain `while` expresses that. The one
+thing worth a dependency would be **trajectory persistence and replay** —
+storing what the agent did and re-running it — because given section 3 that is
+what makes an agentic component auditable at all: the search cannot be
+reproduced, but the record of it can be kept.
 
-What it actually buys is **trajectory persistence and replay** — being able to
-store what the agent did and re-run it. Given section 3, that is the feature
-that makes an agentic component auditable at all: you cannot reproduce the
-search, but you can keep the record of it.
+The project already has that. `CitationValidation` is an append-only sequence of
+frozen typed nodes, each with a `node_id` and a `depends_on` tuple, and `append`
+refuses a duplicate identifier or an unknown dependency. Every node round-trips
+through `serialization/validated_document.py` on a type-name registry. A loop
+written as nodes in that model is persisted, replayable and type-checked without
+a second orchestration model beside Mellea.
 
-So: use it for the checkpointing, or do not use it. If the branch ends up
-treating LangGraph as a decorated loop, drop the dependency — it is a second
-orchestration model alongside Mellea and it should earn that.
+What the node model does not do is resume a run from a checkpoint partway
+through. Nothing in this design needs that.
 
 ## 7. What is on this branch
 
 - `src/mellea_lrc/experimental/web_refutation/` — the domain tiers, 12 tests
-- this brief
+- `evaluations/agentic_search/search_population.py` — the counts in
+  `agentic-search-population.md`, re-runnable against a probe file and free of
+  the API allowance
+- this brief and `agentic-search-population.md`
 
-Everything else is on `main`: `courtlistener/search.py` and the transport
-beneath it, `validation/case_search/` with the current single-shot query
-preparation and the opinion and RECAP searches. Those are what the loop should
-wrap rather than replace.
+Inherited from `main`: `courtlistener/search.py` and the transport beneath it,
+`validation/case_search/` with the single-shot query preparation and the opinion
+and RECAP searches, and `validation/candidate_selection.py` with the limit
+section 1 names. Those are what the loop wraps rather than replaces.
+
+Not here, and needed by section 7 of `agentic-search-population.md`:
+`caselaw/cap_index.py` and the checks built on it, and
+`evaluations/lephantomcite/locator_probe.py`, all on
+`experiment/general-explorations`.
 
 ## 8. Where to read what already exists
 
@@ -133,5 +162,5 @@ Both notes are on `experiment/general-explorations`.
 ## 9. Standing constraints
 
 Nothing is committed or pushed to `origin` without asking; work goes to
-`woody-fork`. No dataset is pushed anywhere. Everything under `local/` is
-git-ignored.
+`woody-fork`. No dataset is pushed anywhere, and run artifacts stay in the
+git-ignored working directory.
