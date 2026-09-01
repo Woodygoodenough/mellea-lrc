@@ -1,0 +1,731 @@
+[
+ {
+  "source": "022",
+  "pages": [
+   7,
+   8
+  ],
+  "items": [
+   {
+    "text": "Case 2:25-cv-01295-GMS     Document 21     Filed 06/12/25     Page 7 of 16",
+    "label": "page_header",
+    "layer": "furniture",
+    "page": 7,
+    "l": 103.74,
+    "r": 508.2600000000008,
+    "t": 777.774,
+    "b": 767.151923076923
+   },
+   {
+    "text": "1",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 717.65,
+    "b": 709.0400000000001
+   },
+   {
+    "text": "2",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 694.65,
+    "b": 686.0400000000001
+   },
+   {
+    "text": "3",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 671.63,
+    "b": 663.0200000000001
+   },
+   {
+    "text": "4",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 648.63,
+    "b": 640.0200000000001
+   },
+   {
+    "text": "5",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 625.63,
+    "b": 617.0200000000001
+   },
+   {
+    "text": "6",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 602.5999999999999,
+    "b": 593.99
+   },
+   {
+    "text": "7",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 579.5999999999999,
+    "b": 570.99
+   },
+   {
+    "text": "8",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 556.5999999999999,
+    "b": 547.99
+   },
+   {
+    "text": "9",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 533.5999999999999,
+    "b": 524.99
+   },
+   {
+    "text": "10",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 510.58,
+    "b": 501.96999999999997
+   },
+   {
+    "text": "11",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 487.58,
+    "b": 478.96999999999997
+   },
+   {
+    "text": "12",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 464.58,
+    "b": 455.96999999999997
+   },
+   {
+    "text": "13",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 441.56,
+    "b": 432.95
+   },
+   {
+    "text": "14",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 418.56,
+    "b": 409.95
+   },
+   {
+    "text": "15",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 395.56,
+    "b": 386.95
+   },
+   {
+    "text": "16",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 372.56,
+    "b": 363.95
+   },
+   {
+    "text": "17",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 349.53000000000003,
+    "b": 340.92
+   },
+   {
+    "text": "18",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 326.53000000000003,
+    "b": 317.92
+   },
+   {
+    "text": "19",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 303.53000000000003,
+    "b": 294.92
+   },
+   {
+    "text": "20",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 280.51,
+    "b": 271.9
+   },
+   {
+    "text": "21",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 257.51,
+    "b": 248.89999999999998
+   },
+   {
+    "text": "22",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 234.51,
+    "b": 225.89999999999998
+   },
+   {
+    "text": "23",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 211.5,
+    "b": 202.89
+   },
+   {
+    "text": "24",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 188.48000000000002,
+    "b": 179.87
+   },
+   {
+    "text": "25",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 165.48000000000002,
+    "b": 156.87
+   },
+   {
+    "text": "26",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 142.48000000000002,
+    "b": 133.87
+   },
+   {
+    "text": "27",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 119.46000000000004,
+    "b": 110.85000000000002
+   },
+   {
+    "text": "28",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 96.45500000000004,
+    "b": 87.84500000000003
+   },
+   {
+    "text": "Doe v. Townes lacked specific retaliation fears, while Plaintiff alleges concrete career harm from prior retaliation. Other cases Defendant relies on  apply  more restrictive standards inconsistent with Ninth Circuit precedent.",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 72.025,
+    "r": 543.2869999999996,
+    "t": 716.7420000000001,
+    "b": 650.2660000000001
+   },
+   {
+    "text": "Advanced Textile supports anonymity where plaintiffs show a reasonable fear of economic or reputational harm, not just physical threats. Plaintiff meets these factors -severity of harm, reasonableness of fear, and vulnerability -with well-pleaded allegations and corroborating evidence.",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 72.025,
+    "r": 543.3610000000001,
+    "t": 633.7220000000001,
+    "b": 539.486
+   },
+   {
+    "text": "Courts have granted anonymity in similar circumstances (see Doe v. Amazon.com , Doe v. Rose ). Defendant's claim that Plaintiff lacks documentary proof misinterprets the law, which permits reliance on allegations and the totality of circumstances. Balancing the public's interest in open proceedings with Plaintiff's right to seek redress without further harm strongly favors anonymity here.",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 72.025,
+    "r": 543.47,
+    "t": 523.172,
+    "b": 401.19599999999997
+   },
+   {
+    "text": "II. Plaintiff ' s Claims Involve Highly Sensitive Matters That Warrant Anonymity Under Precedent and Contextual Application of Advanced Textile.",
+    "label": "section_header",
+    "layer": "body",
+    "page": 7,
+    "l": 72.025,
+    "r": 541.23,
+    "t": 384.681,
+    "b": 358.7464242424242
+   },
+   {
+    "text": "Defendant's  assertion  that  Plaintiff's  claims  are  not  'of  a  sensitive  or  personal nature'  is demonstrably  incorrect  and  reflects  a  fundamental  misunderstanding  of  the nature and gravity of workplace sexual harassment, racial and gender discrimination, and retaliation claims. Courts in this Circuit and others have consistently recognized that such allegations  inherently  involve  highly  sensitive,  personal  matters,  particularly  where  the plaintiff faces credible risks of professional and reputational harm. Plaintiff's claims fall squarely within this protected category.",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 72.025,
+    "r": 543.0889999999999,
+    "t": 339.85900000000004,
+    "b": 162.61599999999999
+   },
+   {
+    "text": "A. Advanced Textile Does Not Limit Pseudonymity to Physical Abuse or Medical Conditions",
+    "label": "section_header",
+    "layer": "body",
+    "page": 7,
+    "l": 72.025,
+    "r": 546.73,
+    "t": 146.101,
+    "b": 120.14642424242425
+   },
+   {
+    "text": "Defendant misinterprets the Ninth Circuit's decision in Advanced Textile , 214 F.3d",
+    "label": "text",
+    "layer": "body",
+    "page": 7,
+    "l": 108.05,
+    "r": 546.73,
+    "t": 101.29700000000003,
+    "b": 90.08784848484845
+   },
+   {
+    "text": "- 7 -",
+    "label": "page_footer",
+    "layer": "furniture",
+    "page": 7,
+    "l": 297.88,
+    "r": 317.13,
+    "t": 46.67999999999995,
+    "b": 38.07000000000005
+   },
+   {
+    "text": "Case 2:25-cv-01295-GMS     Document 21     Filed 06/12/25     Page 8 of 16",
+    "label": "page_header",
+    "layer": "furniture",
+    "page": 8,
+    "l": 103.74,
+    "r": 508.2600000000008,
+    "t": 777.774,
+    "b": 767.151923076923
+   },
+   {
+    "text": "1",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 717.65,
+    "b": 709.0400000000001
+   },
+   {
+    "text": "2",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 694.65,
+    "b": 686.0400000000001
+   },
+   {
+    "text": "3",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 671.63,
+    "b": 663.0200000000001
+   },
+   {
+    "text": "4",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 648.63,
+    "b": 640.0200000000001
+   },
+   {
+    "text": "5",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 625.63,
+    "b": 617.0200000000001
+   },
+   {
+    "text": "6",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 602.5999999999999,
+    "b": 593.99
+   },
+   {
+    "text": "7",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 579.5999999999999,
+    "b": 570.99
+   },
+   {
+    "text": "8",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 556.5999999999999,
+    "b": 547.99
+   },
+   {
+    "text": "9",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 52.525,
+    "r": 60.025,
+    "t": 533.5999999999999,
+    "b": 524.99
+   },
+   {
+    "text": "10",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 510.58,
+    "b": 501.96999999999997
+   },
+   {
+    "text": "11",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 487.58,
+    "b": 478.96999999999997
+   },
+   {
+    "text": "12",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 464.58,
+    "b": 455.96999999999997
+   },
+   {
+    "text": "13",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 441.56,
+    "b": 432.95
+   },
+   {
+    "text": "14",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 418.56,
+    "b": 409.95
+   },
+   {
+    "text": "15",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 395.56,
+    "b": 386.95
+   },
+   {
+    "text": "16",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 372.56,
+    "b": 363.95
+   },
+   {
+    "text": "17",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 349.53000000000003,
+    "b": 340.92
+   },
+   {
+    "text": "18",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 326.53000000000003,
+    "b": 317.92
+   },
+   {
+    "text": "19",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 303.53000000000003,
+    "b": 294.92
+   },
+   {
+    "text": "20",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 280.51,
+    "b": 271.9
+   },
+   {
+    "text": "21",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 257.51,
+    "b": 248.89999999999998
+   },
+   {
+    "text": "22",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 234.51,
+    "b": 225.89999999999998
+   },
+   {
+    "text": "23",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 211.5,
+    "b": 202.89
+   },
+   {
+    "text": "24",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 188.48000000000002,
+    "b": 179.87
+   },
+   {
+    "text": "25",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 165.48000000000002,
+    "b": 156.87
+   },
+   {
+    "text": "26",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 142.48000000000002,
+    "b": 133.87
+   },
+   {
+    "text": "27",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 119.46000000000004,
+    "b": 110.85000000000002
+   },
+   {
+    "text": "28",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 47.525,
+    "r": 60.025,
+    "t": 96.45500000000004,
+    "b": 87.84500000000003
+   },
+   {
+    "text": "1058 (9th Cir. 2000), as restricting anonymity only to cases involving rape, abortion, or medical conditions such as AIDS. This is incorrect. The Ninth Circuit explicitly rejected any categorical limitation, emphasizing instead a fact-specific balancing test focused on the plaintiff's reasonable fear of severe harm, which encompasses retaliation, reput ational damage, and mental distress. See id. at 1068, 1071 -72.",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 72.025,
+    "r": 543.4270000000002,
+    "t": 716.729,
+    "b": 595.0160000000001
+   },
+   {
+    "text": "Plaintiff's  allegations  of  racialized  and  gender -based  harassment,  coupled  with retaliatory  conduct  by  a  senior  executive  in  a  high-profile  workplace,  clearly  implicate 'highly  sensitive'  claims  warranting  pseudonymity. Advanced  Textile underscores  that anonymity  is  particularly  justified  where  public  disclosure  would  chill  future  claims, especially when power imbalances and retaliation are present. This is precisely the situation here.",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 72.025,
+    "r": 543.4170000000001,
+    "t": 578.429,
+    "b": 428.94599999999997
+   },
+   {
+    "text": "B. Defendant's Reliance on Out -of-Circuit Authorities Is Misplaced",
+    "label": "section_header",
+    "layer": "body",
+    "page": 8,
+    "l": 90.05,
+    "r": 470.2,
+    "t": 412.181,
+    "b": 401.2464242424242
+   },
+   {
+    "text": "Defendant relies heavily on cases from other jurisdictions, such as Roe v. Bernabei & Wachtel , 85 F. Supp. 3d 89 (D.D.C. 2015), and Doe v. Megless , 654 F.3d 404 (3d Cir. 2011),  which  apply  more  restrictive  tests  for  pseudonymity  not  binding  on  this  Court. Notably, Megless rejected  the  Ninth  Circuit's  flexible  balancing  test,  involved  claims unrelated to workplace harassment or retaliation, and instead dealt with a public protest and arrest. These distinctions render such cases inapplicable here.",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 72.025,
+    "r": 543.4200000000001,
+    "t": 382.652,
+    "b": 232.89599999999996
+   },
+   {
+    "text": "Even under the stricter standards of Megless , however, Plaintiff's claims would still merit  protection.  The  Third  Circuit's  enumerated  'sensitive  matters,'  including  mental illness  and  homosexuality,  was  expressly  non-exhaustive.  Workplace  harassment  and discrimination,  particularly  involving  a  woman  of  color  in  a  male-dominated  industry, clearly  implicate  serious  reputational,  psychological,  and  economic  harms  deserving  of anonymity.",
+    "label": "text",
+    "layer": "body",
+    "page": 8,
+    "l": 72.025,
+    "r": 543.351,
+    "t": 216.60199999999998,
+    "b": 67.09100000000001
+   },
+   {
+    "text": "- 8 -",
+    "label": "page_footer",
+    "layer": "furniture",
+    "page": 8,
+    "l": 297.88,
+    "r": 317.13,
+    "t": 46.67999999999995,
+    "b": 38.07000000000005
+   }
+  ]
+ }
+]
