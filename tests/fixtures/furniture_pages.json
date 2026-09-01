@@ -1,0 +1,1071 @@
+[
+ {
+  "source": "azd-487494839",
+  "pages": [
+   1,
+   5
+  ],
+  "items": [
+   {
+    "text": "Case 2:26-cv-05215-JFM     Document 1     Filed 07/23/26     Page 1 of 7",
+    "label": "page_header",
+    "layer": "furniture",
+    "page": 1,
+    "l": 112.41,
+    "r": 499.5900000000007,
+    "t": 777.774,
+    "b": 767.151923076923
+   },
+   {
+    "text": "CLYDE & CO US LLP",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 22.555,
+    "r": 29.35581767955801,
+    "t": 446.31701,
+    "b": 338.51
+   },
+   {
+    "text": "One North Central Avenue, Suite 1030",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 36.78,
+    "r": 42.329171270718234,
+    "t": 469.514,
+    "b": 315.35
+   },
+   {
+    "text": "Phoenix, Arizona 85004",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 48.42,
+    "r": 53.969171270718235,
+    "t": 440.23400000000004,
+    "b": 344.64
+   },
+   {
+    "text": "Telephone: (480) 746-4580",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 60.05,
+    "r": 65.59917127071823,
+    "t": 446.964,
+    "b": 337.8
+   },
+   {
+    "text": "1",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 713.935,
+    "b": 705.2193939393939
+   },
+   {
+    "text": "2",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 689.935,
+    "b": 681.2193939393939
+   },
+   {
+    "text": "3",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 665.935,
+    "b": 657.2193939393939
+   },
+   {
+    "text": "4",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 641.935,
+    "b": 633.2193939393939
+   },
+   {
+    "text": "5",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 617.935,
+    "b": 609.2193939393939
+   },
+   {
+    "text": "6",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 593.935,
+    "b": 585.2193939393939
+   },
+   {
+    "text": "7",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 569.935,
+    "b": 561.2193939393939
+   },
+   {
+    "text": "8",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 545.935,
+    "b": 537.2193939393939
+   },
+   {
+    "text": "9",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 521.935,
+    "b": 513.2193939393939
+   },
+   {
+    "text": "10",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 497.935,
+    "b": 489.21939393939397
+   },
+   {
+    "text": "11",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 473.935,
+    "b": 465.21939393939397
+   },
+   {
+    "text": "12",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 449.935,
+    "b": 441.21939393939397
+   },
+   {
+    "text": "13",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 425.935,
+    "b": 417.21939393939397
+   },
+   {
+    "text": "14",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 401.935,
+    "b": 393.21939393939397
+   },
+   {
+    "text": "15",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 377.935,
+    "b": 369.21939393939397
+   },
+   {
+    "text": "16",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 353.935,
+    "b": 345.21939393939397
+   },
+   {
+    "text": "17",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 329.935,
+    "b": 321.21939393939397
+   },
+   {
+    "text": "18",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 305.935,
+    "b": 297.21939393939397
+   },
+   {
+    "text": "19",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 281.935,
+    "b": 273.21939393939397
+   },
+   {
+    "text": "20",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 257.93499999999995,
+    "b": 249.21939393939397
+   },
+   {
+    "text": "21",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 233.93499999999995,
+    "b": 225.21939393939397
+   },
+   {
+    "text": "22",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 209.93499999999995,
+    "b": 201.21939393939397
+   },
+   {
+    "text": "23",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 185.93499999999995,
+    "b": 177.21939393939397
+   },
+   {
+    "text": "24",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 161.93499999999995,
+    "b": 153.21939393939397
+   },
+   {
+    "text": "25",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 137.93499999999995,
+    "b": 129.21939393939397
+   },
+   {
+    "text": "26",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 113.93499999999995,
+    "b": 105.21939393939397
+   },
+   {
+    "text": "27",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 89.93499999999995,
+    "b": 81.21939393939397
+   },
+   {
+    "text": "28",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 65.93499999999995,
+    "b": 57.21939393939397
+   },
+   {
+    "text": "Autumn E. Lewis (SBN 037944)",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 288.99561399999993,
+    "t": 715.015,
+    "b": 706.2993939393939
+   },
+   {
+    "text": "Edward P. Tarolli (",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 209.02321099999992,
+    "t": 703.015,
+    "b": 694.2993939393939
+   },
+   {
+    "text": "Pro Hac Vice application to be submitted)",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 208.92,
+    "r": 285.10009399999996,
+    "t": 703.015,
+    "b": 694.2993939393939
+   },
+   {
+    "text": "CLYDE & CO US LLP",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 238.1102069999999,
+    "t": 691.015,
+    "b": 682.2993939393939
+   },
+   {
+    "text": "One North Central Ave, Ste 1030",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 291.7342699999997,
+    "t": 679.015,
+    "b": 670.2993939393939
+   },
+   {
+    "text": "Phoenix, Arizona 85004",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 244.33812399999977,
+    "t": 667.015,
+    "b": 658.2993939393939
+   },
+   {
+    "text": "Telephone: (480) 746-4580",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 258.27552599999984,
+    "t": 655.015,
+    "b": 646.2993939393939
+   },
+   {
+    "text": "Facsimile: (480) 746-4556",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 253.59652099999983,
+    "t": 643.015,
+    "b": 634.2993939393939
+   },
+   {
+    "text": "Email:  autumn.lewis@clydeco.us",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 296.05550999999986,
+    "t": 631.015,
+    "b": 622.2993939393939
+   },
+   {
+    "text": "ed.tarolli@clydeco.us",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 272.3391979999998,
+    "t": 619.015,
+    "b": 610.2993939393939
+   },
+   {
+    "text": "Attorneys for Defendant, SOUTHWEST AIRLINES CO.",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 282.87432499999994,
+    "t": 595.015,
+    "b": 574.2993939393939
+   },
+   {
+    "text": "UNITED STATES DISTRICT COURT DISTRICT OF ARIZONA",
+    "label": "section_header",
+    "layer": "body",
+    "page": 1,
+    "l": 226.19,
+    "r": 454.12979800000005,
+    "t": 545.935,
+    "b": 513.2193939393939
+   },
+   {
+    "text": "Penelope Ann Harod, an individual, Plaintiff,",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 101.51,
+    "r": 303.1488509999999,
+    "t": 475.015,
+    "b": 442.29939393939395
+   },
+   {
+    "text": "v.",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 137.51,
+    "r": 151.57788099999996,
+    "t": 427.015,
+    "b": 418.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 339.83199,
+    "t": 475.015,
+    "b": 466.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 463.015,
+    "b": 454.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 451.015,
+    "b": 442.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 439.015,
+    "b": 430.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 427.015,
+    "b": 418.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 415.015,
+    "b": 406.29939393939395
+   },
+   {
+    "text": "Southwest Airlines Co., a Texas Corporation; Black Corporations 1-10;",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 101.51,
+    "r": 322.60456099999976,
+    "t": 403.015,
+    "b": 382.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 403.015,
+    "b": 394.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 391.015,
+    "b": 382.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 379.015,
+    "b": 370.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 367.015,
+    "b": 358.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 343.33949,
+    "t": 355.015,
+    "b": 346.29939393939395
+   },
+   {
+    "text": "White Partnerships 1-10; and Does 1-100, Defendants.",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 101.51,
+    "r": 337.21703799999995,
+    "t": 379.015,
+    "b": 346.29939393939395
+   },
+   {
+    "text": ")",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.16,
+    "r": 339.83199,
+    "t": 343.015,
+    "b": 334.29939393939395
+   },
+   {
+    "text": "Southwest Airlines Co. ('Southwest Airlines'), by and through its attorneys, Clyde & Co US LLP, hereby removes this pending action from the Superior Court of the State of Arizona for Maricopa County to the United States District Court for the District of Arizona pursuant to 28 U.S.C. Sections 1331, 1332, 1441, and 1446. This Court  may  and  should  take  jurisdiction  over  this  action  for  all  purposes  for  the following reasons:",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 579.5653320000004,
+    "t": 305.455,
+    "b": 176.73939393939395
+   },
+   {
+    "text": "INTRODUCTION",
+    "label": "section_header",
+    "layer": "body",
+    "page": 1,
+    "l": 282.35,
+    "r": 394.488984,
+    "t": 137.45499999999993,
+    "b": 128.73939393939395
+   },
+   {
+    "text": "This action arises out of an incident on or about October 20, 2024, when plaintiff Penelope Ann Harod ('plaintiff') was refused travel on Southwest Airlines' flight No. 3843 from Milwaukee to Dallas when she appeared to be intoxicated.",
+    "label": "list_item",
+    "layer": "body",
+    "page": 1,
+    "l": 100.8,
+    "r": 579.5611229999997,
+    "t": 113.45500000000004,
+    "b": 56.73939393939395
+   },
+   {
+    "text": "1",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 335.51,
+    "r": 341.51,
+    "t": 48.23000000000002,
+    "b": 40.77545454545452
+   },
+   {
+    "text": "Case No.",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 357.12,
+    "r": 415.5816069999999,
+    "t": 475.015,
+    "b": 466.29939393939395
+   },
+   {
+    "text": "NOTICE OF REMOVAL OF DEFENDANT SOUTHWEST AIRLINES CO. TO UNITED STATES DISTRICT COURT [28 U.S.C. SECTIONS 1331, 1332, 1441, AND 1446]",
+    "label": "text",
+    "layer": "body",
+    "page": 1,
+    "l": 357.12,
+    "r": 551.669801,
+    "t": 439.015,
+    "b": 370.29939393939395
+   },
+   {
+    "text": "NOTICE OF REMOVAL OF DEFENDANT SOUTHWEST AIRLINES CO. TO UNITED STATES DISTRICT COURT [28 U.S.C. SECTIONS 1331, 1332, 1441, AND 1446]",
+    "label": "page_footer",
+    "layer": "furniture",
+    "page": 1,
+    "l": 118.92,
+    "r": 562.2732,
+    "t": 34.190000000000055,
+    "b": 13.649393939393917
+   },
+   {
+    "text": "CLYDE & CO US LLP One North Central Avenue, Suite 1030 Phoenix, Arizona 85004 Telephone: (480) 746-4580",
+    "label": "page_header",
+    "layer": "furniture",
+    "page": 5,
+    "l": 22.555,
+    "r": 65.59917127071823,
+    "t": 469.514,
+    "b": 315.35
+   },
+   {
+    "text": "Case 2:26-cv-05215-JFM     Document 1     Filed 07/23/26     Page 5 of 7",
+    "label": "page_header",
+    "layer": "furniture",
+    "page": 5,
+    "l": 112.41,
+    "r": 499.5900000000007,
+    "t": 777.774,
+    "b": 767.151923076923
+   },
+   {
+    "text": "1",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 713.935,
+    "b": 705.2193939393939
+   },
+   {
+    "text": "2",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 689.935,
+    "b": 681.2193939393939
+   },
+   {
+    "text": "3",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 665.935,
+    "b": 657.2193939393939
+   },
+   {
+    "text": "4",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 641.935,
+    "b": 633.2193939393939
+   },
+   {
+    "text": "5",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 617.935,
+    "b": 609.2193939393939
+   },
+   {
+    "text": "6",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 593.935,
+    "b": 585.2193939393939
+   },
+   {
+    "text": "7",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 569.935,
+    "b": 561.2193939393939
+   },
+   {
+    "text": "8",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 545.935,
+    "b": 537.2193939393939
+   },
+   {
+    "text": "9",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 83.03,
+    "r": 90.045,
+    "t": 521.935,
+    "b": 513.2193939393939
+   },
+   {
+    "text": "10",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 497.935,
+    "b": 489.21939393939397
+   },
+   {
+    "text": "11",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 473.935,
+    "b": 465.21939393939397
+   },
+   {
+    "text": "12",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 449.935,
+    "b": 441.21939393939397
+   },
+   {
+    "text": "13",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 425.935,
+    "b": 417.21939393939397
+   },
+   {
+    "text": "14",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 401.935,
+    "b": 393.21939393939397
+   },
+   {
+    "text": "15",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 377.935,
+    "b": 369.21939393939397
+   },
+   {
+    "text": "16",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 353.935,
+    "b": 345.21939393939397
+   },
+   {
+    "text": "17",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 329.935,
+    "b": 321.21939393939397
+   },
+   {
+    "text": "18",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 305.935,
+    "b": 297.21939393939397
+   },
+   {
+    "text": "19",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 281.935,
+    "b": 273.21939393939397
+   },
+   {
+    "text": "20",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 257.93499999999995,
+    "b": 249.21939393939397
+   },
+   {
+    "text": "21",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 233.93499999999995,
+    "b": 225.21939393939397
+   },
+   {
+    "text": "22",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 209.93499999999995,
+    "b": 201.21939393939397
+   },
+   {
+    "text": "23",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 185.93499999999995,
+    "b": 177.21939393939397
+   },
+   {
+    "text": "24",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 161.93499999999995,
+    "b": 153.21939393939397
+   },
+   {
+    "text": "25",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 137.93499999999995,
+    "b": 129.21939393939397
+   },
+   {
+    "text": "26",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 113.93499999999995,
+    "b": 105.21939393939397
+   },
+   {
+    "text": "27",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 89.93499999999995,
+    "b": 81.21939393939397
+   },
+   {
+    "text": "28",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 75.96,
+    "r": 90.04471699999999,
+    "t": 65.93499999999995,
+    "b": 57.21939393939397
+   },
+   {
+    "text": "citizenship between these parties for purposes of establishing diversity jurisdiction under 28 U.S.C. Section 1332(a)(2).",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 100.8,
+    "r": 579.5400779999998,
+    "t": 713.935,
+    "b": 681.2193939393939
+   },
+   {
+    "text": "B. The Amount In Controversy Exceeds $75,000",
+    "label": "section_header",
+    "layer": "body",
+    "page": 5,
+    "l": 100.8,
+    "r": 403.2390979999997,
+    "t": 665.935,
+    "b": 657.2193939393939
+   },
+   {
+    "text": "19. Where an amount in controversy is not stated in a complaint, removal is proper  if,  from  the  allegations  of  the  Complaint  and  the  Notice  of  Removal,  the moving party can establish, by a preponderance of the evidence, that the amount in controversy meets the jurisdictional amount. See 28 U.S.C. Section 1446(c)(2)(B); Rodriguez v. AT& T Mobility Service , 728 F.3d 975, 977 (9th Cir. 2013).  Under this standard, the defendant must show, based on allegations in the complaint or by use of extrinsic  evidence,  that  it  is  'more  likely  than  not  that  the  amount  in  controversy exceeds [the jurisdictional amount].' Guglielmino v. McKee Foods Corp. , 506 F.3d 696, 699 (9th Cir. 2007).",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 100.8,
+    "r": 579.5863769999999,
+    "t": 641.935,
+    "b": 441.21939393939397
+   },
+   {
+    "text": "20. The Ninth Circuit has held demand letters sent during the course of a state  court  action  can  constitute  an  'other  paper'  for  purposes  of  establishing  an amount in controversy under 28 U.S.C. Section 1446. See Babasa v. Lenscrafters, Inc ., 498 F.3d 972, 975 (9th Cir. 2007); Cohn v. Petsmart, Inc ., 281 F.3d 837, 840 (9th Cir. 2002).",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 100.8,
+    "r": 579.5527049999997,
+    "t": 425.935,
+    "b": 321.21939393939397
+   },
+   {
+    "text": "21. Plaintiff  seeks  compensatory,  general  and  special  damages  in  her complaint, as well as punitive damages, all in an unspecified amount she seeks to establish at trial, likely in excess of $75,000. Plaintiff's Compl. - Exh. B at \u00b6 45. However,  in  her  pre-suit  communications,  plaintiff  demanded  settlement  in  the amount  of  $150,000,  which  clearly  exceeds  the  $75,000  amount  in  controversy required under statute. Plaintiff's Demand Letter - Exh. A at p. 5.",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 100.8,
+    "r": 579.5751529999999,
+    "t": 305.935,
+    "b": 177.21939393939397
+   },
+   {
+    "text": "22. In light of the foregoing, because there is complete diversity between plaintiff and Southwest Airlines and the amount in controversy exceeds the sum or value of $75,000, exclusive of interest and costs, this Court has original jurisdiction and supplemental jurisdiction over this action pursuant to 28 U.S.C. Sections 1332, 1367 and 1441(a).",
+    "label": "text",
+    "layer": "body",
+    "page": 5,
+    "l": 100.8,
+    "r": 579.5633719999996,
+    "t": 161.93499999999995,
+    "b": 57.21939393939397
+   },
+   {
+    "text": "5",
+    "label": "page_footer",
+    "layer": "furniture",
+    "page": 5,
+    "l": 335.51,
+    "r": 341.51,
+    "t": 48.23000000000002,
+    "b": 40.77545454545452
+   },
+   {
+    "text": "NOTICE OF REMOVAL OF DEFENDANT SOUTHWEST AIRLINES CO. TO UNITED STATES DISTRICT COURT [28 U.S.C. SECTIONS 1331, 1332, 1441, AND 1446]",
+    "label": "page_footer",
+    "layer": "furniture",
+    "page": 5,
+    "l": 118.92,
+    "r": 562.2732,
+    "t": 34.190000000000055,
+    "b": 13.649393939393917
+   }
+  ]
+ }
+]
