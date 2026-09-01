@@ -56,7 +56,7 @@ def test_a_year_within_tolerance_is_not_a_disagreement() -> None:
 def test_an_absent_field_excludes_nothing() -> None:
     """A filing that states no court or year rules out no candidate on either."""
     result = narrow(
-        CitationFacts(case_name="Doe v. Roe"),
+        CitationFacts(plaintiff="Doe", defendant="Roe"),
         [
             candidate("a", court_id="ca9", year="1994"),
             candidate("b", court_id="ca2", year="2020"),
@@ -78,10 +78,23 @@ def test_a_candidate_missing_the_field_is_not_excluded_on_it() -> None:
     assert [item.candidate.identifier for item in result.kept] == ["silent"]
 
 
+def test_a_lookup_record_without_a_court_is_never_excluded_on_it() -> None:
+    """The citation-lookup endpoint returns no court field at all.
+
+    `validation/court_retrieval` fetches the docket to get one, a request per
+    candidate, which is why the court comparison cannot fire on this route.
+    Nothing here may treat that absence as a disagreement.
+    """
+    records = [candidate(f"r{index}", case_name="Smith v. Jones", year="2007") for index in range(4)]
+    result = narrow(CitationFacts(court_id="ca9", year="2007"), records, limit=LIMIT)
+    assert len(result.kept) == 4
+    assert all(item.court_agrees is None for item in result.considered)
+
+
 def test_a_name_disagreement_never_excludes() -> None:
     """A disagreeing case name is the defect being looked for, so it is kept."""
     result = narrow(
-        CitationFacts(case_name="Cornhill LLC v. Sowers", court_id="nyappdiv", year="2020"),
+        CitationFacts(plaintiff="Cornhill LLC", defendant="Sowers", court_id="nyappdiv", year="2020"),
         [candidate("other", case_name="Goodine v. Evans", court_id="nyappdiv", year="2020")],
         limit=LIMIT,
     )
@@ -90,18 +103,71 @@ def test_a_name_disagreement_never_excludes() -> None:
     assert result.kept[0].name_agrees is False
 
 
-def test_an_agreeing_name_ranks_first() -> None:
-    """The candidate whose name matches the filing is offered first."""
+def test_a_conventionally_abbreviated_name_still_agrees() -> None:
+    """`Reyes v. Pac. Bell` is how a filing writes `Victor Reyes v. Pacific Bell`.
+
+    Comparing the two names for equality would report a disagreement for almost
+    every correct citation, so the containment rule in
+    `validation/duplicate_clusters.py` is used instead.
+    """
     result = narrow(
-        CitationFacts(case_name="Doe  v.   Roe", court_id="ca9", year="2007"),
+        CitationFacts(plaintiff="Reyes", defendant="Pac. Bell"),
+        [
+            candidate("theirs", case_name="Victor Reyes v. Pacific Bell"),
+            candidate("other", case_name="Michael A Nolt v. George Herman"),
+        ],
+        limit=LIMIT,
+    )
+    assert result.kept[0].candidate.identifier == "theirs"
+    assert result.kept[0].name_agrees is True
+    assert result.kept[1].name_agrees is False
+
+
+def test_a_filing_naming_too_little_compares_no_name() -> None:
+    """One distinctive word matches any record sharing one party, so it is not used."""
+    result = narrow(
+        CitationFacts(plaintiff="Smith"),
+        [candidate("a", case_name="Smith v. Jones"), candidate("b", case_name="Smith v. Brown")],
+        limit=LIMIT,
+    )
+    assert all(item.name_agrees is None for item in result.considered)
+
+
+def test_an_unnamed_record_compares_no_name() -> None:
+    """An empty name field is no evidence, not a disagreement."""
+    result = narrow(
+        CitationFacts(plaintiff="Doe", defendant="Roe"),
+        [candidate("blank", case_name="")],
+        limit=LIMIT,
+    )
+    assert result.kept[0].name_agrees is None
+
+
+def test_an_agreeing_name_ranks_first() -> None:
+    """The candidate carrying the filing's party names is offered first."""
+    result = narrow(
+        CitationFacts(plaintiff="Doe", defendant="Roe", court_id="ca9", year="2007"),
         [
             candidate("mismatch", case_name="Smith v. Jones", court_id="ca9", year="2007"),
-            candidate("match", case_name="doe v. roe", court_id="ca9", year="2007"),
+            candidate("match", case_name="Doe v. Roe", court_id="ca9", year="2007"),
         ],
         limit=LIMIT,
     )
     assert result.kept[0].candidate.identifier == "match"
     assert result.kept[0].name_agrees is True
+
+
+def test_a_name_that_could_not_be_compared_ranks_above_one_that_disagrees() -> None:
+    """An unknown is a weaker signal against a candidate than a clear disagreement."""
+    result = narrow(
+        CitationFacts(plaintiff="Doe", defendant="Roe"),
+        [
+            candidate("disagrees", case_name="Smith v. Jones"),
+            candidate("unknown", case_name=""),
+        ],
+        limit=LIMIT,
+    )
+    assert [item.candidate.identifier for item in result.kept] == ["unknown", "disagrees"]
 
 
 def test_excluding_every_candidate_is_withheld() -> None:

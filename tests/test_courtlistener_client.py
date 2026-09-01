@@ -25,12 +25,14 @@ class FakeResponse:
         url: str = "https://example.test/citation-lookup/",
         *,
         json_error: bool = False,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self._payload = payload
         self.status_code = status_code
         self.url = url
         self.text = "not-json" if json_error else json.dumps(payload)
         self._json_error = json_error
+        self.headers = headers or {}
 
     def json(self) -> Any:
         """Return the configured JSON payload or simulate invalid JSON."""
@@ -259,3 +261,55 @@ class CourtListenerClientTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_a_named_pool_is_sent_as_a_header() -> None:
+    """A caching proxy can offer several request allowances; this picks one.
+
+    It is how a small targeted run reaches an allowance a bulk sweep has not
+    spent. Against CourtListener directly the header means nothing, so sending
+    it is harmless.
+    """
+    client = CourtListenerClient(CourtListenerConfig(base_url="https://proxy.test/", pool="reserved"))
+
+    headers = client._headers()  # noqa: SLF001
+
+    assert headers["x-cl-pool"] == "reserved"
+
+
+def test_no_pool_header_is_sent_by_default() -> None:
+    """An ordinary run must not reach a reserved allowance by accident."""
+    client = CourtListenerClient(CourtListenerConfig(base_url="https://proxy.test/"))
+
+    assert "x-cl-pool" not in client._headers()  # noqa: SLF001
+
+
+class CacheMarkerTests(unittest.TestCase):
+    """The client has to pass on whether a response cost any allowance."""
+
+    def test_a_cache_hit_is_reported(self) -> None:
+        """A caller pacing itself against the allowance must not pace free reads."""
+        session = FakeSession([FakeResponse({"count": 0, "results": []}, headers={"x-cache": "hit"})])
+        client = CourtListenerClient(CourtListenerConfig(base_url="https://example.test/"), session)
+
+        client.search("Brown", "o")
+
+        assert client.last_response_cached is True
+
+    def test_a_miss_is_reported(self) -> None:
+        """A miss spent a request, so the caller has to slow down."""
+        session = FakeSession([FakeResponse({"count": 0, "results": []}, headers={"x-cache": "miss"})])
+        client = CourtListenerClient(CourtListenerConfig(base_url="https://example.test/"), session)
+
+        client.search("Brown", "o")
+
+        assert client.last_response_cached is False
+
+    def test_a_service_that_does_not_answer_the_question_counts_as_a_miss(self) -> None:
+        """CourtListener itself sends no such header, and every read there is spent."""
+        session = FakeSession([FakeResponse({"count": 0, "results": []})])
+        client = CourtListenerClient(CourtListenerConfig(base_url="https://example.test/"), session)
+
+        client.search("Brown", "o")
+
+        assert client.last_response_cached is False

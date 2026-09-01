@@ -1,17 +1,25 @@
 """Separating candidates at one locator using only what the filing already states.
 
-This is the search loop's first move, and it sends no request. When an exact
-locator lookup returns several clusters for one volume, reporter and page, the
-clusters are already in hand, so comparing them against the court, year and case
-name the filing itself wrote costs nothing. Only when that fails to separate
-them does anything have to be asked of CourtListener.
+This is the search loop's first move, and it sends no request. When a lookup
+returns several records for one volume, reporter and page, the records are
+already in hand, so comparing them against the court, year and party names the
+filing itself wrote costs nothing. Only when that fails to separate them does
+anything have to be asked of CourtListener.
 
-The move matters because the pipeline currently makes no move at all here.
-`validation/candidate_selection.py` caps candidate evaluation at three, and a
-locator returning more clusters than that is deferred with zero candidates
-selected -- no case-name check, no year check, no court check runs against any
-of them. Section 5 of `exploration/notes/agentic-search-population.md` counts 23
-citations in 1,334 that reach no verdict for that reason.
+It runs after the two free moves the pipeline already makes.
+`validation/duplicate_clusters.py` merges the records that are one decision the
+archive holds more than once, and `validation/candidate_selection.py` then picks
+out the records carrying the case name the filing wrote. Narrowing is for what
+is left: a page where the name matched nothing, or matched too many.
+
+**Which fields are actually available depends on the route.** A record from the
+citation-lookup endpoint carries a case name and a decision date and **no
+court** -- the payload has no court field, which is why
+`validation/court_retrieval` fetches the docket to get one, a request per
+candidate. A search result does carry `court_id`. So on the ambiguous-locator
+route the court comparison never fires and the year and the names do the work;
+on a search route all three do. Nothing here treats the absent court as a
+disagreement, so the two routes need no separate code path.
 
 Three rules keep this from becoming a way to hide findings.
 
@@ -23,7 +31,7 @@ applies to a missing record.
 **A case-name disagreement never excludes.** `case_name_mismatch` is the defect
 this stage exists to find, so a candidate whose name disagrees with the filing
 is exactly the candidate worth looking at. A name that agrees promotes a
-candidate; a name that disagrees does nothing.
+candidate; a name that disagrees only ranks it last.
 
 **Narrowing never returns an empty set.** If every candidate is contradicted,
 the contradiction is more likely to be in the filing than in all of them at
@@ -38,6 +46,8 @@ import contextlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
+
+from mellea_lrc.validation.duplicate_clusters import name_covers, name_words
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -59,7 +69,14 @@ __all__ = [
 # amended after it was first filed. One year is therefore not a disagreement,
 # and two or more is: `run_year_check` still reports the exact comparison, and
 # this tolerance governs only whether a candidate is dropped from consideration.
+# The search query built in `case_search` uses the same window for the same
+# reason.
 YEAR_TOLERANCE = 1
+
+# A case name must reduce to at least this many distinctive words before it can
+# be compared. `validation/duplicate_clusters.py` sets the same floor, and for
+# the same reason: one word matches any record sharing one party.
+MINIMUM_NAME_WORDS = 2
 
 
 class NarrowingOutcome(str, Enum):
@@ -77,9 +94,14 @@ class NarrowingOutcome(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class CitationFacts:
-    """What the filing itself says about the case it is citing."""
+    """What the filing itself says about the case it is citing.
 
-    case_name: str | None = None
+    The parties are held apart rather than as one name because that is how the
+    citation carries them and how the name comparison consumes them.
+    """
+
+    plaintiff: str | None = None
+    defendant: str | None = None
     court_id: str | None = None
     year: str | None = None
 
@@ -101,7 +123,8 @@ class NarrowedCandidate:
     citation: CitationFacts
     candidate: CandidateFacts
     outcome: NarrowingOutcome
-    name_agrees: bool
+    name_agrees: bool | None
+    """``None`` where the filing named too little to compare, or the record is unnamed."""
     court_agrees: bool | None
     """``None`` where either side states no court, so nothing was compared."""
     year_distance: int | None
@@ -121,18 +144,20 @@ class NarrowedCandidate:
                 f"{_show(self.candidate.year)}, {self.year_distance} years apart and "
                 f"beyond the tolerance of {YEAR_TOLERANCE}."
             )
-        parts = ["the case name agrees" if self.name_agrees else "the case name does not agree"]
-        if self.court_agrees is True:
-            parts.append("the court agrees")
-        elif self.court_agrees is None:
-            parts.append("no court could be compared")
+        return "Kept: " + ", ".join(
+            (
+                _phrase(self.name_agrees, "the case name", "no case name could be compared"),
+                _phrase(self.court_agrees, "the court", "no court could be compared"),
+                self._year_phrase(),
+            )
+        )
+
+    def _year_phrase(self) -> str:
+        if self.year_distance is None:
+            return "no year could be compared"
         if self.year_distance == 0:
-            parts.append("the year agrees")
-        elif self.year_distance is None:
-            parts.append("no year could be compared")
-        else:
-            parts.append(f"the year is {self.year_distance} away")
-        return "Kept: " + ", ".join(parts) + "."
+            return "the year agrees"
+        return f"the year is {self.year_distance} away"
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,7 +215,8 @@ def narrow(
     if limit < 1:
         msg = "Narrowing requires a limit of at least one candidate"
         raise ValueError(msg)
-    compared = [_compare(citation, candidate) for candidate in candidates]
+    written = name_words(citation.plaintiff) | name_words(citation.defendant)
+    compared = [_compare(citation, candidate, written) for candidate in candidates]
     kept = [item for item in compared if item.outcome is NarrowingOutcome.KEPT]
     withheld = bool(compared) and not kept
     if withheld:
@@ -198,7 +224,6 @@ def narrow(
         # page, which is a finding about the filing rather than about any one
         # candidate. Reporting no candidates would read as a locator miss.
         compared = [_kept(item) for item in compared]
-        kept = list(compared)
     ranked = tuple(sorted(compared, key=_rank))
     return Narrowing(
         considered=ranked,
@@ -208,7 +233,11 @@ def narrow(
     )
 
 
-def _compare(citation: CitationFacts, candidate: CandidateFacts) -> NarrowedCandidate:
+def _compare(
+    citation: CitationFacts,
+    candidate: CandidateFacts,
+    written: set[str],
+) -> NarrowedCandidate:
     """Compare one candidate against the filing without excluding on an absence."""
     court_agrees = _court_agrees(citation.court_id, candidate.court_id)
     year_distance = _year_distance(citation.year, candidate.year)
@@ -222,7 +251,7 @@ def _compare(citation: CitationFacts, candidate: CandidateFacts) -> NarrowedCand
         citation=citation,
         candidate=candidate,
         outcome=outcome,
-        name_agrees=_names_agree(citation.case_name, candidate.case_name),
+        name_agrees=_name_agrees(written, candidate.case_name),
         court_agrees=court_agrees,
         year_distance=year_distance,
     )
@@ -243,21 +272,39 @@ def _kept(item: NarrowedCandidate) -> NarrowedCandidate:
 
 
 def _rank(item: NarrowedCandidate) -> tuple[int, int, int, int, str]:
-    """Order candidates best first: kept, then name, court, and year agreement."""
+    """Order candidates best first: kept, then name, court and year agreement.
+
+    A comparison that could not be made ranks between agreement and
+    disagreement. A record the filing's words are absent from is the least
+    likely to be the case the filing meant, and a record with nothing to
+    compare is merely unknown.
+    """
     return (
         0 if item.outcome is NarrowingOutcome.KEPT else 1,
-        0 if item.name_agrees else 1,
-        {True: 0, None: 1, False: 2}[item.court_agrees],
+        _order(item.name_agrees),
+        _order(item.court_agrees),
         item.year_distance if item.year_distance is not None else YEAR_TOLERANCE + 1,
         item.candidate.identifier,
     )
 
 
-def _names_agree(extracted: str | None, retrieved: str | None) -> bool:
-    """Compare case names the way `run_exact_case_name_check` does."""
-    if extracted is None or retrieved is None:
-        return False
-    return _normalize(extracted) == _normalize(retrieved)
+def _order(agreement: bool | None) -> int:
+    """Rank one three-valued comparison: agrees, could not compare, disagrees."""
+    return {True: 0, None: 1, False: 2}[agreement]
+
+
+def _name_agrees(written: set[str], recorded: str | None) -> bool | None:
+    """Whether a record carries the party names the filing wrote.
+
+    Uses the same containment rule as `validation/duplicate_clusters.py`, which
+    tolerates the abbreviations a citation conventionally uses -- `Reyes v.
+    Pac. Bell` against `Victor Reyes v. Pacific Bell`. Comparing the two names
+    for equality instead would report a disagreement for almost every correct
+    citation.
+    """
+    if len(written) < MINIMUM_NAME_WORDS or not recorded:
+        return None
+    return name_covers(name_words(recorded), written)
 
 
 def _court_agrees(extracted: str | None, retrieved: str | None) -> bool | None:
@@ -285,9 +332,11 @@ def _year(value: str | None) -> int | None:
     return None
 
 
-def _normalize(value: str) -> str:
-    """Collapse whitespace and case, as the exact case-name check does."""
-    return " ".join(value.split()).casefold()
+def _phrase(agreement: bool | None, subject: str, absent: str) -> str:
+    """Render one three-valued comparison for a reason sentence."""
+    if agreement is None:
+        return absent
+    return f"{subject} agrees" if agreement else f"{subject} does not agree"
 
 
 def _show(value: str | None) -> str:
