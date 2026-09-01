@@ -15,10 +15,17 @@ Three entrypoints, differing only in where the text comes from:
 There is deliberately no entrypoint taking a ``PreprocessedDocument``. Nothing
 serializes one, so it cannot cross a process boundary, and a caller holding one
 is already inside the library.
+
+All three take the same ``relaxation`` keyword, which is the one thing that
+decides how much whitespace damage a citation may carry and still be found.
+There is no separate relaxed extractor and no text repair anywhere behind them:
+one code path, one parameter. See :class:`Relaxation` for the three levels and
+what each one costs.
 """
 
 from mellea_lrc.extraction.eyecite_extractor import extract_from_plain_text
 from mellea_lrc.extraction.pipeline import extract, extract_from_raw_document
+from mellea_lrc.extraction.relaxation import Relaxation
 from mellea_lrc.extraction.types import (
     ExtractedCitation,
     ExtractedDocument,
@@ -31,6 +38,7 @@ __all__ = [
     "ExtractedDocument",
     "ExtractionBackend",
     "ExtractionMetadata",
+    "Relaxation",
     "extract",
     "extract_from_plain_text",
     "extract_from_raw_document",
