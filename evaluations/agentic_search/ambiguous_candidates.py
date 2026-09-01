@@ -230,16 +230,30 @@ def _explain(locator: Locator, clusters: Sequence[CourtListenerOpinionCluster]) 
     """What the filing wrote against what the archive puts on the page.
 
     A page carrying many unrelated cases is a table of decisions, where a
-    reporter prints unpublished dispositions alphabetically. Showing the names
-    the archive holds beside the name the filing wrote is what distinguishes a
-    filing naming a case the page does not carry from a filing whose parties
-    were never recovered in the first place.
+    reporter prints unpublished dispositions. Showing the names the archive
+    holds beside the name the filing wrote distinguishes a filing naming a case
+    the page does not carry from a filing whose parties were never recovered.
+
+    The alphabetical range is reported because a contiguous slice of an
+    alphabetical table would bound the page, and a name sorting outside those
+    bounds could not be on it. Measured, the ranges are not contiguous slices:
+    `788 F.2d 9` runs from `Acker` to `United States v. Martinez` in 27 records,
+    so the bound establishes nothing and the range is shown as a description
+    rather than as a test.
     """
-    names = sorted({cluster.case_name or "(unnamed)" for cluster in clusters})
-    shown = names[:6]
-    more = f", and {len(names) - len(shown)} more" if len(names) > len(shown) else ""
-    written = " v. ".join(part for part in (locator.plaintiff, locator.defendant) if part) or "(no parties)"
-    return f"      {locator}: the filing writes {written!r}; the page holds {', '.join(shown)}{more}"
+    named = sorted(cluster.case_name for cluster in clusters if cluster.case_name)
+    written = " v. ".join(part for part in (locator.plaintiff, locator.defendant) if part)
+    if not written:
+        return f"      {locator}: the filing recovered no parties; {len(named)} named records on the page"
+    if not named:
+        return f"      {locator}: the filing writes {written!r}; no record on the page is named"
+    span = f"{named[0]!r} .. {named[-1]!r}"
+    inside = named[0].casefold() <= written.casefold() <= named[-1].casefold()
+    place = "inside" if inside else "outside"
+    return (
+        f"      {locator}: the filing writes {written!r}; {len(named)} named records "
+        f"running {span}, which the written name sorts {place}"
+    )
 
 
 def report(tally: Tally, requests_made: int, misses: int, *, limit: int) -> str:

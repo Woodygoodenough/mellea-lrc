@@ -117,8 +117,8 @@ move and, on this route, contributes nothing. Section 6 says what follows.
 ## 5. The nine that are left are all crowded pages
 
 Each of the nine returns between 7 and 32 records, and the case name the filing
-wrote matches none of them. These are tables of decisions: the reporter prints
-unpublished dispositions many to a page, alphabetically.
+wrote matches none of them. These are tables of decisions, where a reporter
+prints unpublished dispositions many to a page.
 
 | citation | records | what the filing wrote | what the page holds |
 |---|---:|---|---|
@@ -134,32 +134,49 @@ unpublished dispositions many to a page, alphabetically.
 
 They divide in two.
 
-**Six state a name the page does not carry.** For five of those six the name
-sorts outside the alphabetical range the page covers — Sprague against a page
-running K to M, Charles against H to K, Conley against G to H. For
-`607 F.2d 1001` the name sorts *inside* the range: the page runs Alford, Allen,
-Baltimore, and there is no `All, Inc.` between Alford and Allen.
+**Six state a name that no record on the page carries.** `688 F.2d 816` writes
+`Sprague v. General Motors Corp.` against 25 Second Circuit table entries;
+`44 So. 3d 587` writes `Conley v. Gibson`, which is a 1957 Supreme Court case at
+355 U.S. 41, against seven Florida entries.
 
 **Three never had a name to compare.** `622 F.2d 589` yields no parties at all,
 `998 So. 2d 614` an empty plaintiff, and `788 F.2d 9` a damaged one — eyecite
 reads `(In re Slimick), 788 F.2d 9` and recovers `In Slimick)`. Those are
-extraction failures, and the fix for them is in extraction rather than in
-search.
+extraction failures and the fix for them is in extraction, not in search.
 
-### 5.1 A page-name comparison does not need a search
+### 5.1 The alphabetical range does not bound the page
 
-Section 6's conclusion turns on this. The first six of the nine are not waiting
-on a query: the evidence needed to say something about them is already in the
-lookup response. What is missing is not a request, it is a rule for what an
-absence on a crowded page may be taken to mean.
+A table of decisions is printed alphabetically, so a page's records ought to be
+a contiguous alphabetical slice, and a name sorting outside that slice could not
+be on the page. That would turn an absence into evidence without any request,
+and it is the only free move left for these nine.
 
-`validation/duplicate_clusters.py` deliberately declines to say anything there,
-and its reason is correct as far as it goes: nothing matching does not
-distinguish a filing naming a case that is not on the page from an archive
-holding only part of the page. A table of decisions is alphabetical, so the
-records the archive does hold bound the page, and a name sorting outside those
-bounds cannot be on it. That is a claim worth testing and this note does not
-make it — see section 7.
+**It does not hold.** The ranges are measured and they are not contiguous
+slices:
+
+| citation | named records run from | to | the written name sorts |
+|---|---|---|---|
+| 788 F.2d 9 | Acker, in Re | United States v. Martinez | inside |
+| 986 F.2d 1418 | Boulevard Bank v. Galveston Indpt | White v. Strauss | inside |
+| 607 F.2d 1001 | Alford v. McLamb | Johnson v. Collins | inside |
+| 554 F.2d 1071 | United States v. Anderson | United States v. Mignot | inside |
+| 998 So. 2d 614 | DEWITT v. State | Galenus Complex Condo. Ass'n | inside |
+| 688 F.2d 816 | Kulwiec, in Re | Smalls v. Fogg | outside |
+| 720 F.2d 679 | Hunter v. Kirk & Blum Mfg. Co | State of Ohio v. Slanco | outside |
+| 44 So. 3d 587 | Galeana v. Galeana | Haynes v. State | outside |
+
+`788 F.2d 9` spans A to U in 27 records and `986 F.2d 1418` spans B to W. A page
+covering most of the alphabet is not a slice of one, so the range bounds
+nothing, and the three that sort outside cannot be distinguished from the five
+that sort inside on that basis.
+
+`622 F.2d 589` is not in the table because no parties were recovered from it.
+
+So the standing rule holds unchanged for all nine: **the archive not holding the
+case at that page is not evidence the case is not there.** No free move settles
+them, and section 11 of `open-ended-search.md` closes the other route — the
+unpublished dispositions that fill a table page are reachable by citation lookup
+and absent from search, so a query cannot settle them either.
 
 ### 5.2 Every one of the nine is labelled `sound`, and several are not
 
@@ -177,13 +194,16 @@ evidence for this paragraph, and it is not a rate.
 
 ## 6. What the loop is left with
 
-**No move in this note needed a search.** Merging, the case-name match, and the
-comparison in section 5.1 all run on records the lookup already returned. After
-them the ambiguous route has nine citations left, and section 5 says six of
-those are decidable from the same records and three are extraction failures.
+The ambiguous route does not justify a loop. Everything that settled a locator
+there was free, everything left over is undecidable from the free record, and
+nothing in between wanted a query.
 
-So the ambiguous route does not justify a loop either. It justifies one more
-free rule and a fix in extraction.
+More precisely, after merging and the case-name match the route has nine
+citations left. Section 5.1 rules out the one free move that might have settled
+them, and section 11 of `open-ended-search.md` rules out a query: a table page's
+unpublished dispositions are reachable by citation lookup and absent from
+search, so the search index does not hold what would answer. Three of the nine
+are extraction failures and belong to that track.
 
 That leaves the loop's case resting on the **79 locators the lookup found
 nothing for** — the search route — and on what a search returns when it runs.
@@ -201,21 +221,23 @@ Measuring that costs request allowance, because a search is not cacheable.
 
 ## 7. What is unmeasured, and what it would cost
 
-1. **Whether an alphabetical bound on a table page is sound.** Section 5.1.
-   Free: it reads records already cached. It needs a rule for establishing that
-   the archive holds enough of a page to bound it, and it asserts an absence,
-   which is the thing this project is most careful about.
-2. **Whether narrowing separates search results.** Section 6. Costs one search
-   per citation, against a budget of roughly 500 requests a day.
-3. **What the ambiguous bucket looks like in real filings.** Every count here is
+1. **Whether narrowing separates search results.** Section 6. Costs one search
+   per citation, against a budget of roughly 500 requests a day, and it is the
+   measurement the loop's justification now rests on.
+2. **What the ambiguous bucket looks like in real filings.** Every count here is
    from a defect-injected corpus whose labels section 5.2 shows to be wrong on
    the citations that matter most. Section 8 of `caselaw-archive.md` found a
    check with 61% label agreement here fired zero times on 135 real filings.
-4. **The three extraction failures in section 5.** `(In re Slimick), 788 F.2d 9`
+   Free.
+3. **The three extraction failures in section 5.** `(In re Slimick), 788 F.2d 9`
    losing its parties to a parenthetical is a defect in extraction, not in
-   search, and belongs to that track.
-
-Items 1, 3 and 4 cost no requests.
+   search, and belongs to that track. Free.
+4. **Whether the Caselaw Access Project settles any of the nine.**
+   `caselaw/cap_index.py` on `experiment/general-explorations` returns every
+   case the printed volume puts at a page, offline and unmetered, from a
+   different digitisation than CourtListener's. It is a second reading of the
+   same page rather than a new kind of evidence, so it may only confirm that the
+   page is crowded — but it costs nothing and the module is not on this branch.
 
 ## 8. A defect in the cherry-picked name comparison
 
