@@ -81,6 +81,9 @@ class Locator:
 class Tally:
     """Counts accumulated over every ambiguous locator seen."""
 
+    looked_up: int = 0
+    not_found: int = 0
+    one_record: int = 0
     ambiguous: int = 0
     merged_to_one: int = 0
     merged_within_limit: int = 0
@@ -95,6 +98,7 @@ class Tally:
     labels_over_limit: Counter[str] = field(default_factory=Counter)
     labels_still_unseparated: Counter[str] = field(default_factory=Counter)
     unseparated: list[str] = field(default_factory=list)
+    explanations: list[str] = field(default_factory=list)
 
 
 def locators(path: Path) -> Iterator[Locator]:
@@ -176,7 +180,12 @@ def _record(
     limit: int,
 ) -> None:
     """Tally one lookup answer, ignoring everything that is not ambiguous."""
-    if len(clusters) <= 1:
+    tally.looked_up += 1
+    if not clusters:
+        tally.not_found += 1
+        return
+    if len(clusters) == 1:
+        tally.one_record += 1
         return
     tally.ambiguous += 1
     tally.records_total += len(clusters)
@@ -214,6 +223,23 @@ def _record(
     tally.still_unseparated += 1
     tally.labels_still_unseparated[locator.label] += 1
     tally.unseparated.append(f"{locator} ({len(clusters)} records, {distinct} distinct, {locator.label})")
+    tally.explanations.append(_explain(locator, clusters))
+
+
+def _explain(locator: Locator, clusters: Sequence[CourtListenerOpinionCluster]) -> str:
+    """What the filing wrote against what the archive puts on the page.
+
+    A page carrying many unrelated cases is a table of decisions, where a
+    reporter prints unpublished dispositions alphabetically. Showing the names
+    the archive holds beside the name the filing wrote is what distinguishes a
+    filing naming a case the page does not carry from a filing whose parties
+    were never recovered in the first place.
+    """
+    names = sorted({cluster.case_name or "(unnamed)" for cluster in clusters})
+    shown = names[:6]
+    more = f", and {len(names) - len(shown)} more" if len(names) > len(shown) else ""
+    written = " v. ".join(part for part in (locator.plaintiff, locator.defendant) if part) or "(no parties)"
+    return f"      {locator}: the filing writes {written!r}; the page holds {', '.join(shown)}{more}"
 
 
 def report(tally: Tally, requests_made: int, misses: int, *, limit: int) -> str:
@@ -221,30 +247,38 @@ def report(tally: Tally, requests_made: int, misses: int, *, limit: int) -> str:
     lines = [
         f"{requests_made} locators looked up, {misses} of them not served from cache.",
         "",
-        f"1. {tally.ambiguous} locators returned more than one record",
+        "1. What the exact locator lookup returned",
+        "-" * 52,
+        f"{tally.one_record:5d}  one record, so nothing has to choose",
+        f"{tally.not_found:5d}  no record, which is the search route's population",
+        f"{tally.ambiguous:5d}  more than one record, which is this loop's population",
+        "",
+        f"2. Separating the {tally.ambiguous} that returned more than one record",
         "-" * 52,
         f"{tally.merged_to_one:5d}  are one decision the archive holds more than once",
         f"{tally.merged_within_limit:5d}  are within the limit of {limit} once duplicates are merged",
         f"{tally.over_limit_after_merging:5d}  still exceed it",
         "",
-        f"2. What separates the {tally.over_limit_after_merging} that exceed the limit",
+        f"3. What separates the {tally.over_limit_after_merging} that exceed the limit",
         "-" * 52,
         f"{tally.name_narrowed:5d}  the case name the filing wrote picks out {limit} or fewer",
         f"{tally.unresolved_after_name:5d}  the case name does not",
         f"{tally.narrowing_separated:5d}    of which the court or year the filing states separates",
         f"{tally.still_unseparated:5d}    of which nothing free separates, so a query is needed",
         "",
-        "3. What the archive's records carry",
+        "4. What the archive's records carry",
         "-" * 52,
         f"{tally.records_with_court:5d} of {tally.records_total} records state a court",
         f"{tally.records_with_date:5d} of {tally.records_total} records state a decision date",
     ]
     if tally.labels_over_limit:
-        lines += ["", "4. Label of the locators that exceed the limit after merging", "-" * 52]
+        lines += ["", "5. Label of the locators that exceed the limit after merging", "-" * 52]
         lines += [f"{count:5d}  {label}" for label, count in tally.labels_over_limit.most_common()]
     if tally.unseparated:
-        lines += ["", "5. The locators nothing free separates", "-" * 52]
+        lines += ["", "6. The locators nothing free separates", "-" * 52]
         lines += [f"      {entry}" for entry in tally.unseparated]
+        lines += ["", "7. What each of them wrote, against what the page holds", "-" * 52]
+        lines += tally.explanations
     return "\n".join(lines)
 
 

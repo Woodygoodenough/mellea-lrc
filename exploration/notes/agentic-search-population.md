@@ -1,42 +1,43 @@
 # What a search loop would have to work on
 
-The search stage's target is the ambiguous locator, not the unresolved one.
-This note is the count behind that, and it is what section 2 of
-`agentic-search-handoff.md` rests on. Written 1 September 2026, before any of
-the loop was written.
+Three free moves settle almost every ambiguous locator, and nine citations in
+659 are left over. This note is the count behind that, and behind section 1 of
+`agentic-search-handoff.md`. Written 1 September 2026.
 
-Two buckets are in question. A locator is `unresolved` when CourtListener holds
-no case at the cited volume, reporter and page; it is `ambiguous` when
-CourtListener returns more than one case there and something has to decide which
-one the filing meant.
+Two buckets are in question. A locator is **unresolved** when CourtListener
+holds no case at the cited volume, reporter and page; it is **ambiguous** when
+CourtListener returns more than one record there and something has to decide
+which one the filing meant.
 
 ## 1. Where the numbers come from
 
-One run of `evaluations/lephantomcite/locator_probe.py` over 390 LePhantomCite
-excerpts, 1,334 case citations, on 31 August 2026. The probe looks each citation
-up by volume, reporter and page and records what the lookup alone established.
-No model is involved and no search is run. Its output is a run artifact rather
-than a tracked file.
+Two measurements over the same corpus, the 390-excerpt LePhantomCite evaluation
+split.
 
-The counts below are produced by
-`evaluations/agentic_search/search_population.py`, which reads that file, parses
-each citation with eyecite and counts. It sends no requests, so re-running it
-costs nothing against the allowance:
+`evaluations/agentic_search/search_population.py` reads a locator probe's saved
+output and counts what the probe concluded. It sends no requests. The probe is
+`evaluations/lephantomcite/locator_probe.py` on
+`experiment/general-explorations`, run on 31 August 2026 over 1,334 case
+citations; its output is a run artifact rather than a tracked file.
 
-    uv run python -m evaluations.agentic_search.search_population <probe.json>
+`evaluations/agentic_search/ambiguous_candidates.py` extracts every full case
+citation itself, looks each distinct locator up once, and measures what
+separates the ambiguous ones. Its 659 locators are the 1,334 citations
+deduplicated to distinct volume-reporter-page triples. **Every one of its 659
+lookups was served from the proxy's cache, so the run spent no request
+allowance**, and it stops on its own if uncached responses exceed a budget.
 
-Two limits apply to every number in this note.
+Two limits apply to every label count below.
 
 **The corpus is defect-injected.** A label distribution over LePhantomCite
 describes how the benchmark was generated as much as it describes filings.
 Section 7.1 of `caselaw-archive.md` works through a case where that distinction
-changed the reading of a result, and the same caution applies to every label
-count below. Section 5.1 says where it bites hardest.
+changed the reading of a result. Section 5.2 below is a place where the labels
+are demonstrably wrong.
 
 **The probe stores each citation's locator span, not the citation as written.**
-A court parenthetical survives only where eyecite's span happened to include it.
-Any count of how many citations carry a court is therefore a lower bound, and
-section 7 says what measuring that gate properly would take.
+A court parenthetical survives only where eyecite's span happened to include it,
+so the probe cannot measure how many citations carry a court.
 
 ## 2. The unresolved bucket is 97% sound citations
 
@@ -53,9 +54,9 @@ Of the 94 unresolved, **91 are labelled `sound` and 3 are labelled
 `case_name_mismatch`**. The citation is correct and CourtListener does not hold
 the record.
 
-That is the finding this note exists for. Resolving the unresolved bucket by
-search would confirm 91 citations that nothing was wrong with, and could reach
-at most 3 defects. The work is a coverage improvement, not a detection one.
+Resolving that bucket by search would confirm 91 citations that nothing was
+wrong with, and could reach at most 3 defects. It is a coverage improvement, not
+a detection one.
 
 ## 3. Most of the bucket is unreachable by search anyway
 
@@ -77,163 +78,150 @@ to case reporters; section 5 of `open-ended-search.md` identifies each.
 built for fifteen citations in 1,334, of which the labels say at most three
 carry a defect.
 
-Section 9 of `open-ended-search.md` estimated 25 reaching the search and said 19
-of those were Westlaw and 3 LEXIS. Both halves of that estimate move here: the
-population is smaller, and the vendor share of it is zero rather than most,
-because the vendor citations are excluded before the search rather than at it.
-The two counts are not measuring the same thing — that one counted citations
-passing the preconditions, this one counts citations a search could act on — but
-the conclusion each supports is the same and this one is sharper.
+Section 9 of `open-ended-search.md` estimated 25 reaching the search, 19 of them
+Westlaw and 3 LEXIS. That count and this one measure different things — it
+counted citations passing the preconditions, this counts citations a search
+could act on — and this one is the tighter bound.
 
-## 4. The ambiguous bucket is larger and carries more labelled defects
+## 4. Three free moves settle 85 of the 94 ambiguous locators
 
-| label of the 120 ambiguous locators | count | share |
+Measured directly against the archive, over 659 distinct locators:
+
+| what the lookup returned | count |
+|---|---:|
+| one record, so nothing has to choose | 486 |
+| no record, which is the search route's population | 79 |
+| **more than one record** | **94** |
+
+Each move below runs on records already in hand and costs no request.
+
+| move | locators it settles | left |
 |---|---:|---:|
-| sound | 94 | 78.3% |
-| case_name_mismatch | 15 | 12.5% |
-| content_misrepresentation | 7 | 5.8% |
-| wrong_pincite | 4 | 3.3% |
+| merging records that are one decision held more than once | 84 | 10 |
+| picking the records carrying the case name the filing wrote | 1 | **9** |
+| comparing the court and year the filing states | **0** | 9 |
 
-An ambiguous locator is one where the exact lookup returned more than one
-cluster for the same volume, reporter and page, and the pipeline has to decide
-which one the filing meant. 95 of the 120 have two clusters. The remaining 25
-have between three and 32, and 12 of those have twenty or more.
+**Merging does nearly all of it.** 74 of the 94 are a single decision the archive
+holds several times, and 84 come within `CANDIDATE_SELECTION_LIMIT` once merged.
+`validation/duplicate_clusters.py` merges on the decision date.
 
-Set against the corpus base rate — 1,023 of 1,334 citations are labelled
-`sound`, so 23% carry a defect — the ambiguous bucket's 22% is not enriched. The
-argument for it is not a higher defect rate. It is that 26 labelled defects sit
-behind ambiguity against 3 behind an unresolved locator, and that choosing among
-32 clusters is a question a further query can answer where "CourtListener does
-not hold this record" is not.
+**The court comparison never fires here, and that is structural.** 0 of the 508
+records returned by the citation-lookup endpoint carry a court identifier; the
+payload has no court field, which is why `validation/court_retrieval` fetches
+the docket to get one, a request per candidate. All 508 carry a decision date.
 
-Where the whole corpus's defects sit:
+**The year separates none of the remaining 9**, because each is a page of
+decisions from one court in one year. `search/narrowing.py` was written for this
+move and, on this route, contributes nothing. Section 6 says what follows.
 
-| label | total | resolved | ambiguous | short form | unresolved |
-|---|---:|---:|---:|---:|---:|
-| content_misrepresentation | 129 | 91 | 7 | 31 | — |
-| wrong_pincite | 53 | 32 | 4 | 17 | — |
-| case_name_mismatch | 57 | 34 | 15 | 5 | 3 |
-| misquote | 41 | 9 | — | 32 | — |
-| non_existent_citation | 31 | — | — | — | — |
+## 5. The nine that are left are all crowded pages
 
-`non_existent_citation` is settled offline by the reporter-series check and
-never reaches a lookup, so all 31 are `refuted`. `content_misrepresentation`,
-`wrong_pincite` and `misquote` are decided by reading the retrieved page, not by
-searching. **`case_name_mismatch` is the only label a search stage can act on**,
-and 15 of its 57 occurrences sit behind an ambiguous locator.
+Each of the nine returns between 7 and 32 records, and the case name the filing
+wrote matches none of them. These are tables of decisions: the reporter prints
+unpublished dispositions many to a page, alphabetically.
 
-## 5. Twenty-three ambiguous locators get no verdict at all
+| citation | records | what the filing wrote | what the page holds |
+|---|---:|---|---|
+| 688 F.2d 816 | 25 | Sprague v. General Motors Corp. | Kulwiec, Langone, Leach, Malvasio, Marshall, Martin |
+| 720 F.2d 679 | 27 | Charles v. Orange County | Hunter, Illsley, Jackman, Jones, Khan, Krause |
+| 44 So. 3d 587 | 7 | Conley v. Gibson | Galeana, Galura, Gest, Gillins, Grady, Griner, Haynes |
+| 986 F.2d 1418 | 27 | Waterhouse v. District of Columbia | Boulevard Bank, Carr, Cater, Cigna, Cooper, Fagan |
+| 607 F.2d 1001 | 19 | All, Inc. v. Casa Marina Owner, LLC | Alford, Allen, Baltimore County, Behrens, Brackett |
+| 554 F.2d 1071 | 32 | United States v. Dávila-González | 32 other `United States v.` entries |
+| 998 So. 2d 614 | 20 | (no plaintiff) v. Ford Motor Co. | DeWitt, Diaz-Gonzalez, Dovil, Dubeck, Dumenigo |
+| 788 F.2d 9 | 27 | (parties damaged) In re Slimick | Acker, Aguilar, Baez-Gomez, Berman, Bishop, Davis |
+| 622 F.2d 589 | 9 | (no parties recovered) | West, Willey, Williams, Wilson, Wimmer, Young |
 
-`validation/candidate_selection.py` sets `CANDIDATE_SELECTION_LIMIT = 3`. A
-locator returning more clusters than that is deferred with **zero** candidates
-selected, so no case-name check, year check or court check runs against any of
-them. The node's own message states the gap: "further refinement is needed
-before selecting candidates."
+They divide in two.
 
-| label of the 23 deferred locators | count | share |
-|---|---:|---:|
-| case_name_mismatch | 12 | 52.2% |
-| sound | 10 | 43.5% |
-| content_misrepresentation | 1 | 4.3% |
+**Six state a name the page does not carry.** For five of those six the name
+sorts outside the alphabetical range the page covers — Sprague against a page
+running K to M, Charles against H to K, Conley against G to H. For
+`607 F.2d 1001` the name sorts *inside* the range: the page runs Alford, Allen,
+Baltimore, and there is no `All, Inc.` between Alford and Allen.
 
-Two ways to read the same 23 citations, and both are reasons to work on them.
+**Three never had a name to compare.** `622 F.2d 589` yields no parties at all,
+`998 So. 2d 614` an empty plaintiff, and `788 F.2d 9` a damaged one — eyecite
+reads `(In re Slimick), 788 F.2d 9` and recovers `In Slimick)`. Those are
+extraction failures, and the fix for them is in extraction rather than in
+search.
 
-The first is a count of what the pipeline produces: **for 23 of 1,334 citations
-it evaluates nothing**, not because the evidence is absent but because there is
-too much of it. That holds whatever the labels say.
+### 5.1 A page-name comparison does not need a search
 
-The second is the label distribution, which is 52% `case_name_mismatch` against
-a corpus rate of 4.3% for that label — twelve of the 57 occurrences in the whole
-corpus, in 23 citations. Section 5.1 is why that number should not be used to
-size anything yet.
+Section 6's conclusion turns on this. The first six of the nine are not waiting
+on a query: the evidence needed to say something about them is already in the
+lookup response. What is missing is not a request, it is a rule for what an
+absence on a crowded page may be taken to mean.
 
-### 5.1 The enrichment is probably an artefact of the injector
+`validation/duplicate_clusters.py` deliberately declines to say anything there,
+and its reason is correct as far as it goes: nothing matching does not
+distinguish a filing naming a case that is not on the page from an archive
+holding only part of the page. A table of decisions is alphabetical, so the
+records the archive does hold bound the page, and a name sorting outside those
+bounds cannot be on it. That is a claim worth testing and this note does not
+make it — see section 7.
 
-A page with twenty to thirty-two clusters is very likely a table-of-decisions
-page, where a reporter prints a list of unpublished dispositions rather than one
-opinion. Section 11 of `open-ended-search.md` records that those dispositions
-are reachable by citation lookup and absent from search.
+### 5.2 Every one of the nine is labelled `sound`, and several are not
 
-Section 7.1 of `caselaw-archive.md` established that LePhantomCite's
-`case_name_mismatch` defects were injected by perturbing a page number rather
-than by borrowing another real citation. A perturbed page lands on a
-table-of-decisions page at whatever rate such pages occur in a volume, so the
-correlation between a high cluster count and that label may be measuring the
-generator. The same argument invalidated a 61% figure in that note, and section
-8 of it then found the corresponding check fired zero times on 135 real filings.
+`Conley v. Gibson` is a 1957 Supreme Court case at 355 U.S. 41, written here as
+a 2010 Florida District Court of Appeal case. `Charles v. Orange County` is a
+Second Circuit case, written as Sixth Circuit 1983. `622 F.2d 589` is paired
+with `132 L.Ed.2d 854 (1995)`, and volume 622 of F.2d is 1980.
 
-**So the 52% is a lead, not a rate.** What is not in doubt is the first reading:
-23 citations reach no verdict, and the mechanism producing that is a constant in
-the code rather than anything about the corpus.
+The corpus labels all nine `sound`. That is the reverse of the concern in
+section 7.1 of `caselaw-archive.md` — there the worry was that a check was
+detecting the injector, and here the labels are missing defects the check finds.
+Both have the same consequence: **a precision or recall figure against this
+corpus does not measure what it appears to.** Nine citations read by hand is the
+evidence for this paragraph, and it is not a rate.
 
-## 6. The question the loop answers
+## 6. What the loop is left with
 
-The loop's shape is the brief's: issue a query, read the result, decide the next
-move, stop on a budget. The counts above do not touch that shape; they fix which
-question it is applied to.
+**No move in this note needed a search.** Merging, the case-name match, and the
+comparison in section 5.1 all run on records the lookup already returned. After
+them the ambiguous route has nine citations left, and section 5 says six of
+those are decidable from the same records and three are extraction failures.
 
-The question is **"the locator found more cases than the pipeline will look at,
-and the text around the citation is not enough to say which one the filing
-meant."** With 32 clusters on one page, which field to add depends on what those
-32 have in common, and that is knowable only from having seen them. That is the
-test the brief's section 2 sets for where a loop earns its place.
+So the ambiguous route does not justify a loop either. It justifies one more
+free rule and a fix in extraction.
 
-The question is **not** "the locator found nothing, find the case." That is 15
-citations, and for 70 more the corpus makes it impossible.
+That leaves the loop's case resting on the **79 locators the lookup found
+nothing for** — the search route — and on what a search returns when it runs.
+Two things about that route are known and neither has been measured here:
 
-Two consequences for the design.
+- `validation/candidate_selection.py` applies the same limit to search results,
+  and a search result set has no records to merge, so a query returning 111
+  results is deferred whole. `caseName:("Pacific Bell")` returned exactly that
+  in section 11 of `open-ended-search.md`.
+- Search results **do** carry `court_id` and `dateFiled`, so
+  `search/narrowing.py` has all three comparisons available there, where on the
+  locator route it has one.
 
-**The first move is not a request.** The clusters are already in hand from the
-locator lookup, so narrowing 32 candidates to 3 by case name, year or court
-costs nothing. The budget in the brief's section 5 therefore covers only the
-moves taken after the free one fails to separate them.
+Measuring that costs request allowance, because a search is not cacheable.
 
-**Nothing here depends on the search corpus.** A disambiguating query runs
-against clusters the lookup endpoint already returned, so section 11 of
-`open-ended-search.md` — the search endpoint holding less than the lookup
-endpoint — does not constrain it.
+## 7. What is unmeasured, and what it would cost
 
-## 7. What is still unmeasured, and what it would take
+1. **Whether an alphabetical bound on a table page is sound.** Section 5.1.
+   Free: it reads records already cached. It needs a rule for establishing that
+   the archive holds enough of a page to bound it, and it asserts an absence,
+   which is the thing this project is most careful about.
+2. **Whether narrowing separates search results.** Section 6. Costs one search
+   per citation, against a budget of roughly 500 requests a day.
+3. **What the ambiguous bucket looks like in real filings.** Every count here is
+   from a defect-injected corpus whose labels section 5.2 shows to be wrong on
+   the citations that matter most. Section 8 of `caselaw-archive.md` found a
+   check with 61% label agreement here fired zero times on 135 real filings.
+4. **The three extraction failures in section 5.** `(In re Slimick), 788 F.2d 9`
+   losing its parties to a parenthetical is a defect in extraction, not in
+   search, and belongs to that track.
 
-Four counts this note cannot produce from the probe file.
+Items 1, 3 and 4 cost no requests.
 
-1. **Whether an ambiguous locator's candidates are separable without a
-   request.** For the 95 two-cluster cases and the 23 deferred ones, the
-   clusters were already returned by the lookup. The measurement is how often
-   the candidates at one locator differ in case name, court or year, and it
-   costs nothing beyond re-reading cached lookup responses.
-2. **How many citations pass the search preconditions.** The gates are that the
-   citation parses as a full case citation, that re-extraction returns both
-   parties, and that the citation carries a court. Six of the 94 unresolved
-   locators carry a court eyecite can read, but the probe stores locator spans,
-   so that is a lower bound rather than the gate's pass rate. Measuring it needs
-   the excerpt text and one eyecite pass over it, which costs nothing.
-3. **What the archive says about the deferred pages.** `caselaw/cap_index.py` on
-   `experiment/general-explorations` returns every case the Caselaw Access
-   Project puts at a volume and page, offline and free. If those pages are
-   table-of-decisions pages, the archive will show it, and that settles section
-   5.1 one way or the other. Section 8 says why it cannot be run from here.
-4. **What the ambiguous bucket looks like in real filings.** Every count here is
-   from a defect-injected corpus. Section 8 of `caselaw-archive.md` found a
-   check with 61% label agreement on this corpus fired zero times on 135 real
-   filings. The same run should be made over those filings before any of these
-   numbers sizes an effort.
+## 8. A defect in the cherry-picked name comparison
 
-Items 1, 2 and 3 cost no requests and all three should be done before the loop
-is written.
-
-## 8. This branch does not carry what section 7 needs
-
-`search/agentic-retrieval` is branched from `main`. Three modules the work above
-refers to are on `experiment/general-explorations` and not here:
-
-| module | what it does |
-|---|---|
-| `caselaw/cap_index.py` | the Caselaw Access Project reader, offline and free |
-| `caselaw/case_name_check.py`, `first_page_check.py` | the checks built on it |
-| `evaluations/lephantomcite/locator_probe.py` | the probe that produced the counts above |
-
-Item 3 of section 7 cannot be run from this branch without them. Merging
-`experiment/general-explorations` into this branch is the obvious fix and has
-not been done, because that branch is the primary track's working branch and the
-merge direction is the primary track's decision rather than this one's.
+`name_words` in `validation/duplicate_clusters.py` strips every character
+outside `[a-z0-9 ]`, so `Dávila-González` becomes the words `vila`, `gonz` and
+`lez` rather than one name. It does not change the outcome for `554 F.2d 1071`,
+where no record carries that party under any spelling, but it will silently fail
+to match any accented party name. The file is the primary track's work, brought
+onto this branch unchanged, so the fix belongs with them.

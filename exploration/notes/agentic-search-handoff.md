@@ -1,29 +1,40 @@
 # Agentic retrieval: make the whole search stage a loop
 
 The design brief for the search loop. `agentic-search-population.md` carries the
-counts it rests on and should be read alongside it.
+counts it rests on and should be read alongside it, because those counts have
+not yet found the loop a population worth its cost.
 
-## 1. What is being built
+## 1. What is being built, and what has not yet earned it
 
 The search stage becomes a loop that owns **the whole stage**, CourtListener
 included: issue a query, read what came back, and decide what to do next —
 narrow the candidates already in hand, reformulate, widen, switch index, or go
 to the open web. It stops when it has an answer or has spent its budget.
 
-The case it exists for is the **ambiguous locator**: CourtListener returns more
-cases at the cited page than the pipeline will look at, and something has to
-decide which one the filing meant. `validation/candidate_selection.py` caps
-candidate evaluation at three, so a locator with more clusters than that is
-deferred with zero candidates evaluated. That is 23 of the 1,334 citations in
-the corpus measured in `agentic-search-population.md`, and the node's own
-message names what is missing: "further refinement is needed before selecting
-candidates."
+Two candidate populations have been measured over 659 distinct locators, and
+neither justifies the loop on its own.
 
-The case it does **not** exist for is the unresolved locator — CourtListener
-holding nothing at the cited page. Section 2 of `agentic-search-population.md`
-counts that bucket at 94, of which 91 are labelled sound, 70 name a Westlaw or
-LEXIS record that the search endpoint cannot reach at all, and 15 are reporter
-citations a name search could act on.
+**The unresolved locator**, where CourtListener holds nothing at the cited page,
+is 94 citations. 91 are labelled sound, 70 name a Westlaw or LEXIS record the
+search endpoint cannot reach at all, and 15 are reporter citations a name search
+could act on. Sections 2 and 3 of `agentic-search-population.md`.
+
+**The ambiguous locator**, where CourtListener returns more cases at the page
+than the pipeline will look at, is 94 citations, and three moves that send no
+request settle 85 of them. The nine left over are tables of unpublished
+decisions, and section 5.1 of `agentic-search-population.md` argues that six of
+those nine are decidable from records the lookup already returned.
+
+What remains untested is the **search route** itself: the 79 locators the lookup
+found nothing for, and what a query returns when it runs. A search result set
+carries a court and a filing date where a lookup record carries neither, and a
+query returning 111 results is deferred whole today. Section 7 of
+`agentic-search-population.md` item 2 is the measurement that would settle it,
+and unlike everything else here it costs request allowance.
+
+**Do not build the loop before that measurement.** Everything the ambiguous
+route needed turned out to be free, and a loop written for it would have been a
+loop for nine citations.
 
 ## 2. Why search is the one stage that earns this
 
@@ -36,10 +47,13 @@ returned.** With 32 clusters at one page, which field separates them depends on
 what those 32 have in common, and that is knowable only from having seen them.
 That is the shape a loop exists for.
 
-The loop's cheapest move costs no request. The clusters are already in hand from
-the locator lookup, so narrowing them by case name, year or court is free, and
-the budget in section 5 covers only what follows when that fails to separate
-them.
+The loop's cheapest move costs no request, and on the ambiguous route the free
+moves turned out to be the whole of it. Section 4 of
+`agentic-search-population.md` measures them: merging duplicate records settles
+84 of 94, the case name the filing wrote settles one more, and comparing the
+court and year settles none, because the lookup endpoint returns no court field
+at all. A loop is worth its cost only where a free move has been tried and
+failed, which is why section 1 asks for the search route to be measured first.
 
 So this is not a retreat from the project's architecture. It sharpens it:
 deterministic where the answer is a lookup, agentic where the answer requires
