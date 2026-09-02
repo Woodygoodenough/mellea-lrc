@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from mellea_lrc.core.citations import (
     CanonicalCitation,
     CitationKind,
+    DocketCitation,
     FullCaseCitation,
     FullJournalCitation,
     FullLawCitation,
@@ -39,6 +40,7 @@ _CITATION_TYPES: dict[CitationKind, type[CanonicalCitation]] = {
     CitationKind.FULL_CASE: FullCaseCitation,
     CitationKind.FULL_LAW: FullLawCitation,
     CitationKind.FULL_JOURNAL: FullJournalCitation,
+    CitationKind.DOCKET: DocketCitation,
     CitationKind.SHORT_CASE: ShortCaseCitation,
     CitationKind.SUPRA: SupraCitation,
     CitationKind.ID: IdCitation,

@@ -37,6 +37,7 @@ from eyecite.models import (
 
 from mellea_lrc.core.citations import (
     CanonicalCitation,
+    DocketCitation,
     FullCaseCitation,
     FullJournalCitation,
     FullLawCitation,
@@ -47,6 +48,7 @@ from mellea_lrc.core.citations import (
     UnknownCitation,
 )
 from mellea_lrc.core.spans import Span
+from mellea_lrc.extraction.dockets import DOCKET_GROUP, with_dockets
 from mellea_lrc.extraction.relaxation import Relaxation, tokenizer_for
 from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument, ExtractionMetadata
 from mellea_lrc.preprocessing.plain_text import preprocess_plain_text_from_string
@@ -64,6 +66,27 @@ EYECITE_CITATION_TYPES = frozenset(
         EyeciteUnknownCitation,
     }
 )
+
+
+def _to_docket(citation: EyeciteFullCaseCitation) -> DocketCitation:
+    """Read back the docket a custom extractor wrote into a case citation.
+
+    eyecite has one shape for a case citation and reaches it through a reporter
+    edition, so a docket arrives here wearing volume, reporter and page. The
+    docket number and its court were carried along in the token's groups; this
+    unpacks them and drops the borrowed clothes.
+    """
+    return DocketCitation(
+        plaintiff=citation.metadata.plaintiff,
+        defendant=citation.metadata.defendant,
+        docket_number=citation.groups.get(DOCKET_GROUP),
+        court=citation.groups.get("court"),
+        court_name=citation.groups.get("court_name"),
+        court_text=citation.groups.get("court_text"),
+        pin_cite=citation.metadata.pin_cite,
+        year=citation.metadata.year,
+        parenthetical=citation.metadata.parenthetical,
+    )
 
 
 def _to_full_case(citation: EyeciteFullCaseCitation) -> FullCaseCitation:
@@ -141,6 +164,11 @@ def _to_unknown(_citation: EyeciteUnknownCitation) -> UnknownCitation:
 
 
 def _to_canonical(citation: CitationBase) -> CanonicalCitation:
+    # Tested before the case branch, not instead of it: a docket citation *is*
+    # an eyecite full case citation, and only the group written by the docket
+    # extractor tells the two apart.
+    if DOCKET_GROUP in citation.groups and isinstance(citation, EyeciteFullCaseCitation):
+        return _to_docket(citation)
     if isinstance(citation, EyeciteFullCaseCitation):
         return _to_full_case(citation)
     if isinstance(citation, EyeciteFullLawCitation):
@@ -204,7 +232,7 @@ def _extract_from_text(
     entirely a property of ``relaxation``, and of nothing else.
     """
     text = preprocessed.text
-    eyecite_citations = get_citations(text, tokenizer=tokenizer_for(relaxation))
+    eyecite_citations = get_citations(text, tokenizer=with_dockets(tokenizer_for(relaxation)))
     resolutions = cast(
         dict[Resource, list[CitationBase]],
         resolve_citations(eyecite_citations),
