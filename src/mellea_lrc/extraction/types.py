@@ -5,6 +5,7 @@ from enum import Enum
 
 from mellea_lrc.core.citations import CanonicalCitation, is_full_citation
 from mellea_lrc.core.spans import Span
+from mellea_lrc.extraction.relaxation import Relaxation
 from mellea_lrc.preprocessing.types import PreprocessedDocument
 
 
@@ -22,6 +23,12 @@ class ExtractionMetadata:
 
     backend: ExtractionBackend = ExtractionBackend.EYECITE
     backend_version: str | None = None
+    relaxation: Relaxation = Relaxation.BOUNDED
+    """Which tokenizer read the text.
+
+    Two levels disagree about whether a given citation is there at all, so a
+    document that does not say which one ran cannot be compared with another.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +41,16 @@ class ExtractedCitation:
     matched_text: str
     citation: CanonicalCitation
     resolves_to: str | None = None
+    colocation_id: str | None = None
+    """Shared by citations occupying the same place in the text.
+
+    A filing citing an authority in parallel writes several identifiers for one
+    citation, and eyecite extracts each separately. Citations carrying the same
+    `colocation_id` are candidates for being one authority -- **candidates, not
+    a finding**: whether they name the same case is settled by resolving them,
+    not by where they sit. `None` means the citation stands alone, which is the
+    common case. See :mod:`mellea_lrc.extraction.colocation`.
+    """
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

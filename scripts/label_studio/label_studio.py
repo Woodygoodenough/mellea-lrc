@@ -1,6 +1,6 @@
 """Label Studio prediction serialization for pre-annotation."""
 
-from dataclasses import asdict
+from dataclasses import fields
 from typing import Any
 
 from mellea_lrc.core.citations import (
@@ -18,22 +18,34 @@ from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument
 MODEL_VERSION = "eyecite-pre-annotation"
 
 
+def _shallow(citation: object) -> dict[str, str | None]:
+    """Each field as one string.
+
+    `asdict` would expand `reporter` and `date` into nested dictionaries, and a
+    Label Studio textarea holds text. Both render as the document wrote them.
+    """
+    return {
+        field.name: None if getattr(citation, field.name) is None else str(getattr(citation, field.name))
+        for field in fields(citation)
+    }
+
+
 def _field_values(item: ExtractedCitation) -> dict[str, str | None]:
     citation = item.citation
     if isinstance(citation, FullCaseCitation):
-        return asdict(citation)
+        return _shallow(citation)
     if isinstance(citation, FullLawCitation):
-        return asdict(citation)
+        return _shallow(citation)
     if isinstance(citation, FullJournalCitation):
-        return asdict(citation)
+        return _shallow(citation)
     if isinstance(citation, ShortCaseCitation):
-        return asdict(citation)
+        return _shallow(citation)
     if isinstance(citation, SupraCitation):
-        return asdict(citation)
+        return _shallow(citation)
     if isinstance(citation, IdCitation):
-        return asdict(citation)
+        return _shallow(citation)
     if isinstance(citation, ReferenceCitation):
-        return asdict(citation)
+        return _shallow(citation)
     if isinstance(citation, UnknownCitation):
         return {}
     msg = f"Unsupported citation type: {type(citation).__name__}"

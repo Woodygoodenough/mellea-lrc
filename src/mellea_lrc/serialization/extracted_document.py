@@ -6,12 +6,14 @@ from collections.abc import Mapping
 
 from mellea_lrc.core.citations import (
     CanonicalCitation,
+    CitationDate,
     CitationKind,
     FullCaseCitation,
     FullJournalCitation,
     FullLawCitation,
     IdCitation,
     ReferenceCitation,
+    Reporter,
     ShortCaseCitation,
     SupraCitation,
     UnknownCitation,
@@ -19,6 +21,7 @@ from mellea_lrc.core.citations import (
 )
 from mellea_lrc.core.documents import SourceFormat, SourceMetadata
 from mellea_lrc.core.spans import Span
+from mellea_lrc.extraction.relaxation import Relaxation
 from mellea_lrc.extraction.types import (
     ExtractedCitation,
     ExtractedDocument,
@@ -65,6 +68,7 @@ def serialize_extracted_document(document: ExtractedDocument) -> dict[str, JsonV
                     **serialize_dataclass(citation.citation),
                 },
                 "resolves_to": citation.resolves_to,
+                "colocation_id": citation.colocation_id,
             }
             for citation in document.citations
         ],
@@ -111,6 +115,9 @@ def deserialize_extracted_document(payload: Mapping[str, object]) -> ExtractedDo
             backend_version=_optional_string(
                 extraction_metadata.get("backend_version"), name="extraction_metadata.backend_version"
             ),
+            relaxation=Relaxation(
+                _required_string(extraction_metadata.get("relaxation"), name="extraction_metadata.relaxation")
+            ),
         ),
     )
 
@@ -125,6 +132,11 @@ def _deserialize_citation(value: object) -> ExtractedCitation:
     )
     citation_type = _CITATION_TYPES[kind]
     citation_fields = {key: value for key, value in citation_payload.items() if key != "citation_type"}
+    # Two fields hold objects rather than strings, so both have to be rebuilt.
+    if isinstance(citation_fields.get("date"), Mapping):
+        citation_fields["date"] = _deserialize_date(citation_fields["date"])
+    if isinstance(citation_fields.get("reporter"), Mapping):
+        citation_fields["reporter"] = _deserialize_reporter(citation_fields["reporter"])
     return ExtractedCitation(
         citation_id=_required_string(payload.get("citation_id"), name="citation.citation_id"),
         span=Span(
@@ -138,6 +150,26 @@ def _deserialize_citation(value: object) -> ExtractedCitation:
         matched_text=_required_string(payload.get("matched_text"), name="citation.matched_text"),
         citation=citation_type(**citation_fields),
         resolves_to=_optional_string(payload.get("resolves_to"), name="citation.resolves_to"),
+        colocation_id=_optional_string(payload.get("colocation_id"), name="citation.colocation_id"),
+    )
+
+
+def _deserialize_date(payload: Mapping[str, object]) -> CitationDate:
+    return CitationDate(
+        year=_required_string(payload.get("year"), name="citation.date.year"),
+        month=_optional_string(payload.get("month"), name="citation.date.month"),
+        day=_optional_string(payload.get("day"), name="citation.date.day"),
+    )
+
+
+def _deserialize_reporter(payload: Mapping[str, object]) -> Reporter:
+    is_scotus = payload.get("is_scotus")
+    return Reporter(
+        as_written=_required_string(payload.get("as_written"), name="citation.reporter.as_written"),
+        short_name=_optional_string(payload.get("short_name"), name="citation.reporter.short_name"),
+        name=_optional_string(payload.get("name"), name="citation.reporter.name"),
+        cite_type=_optional_string(payload.get("cite_type"), name="citation.reporter.cite_type"),
+        is_scotus=bool(is_scotus),
     )
 
 

@@ -25,8 +25,7 @@ from mellea_lrc.experimental.grounded_adjudication import (
     suspected_dockets,
     suspected_locators,
 )
-from mellea_lrc.experimental.relaxed_eyecite_extractor import extract_relaxed_citations
-from mellea_lrc.extraction import extract_from_plain_text
+from mellea_lrc.extraction import Relaxation, extract_from_plain_text
 from mellea_lrc.extraction.types import ExtractedDocument
 
 Arm = Callable[[str, str], list[Occurrence]]
@@ -97,16 +96,23 @@ def eyecite_as_published(document: str, text: str) -> list[Occurrence]:
     return _from_eyecite(document, text, get_citations(text))
 
 
-def production(document: str, text: str) -> list[Occurrence]:
-    """Eyecite with whitespace repair. What Mellea-LRC ships.
+def bounded(document: str, text: str) -> list[Occurrence]:
+    """Eyecite with its separators relaxed, stopping at a block boundary.
 
     Eyecite's generated patterns join volume, reporter and page with a literal
     single space, so one doubled space -- which PDF extraction leaves behind
     routinely -- makes a citation vanish outright rather than parse imperfectly.
-    Collapsing those runs before parsing and mapping the spans back costs
-    nothing and moves no offsets.
+    ``BOUNDED`` matches whatever whitespace is actually there, stopping short of
+    a blank line between reporter and page, which is where a page number and a
+    margin line number become indistinguishable.
+
+    The arm is named for the mechanism, not for a status. It is not what the
+    library ships -- that is still eyecite plus a whitespace repair on `main` --
+    and it is not the intended destination either. ``BOUNDED`` is the widest
+    relaxation with no known false positive, which is what makes it the control
+    ``FULL`` is read against.
     """
-    return _from_extracted_document(document, extract_from_plain_text(text))
+    return _from_extracted_document(document, extract_from_plain_text(text, relaxation=Relaxation.BOUNDED))
 
 
 def _recover_locators(document: str, extracted: ExtractedDocument) -> list[Occurrence]:
@@ -171,8 +177,8 @@ def _recover_dockets(document: str, extracted: ExtractedDocument) -> list[Occurr
     return recovered
 
 
-def production_with_recovery(document: str, text: str) -> list[Occurrence]:
-    """Production, then model recovery of the locators and dockets it missed."""
+def bounded_with_recovery(document: str, text: str) -> list[Occurrence]:
+    """Bounded relaxation, then model recovery of the locators and dockets it missed."""
     extracted = extract_from_plain_text(text)
     return deduplicate(
         [
@@ -183,9 +189,25 @@ def production_with_recovery(document: str, text: str) -> list[Occurrence]:
     )
 
 
-def layout_tolerant_with_recovery(document: str, text: str) -> list[Occurrence]:
-    """The layout-tolerant tokenizer, then model recovery of what it still missed."""
-    extracted = extract_relaxed_citations(text)
+def full(document: str, text: str) -> list[Occurrence]:
+    """Fully relaxed separators, and nothing else. No model.
+
+    The counterpart to `bounded`, differing in one join: reporter to page may
+    cross a blank line. Having it model-free is what makes the two comparable on
+    a bench -- the only other arm using FULL also runs model recovery, so its
+    score cannot say which of the two produced a difference.
+    """
+    return _from_extracted_document(document, extract_from_plain_text(text, relaxation=Relaxation.FULL))
+
+
+def full_with_recovery(document: str, text: str) -> list[Occurrence]:
+    """Fully relaxed separators, then model recovery of what they still missed.
+
+    ``FULL`` differs from ``BOUNDED`` in one join: reporter to page may cross a
+    blank line. That is what reaches a citation split by a page break, and also
+    what lets a pleading-paper margin number stand in for the page.
+    """
+    extracted = extract_from_plain_text(text, relaxation=Relaxation.FULL)
     return deduplicate(
         [
             *_from_extracted_document(document, extracted),
@@ -206,15 +228,16 @@ class ArmSpec:
 
 ARMS: dict[str, ArmSpec] = {
     "eyecite": ArmSpec(run=eyecite_as_published, components="eyecite as published"),
-    "production": ArmSpec(run=production, components="eyecite + whitespace repair"),
-    "production+recovery": ArmSpec(
-        run=production_with_recovery,
-        components="production + site hunting + model adjudication",
+    "bounded": ArmSpec(run=bounded, components="eyecite + bounded separator relaxation"),
+    "full": ArmSpec(run=full, components="eyecite + full separator relaxation"),
+    "bounded+recovery": ArmSpec(
+        run=bounded_with_recovery,
+        components="bounded + site hunting + model adjudication",
         needs_model=True,
     ),
-    "layout-tolerant+recovery": ArmSpec(
-        run=layout_tolerant_with_recovery,
-        components="layout-tolerant tokenizer + site hunting + model adjudication",
+    "full+recovery": ArmSpec(
+        run=full_with_recovery,
+        components="full separator relaxation + site hunting + model adjudication",
         needs_model=True,
     ),
 }
