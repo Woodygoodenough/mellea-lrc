@@ -53,15 +53,15 @@ def _field_values(item: ExtractedCitation) -> dict[str, str | None]:
 
 
 def _label_result(extraction: ExtractedDocument, item: ExtractedCitation) -> dict[str, Any]:
-    annotated_text = extraction.text[item.span.start : item.span.end]
+    annotated_text = extraction.text[item.full_span.start : item.full_span.end]
     return {
         "id": item.citation_id,
         "from_name": "label",
         "to_name": "text",
         "type": "labels",
         "value": {
-            "start": item.span.start,
-            "end": item.span.end,
+            "start": item.full_span.start,
+            "end": item.full_span.end,
             "text": annotated_text,
             "labels": [item.citation.kind.value],
         },
