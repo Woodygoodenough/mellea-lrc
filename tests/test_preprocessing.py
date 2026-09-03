@@ -56,6 +56,10 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
     calls: dict[str, str | bool] = {}
 
     class FakeDocument:
+        # The index locator walks these, so they have to exist. Empty here:
+        # this test is about which export is called.
+        tables: tuple[object, ...] = ()
+
         def export_to_text(self) -> str:
             calls["export_to_text"] = True
             return "Plain text"
@@ -83,6 +87,7 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
     assert document.source_metadata.format == SourceFormat.PDF
     assert document.preprocessing_metadata.backend == PreprocessingBackend.DOCLING
     assert calls == {"path": "sample.pdf", "export_to_text": True}
+    assert document.index_spans == ()
 
 
 def test_preprocessed_document_rejects_empty_text() -> None:
