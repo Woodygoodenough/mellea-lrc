@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import re
+import contextlib
 import uuid
-from bisect import bisect_left, bisect_right
 from typing import cast
 
 from eyecite import get_citations, resolve_citations
-from eyecite.annotate import SpanUpdater
 from eyecite.models import (
     CitationBase,
     Resource,
@@ -37,66 +35,28 @@ from eyecite.models import (
 from eyecite.models import (
     UnknownCitation as EyeciteUnknownCitation,
 )
-from eyecite.tokenizers import Tokenizer, default_tokenizer
 
 from mellea_lrc.core.citations import (
     CanonicalCitation,
+    CitationDate,
     FullCaseCitation,
     FullJournalCitation,
     FullLawCitation,
     IdCitation,
     ReferenceCitation,
+    Reporter,
     ShortCaseCitation,
     SupraCitation,
     UnknownCitation,
 )
 from mellea_lrc.core.spans import Span
+from mellea_lrc.extraction.colocation import assign_colocation
+from mellea_lrc.extraction.pin_cites import relaxed_pin_cites
+from mellea_lrc.extraction.post_citation import reread_post_citation
+from mellea_lrc.extraction.relaxation import Relaxation, tokenizer_for
 from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument, ExtractionMetadata
 from mellea_lrc.preprocessing.plain_text import preprocess_plain_text_from_string
 from mellea_lrc.preprocessing.types import PreprocessedDocument
-
-_REPEATED_INLINE_WHITESPACE = re.compile(r"[ \t]{2,}")
-
-
-def _get_citations_with_recovered_spans(
-    text: str,
-    *,
-    tokenizer: Tokenizer = default_tokenizer,
-) -> list[CitationBase]:
-    """Extract citations from whitespace-collapsed text, then remap spans back to `text`.
-
-    Docling PDF extraction leaves runs of repeated spaces/tabs (e.g. from
-    justified-text columns) that break eyecite's tokenizer and silently drop
-    otherwise well-formed citations. Collapsing those runs before extraction
-    recovers them; `SpanUpdater` then maps each citation's offsets from the
-    collapsed text back to `text` so downstream span-based text slicing is
-    unaffected.
-
-    `tokenizer` exists so alternative extraction backends can reuse this
-    collapse-and-remap step rather than reimplement the span mapping below.
-    """
-    cleaned = _REPEATED_INLINE_WHITESPACE.sub(" ", text)
-    citations = get_citations(cleaned, tokenizer=tokenizer)
-    if cleaned == text:
-        return citations
-
-    # Collapsing repeated whitespace is a net insertion going cleaned -> text
-    # (each run gains its extra characters back), the opposite of eyecite's
-    # own plain/markup mapping (a net deletion). bisect_right on the start and
-    # bisect_left on the end is what lands exactly on citation boundaries for
-    # an insertion-direction diff; the reverse pairing off-by-ones by one
-    # collapsed space at segment boundaries.
-    updater = SpanUpdater(cleaned, text)
-    for citation in citations:
-        start, end = citation.span()
-        citation.span_start = updater.update(start, bisect_right)
-        citation.span_end = updater.update(end, bisect_left)
-        if citation.full_span_start is not None:
-            citation.full_span_start = updater.update(citation.full_span_start, bisect_right)
-        if citation.full_span_end is not None:
-            citation.full_span_end = updater.update(citation.full_span_end, bisect_left)
-    return citations
-
 
 EYECITE_CITATION_TYPES = frozenset(
     {
@@ -112,16 +72,54 @@ EYECITE_CITATION_TYPES = frozenset(
 )
 
 
+def _reporter(citation: CitationBase) -> Reporter | None:
+    """The reporter this citation names, with what reporters-db knows about it.
+
+    `corrected_reporter` and `edition_guess` are eyecite's, and this project
+    used to discard both and keep the raw spelling -- so two spellings of one
+    reporter compared as two reporters.
+    """
+    as_written = citation.groups.get("reporter")
+    if not as_written:
+        return None
+    edition = getattr(citation, "edition_guess", None)
+    reporter = getattr(edition, "reporter", None)
+    return Reporter(
+        as_written=as_written,
+        short_name=citation.corrected_reporter(),
+        name=getattr(reporter, "name", None),
+        cite_type=getattr(reporter, "cite_type", None),
+        is_scotus=bool(getattr(reporter, "is_scotus", False)),
+    )
+
+
+def _date(citation: CitationBase) -> CitationDate | None:
+    """The decision date the citation states, or None when it states none.
+
+    eyecite parses the month and day of a full date and this project used to
+    drop both, keeping only the year.
+    """
+    metadata = citation.metadata
+    year = getattr(metadata, "year", None)
+    if not year:
+        return None
+    return CitationDate(
+        year=str(year),
+        month=getattr(metadata, "month", None),
+        day=getattr(metadata, "day", None),
+    )
+
+
 def _to_full_case(citation: EyeciteFullCaseCitation) -> FullCaseCitation:
     return FullCaseCitation(
         plaintiff=citation.metadata.plaintiff,
         defendant=citation.metadata.defendant,
         volume=citation.groups.get("volume"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("page"),
         pin_cite=citation.metadata.pin_cite,
         extra=citation.metadata.extra,
-        year=citation.metadata.year,
+        date=_date(citation),
         court=citation.metadata.court,
         parenthetical=citation.metadata.parenthetical,
     )
@@ -130,10 +128,10 @@ def _to_full_case(citation: EyeciteFullCaseCitation) -> FullCaseCitation:
 def _to_full_law(citation: EyeciteFullLawCitation) -> FullLawCitation:
     return FullLawCitation(
         volume=citation.groups.get("title"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("section"),
         pin_cite=citation.metadata.pin_cite,
-        year=citation.metadata.year,
+        date=_date(citation),
         publisher=citation.metadata.publisher,
         parenthetical=citation.metadata.parenthetical,
     )
@@ -142,10 +140,10 @@ def _to_full_law(citation: EyeciteFullLawCitation) -> FullLawCitation:
 def _to_full_journal(citation: EyeciteFullJournalCitation) -> FullJournalCitation:
     return FullJournalCitation(
         volume=citation.groups.get("volume"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("page"),
         pin_cite=citation.metadata.pin_cite,
-        year=citation.metadata.year,
+        date=_date(citation),
         parenthetical=citation.metadata.parenthetical,
     )
 
@@ -153,7 +151,7 @@ def _to_full_journal(citation: EyeciteFullJournalCitation) -> FullJournalCitatio
 def _to_short_case(citation: EyeciteShortCaseCitation) -> ShortCaseCitation:
     return ShortCaseCitation(
         volume=citation.groups.get("volume"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("page"),
         pin_cite=citation.metadata.pin_cite,
         court=citation.metadata.court,
@@ -239,10 +237,26 @@ def _build_antecedent_map(
 
 def _extract_from_text(
     preprocessed: PreprocessedDocument,
+    *,
+    relaxation: Relaxation = Relaxation.BOUNDED,
 ) -> ExtractedDocument:
-    """Extract canonical citations from a preprocessed document."""
+    """Extract canonical citations from a preprocessed document.
+
+    The text is tokenized as it stands. Nothing is rewritten before parsing and
+    no span is remapped afterwards, so every offset indexes straight into
+    ``preprocessed.text``: how much separator damage a citation may carry is
+    entirely a property of ``relaxation``, and of nothing else.
+    """
     text = preprocessed.text
-    eyecite_citations = _get_citations_with_recovered_spans(text)
+    # A relaxed level reads pin cites tolerantly as well as reporter joins: the
+    # same literal single space breaks both, and losing a pin cite loses the
+    # page a filing argues from. NONE is left strict so it stays eyecite exactly
+    # as published, which is what the evaluation baseline means by the name.
+    # See :mod:`mellea_lrc.extraction.pin_cites`.
+    with contextlib.ExitStack() as stack:
+        if relaxation is not Relaxation.NONE:
+            stack.enter_context(relaxed_pin_cites())
+        eyecite_citations = get_citations(text, tokenizer=tokenizer_for(relaxation))
     resolutions = cast(
         dict[Resource, list[CitationBase]],
         resolve_citations(eyecite_citations),
@@ -265,20 +279,31 @@ def _extract_from_text(
             )
         )
 
+    # Order matters. Co-location is decided from the spans eyecite produced, and
+    # the re-read then uses that answer to know how far each citation may look
+    # for its court and date -- so grouping has to happen first.
     return ExtractedDocument(
         source_metadata=preprocessed.source_metadata,
         text=preprocessed.text,
         preprocessing_metadata=preprocessed.preprocessing_metadata,
-        citations=tuple(extracted),
-        extraction_metadata=ExtractionMetadata(),
+        citations=reread_post_citation(text, assign_colocation(extracted)),
+        extraction_metadata=ExtractionMetadata(relaxation=relaxation),
     )
 
 
-def extract_from_plain_text(text: str, *, source_path: str | None = None) -> ExtractedDocument:
+def extract_from_plain_text(
+    text: str,
+    *,
+    source_path: str | None = None,
+    relaxation: Relaxation = Relaxation.BOUNDED,
+) -> ExtractedDocument:
     """Extract citations from Layer 2 plain text.
 
     Spans index into ``text`` as given, so a caller that already holds the text
     can map results straight back onto it.
+
+    ``relaxation`` chooses how much separator damage a citation may carry and
+    still be found; see :class:`~mellea_lrc.extraction.relaxation.Relaxation`.
     """
     preprocessed = preprocess_plain_text_from_string(text, source_path=source_path)
-    return _extract_from_text(preprocessed)
+    return _extract_from_text(preprocessed, relaxation=relaxation)
