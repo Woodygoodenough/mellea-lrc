@@ -388,6 +388,48 @@ def test_the_model_corrects_the_filing_reading_but_never_the_filing(monkeypatch:
     assert record.resolution.date_filed == "2007-05-21"
 
 
+def test_a_misspelt_party_is_the_same_case_with_a_defect(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_model(
+        monkeypatch,
+        {
+            "case_name_read": "Rufo v. Inmates of Suffock County Jail",
+            "case_name_agreement": "variant",
+            "court_read": "scotus",
+            "court_agreement": "agree",
+            "date_read": "1992",
+            "date_agreement": "agree",
+            "verdict": "same_case",
+            "reason": "Suffock is a misspelling of Suffolk.",
+        },
+    )
+    text = "Rufo v. Inmates of Suffock County Jail, 502 U.S. 367 (1992)."
+    citation = FullCaseCitation(
+        plaintiff="Rufo",
+        defendant="Inmates of Suffock County Jail",
+        volume="502",
+        reporter=US,
+        page="367",
+        date=CitationDate(year="1992"),
+        court="scotus",
+    )
+    root = _cite("c1", citation, text=text, locator="502 U.S. 367", authority_id="c1")
+    rufo = CourtListenerOpinionCluster(
+        cluster_id="c-rufo",
+        case_name="Rufo v. Inmates of Suffolk County Jail",
+        date_filed="1992-01-15",
+        docket_id="d",
+    )
+    client = Client({("502", "U.S.", "367"): (rufo,)}, courts={"d": "scotus"})
+
+    result = _run(_document(text, root), client, session=object())
+
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.ESTABLISHED_WITH_DEFECTS
+    assert resolution.defects == ("case_name",)
+    assert result.record("c1").resolution is not None
+    assert result.record("c1").corrections == ()
+
+
 def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MELLEA_LRC_LLM_MODEL", "test-model")
     monkeypatch.setenv("MELLEA_LRC_LLM_API_BASE", "https://example.test/v1")
@@ -425,6 +467,9 @@ def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.Monk
         (("agree", "disagree", "agree"), "undeterminable", "undeterminable field"),
         (("agree", "disagree", "agree"), "different_case", "same case"),
         (("undeterminable", "disagree", "agree"), "different_case", None),
+        (("variant", "agree", "agree"), "same_case", None),
+        (("variant", "agree", "agree"), "different_case", "at least one field to disagree"),
+        (("variant", "agree", "agree"), "undeterminable", "undeterminable field"),
         (("agree", "disagree", "agree"), "same_case", None),
         (("agree", "undeterminable", "agree"), "same_case", None),
         (("disagree", "agree", "agree"), "different_case", None),

@@ -107,7 +107,13 @@ Domain knowledge to apply:
 
 Agreement values: `agree` when the filing's field and the record's field name
 the same thing; `disagree` when they name different things; `undeterminable`
-when the filing or the record does not state the field.
+when the filing or the record does not state the field. The case name has one
+more: `variant`, for a name that is evidently the same case written
+defectively -- a misspelt party (`Suffock` for `Suffolk`), a party dropped or
+garbled, a caption that does not match the record's. `variant` is not
+`disagree`: the case is the same and the defect is reported. A record that
+carries more words than the filing wrote, or the filing's conventional
+abbreviations spelt out, is `agree`, not `variant`.
 
 Verdict values: `same_case`, `different_case`, `undeterminable`. The verdict
 must follow from the field answers: if every field agrees, the verdict is
@@ -135,7 +141,7 @@ class IdentityJudgment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_name_read: str | None
-    case_name_agreement: Literal["agree", "disagree", "undeterminable"]
+    case_name_agreement: Literal["agree", "disagree", "undeterminable", "variant"]
     court_read: str | None
     court_agreement: Literal["agree", "disagree", "undeterminable"]
     date_read: str | None
@@ -151,7 +157,7 @@ def verdict_supported(judgment: IdentityJudgment) -> str | None:
         return "Every field agrees, so the verdict must be same_case."
     if judgment.verdict == "different_case" and "disagree" not in answers:
         return "A different_case verdict needs at least one field to disagree."
-    if judgment.verdict == "different_case" and judgment.case_name_agreement == "agree":
+    if judgment.verdict == "different_case" and judgment.case_name_agreement in ("agree", "variant"):
         return (
             "The case name agrees, so this is the same case; a disagreeing court or date "
             "is a defect of the filing, and the verdict must be same_case."
@@ -437,7 +443,11 @@ def field_disagreements(
             "court": judgment.court_agreement,
             "date": judgment.date_agreement,
         }
-        return tuple(name for name, answer in answers.items() if answer is FieldAgreement.DISAGREE)
+        return tuple(
+            name
+            for name, answer in answers.items()
+            if answer in (FieldAgreement.DISAGREE, FieldAgreement.VARIANT)
+        )
     disagreements = []
     if not case_name.outcome.agrees and case_name.outcome.value == "mismatch":
         disagreements.append("case_name")
