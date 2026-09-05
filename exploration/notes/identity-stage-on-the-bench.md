@@ -94,9 +94,34 @@ extraction read as `S.D.N.Y. May 12, 2020) ….6 |` from a table of authorities
 became `Townes`; six courts the parenthetical did not state were read from the
 reporter. The extracted citation stays beside each, unchanged.
 
-## 5. What this does not measure
+## 5. Against the bench's own labels
 
-The v2.0 bench has no defect labels; its annotations are anchored to v1 text
-and have not been re-anchored. So the counts above are what the stage
-concluded, read by hand, and not a precision or recall. The 20 refutations and
-14 defects are the candidates for that comparison once the labels transfer.
+The bench's 79 annotations are anchored to v1 text, so they were matched to
+the stage's output by document and locator rather than by offset. 25 are
+`misrepresented_authority`: the case exists and does not say what it is cited
+for. Identity establishes 19 of them and does not see the other 6, which is
+right -- that defect is the pinpoint stage's. The 54 `unverifiable_authority`
+annotations are the ones identity should catch:
+
+| what identity concluded | count |
+|---|---:|
+| refuted: the page holds a different case | 19 |
+| unresolved: the archive holds nothing there, mostly Westlaw numbers | 27 |
+| established with a court defect: the case exists, the filing names the wrong court | 5 |
+| established | 1 |
+| deferred: cited by docket number | 1 |
+| no locator for extraction to read (`Kusulas v. GE/CO`) | 1 |
+
+**No bench-labelled false citation is passed as clean but one**, and that one
+is `In re Soundview Elite Ltd., 503 B.R. 571 (Bankr. S.D.N.Y. 2014)`, which
+exists at that locator on that date. The court's correction points to a
+different Soundview opinion, 543 B.R. 78 (2016), for the proposition, so the
+defect is in what the citation is cited for, not in whether the case exists.
+The five court-defect cases are `Hernandez v. Mario's Auto Sales` and its
+kind: the bench calls them unverifiable because the citation as written names
+a court that never decided them, and the stage reports that court as a defect
+on an established identity, which is the more useful reading. Whether the
+paper counts them as caught depends on which question it asks.
+
+The 27 unresolved are not caught either. They are the open-search population,
+and the bench's label says what a search would find: nothing.
