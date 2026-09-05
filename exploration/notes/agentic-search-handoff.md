@@ -11,10 +11,12 @@ The branch is based on `preprocessing-and-extraction-summary`, whose citation
 tree and date and reporter objects the validation side now depends on. The
 stages, in the order they run and the order they are being built:
 
-1. **Identity**, built. `validation/identity/` runs once per root of the
-   citation tree, establishes which case each authority names, and writes
-   corrections onto a mutable record with the trace node that justifies each.
-   `docs/Validation.md` describes it.
+1. **Identity**, built and run over false-citation-bench v2.0.
+   `validation/identity/` runs once per root of the citation tree,
+   establishes which case each authority names, and writes corrections onto a
+   mutable record with the trace node that justifies each. `docs/Validation.md`
+   describes it and `identity-stage-on-the-bench.md` has the run: 397 roots,
+   353 settled by rule, 47 model calls, 20 refutations.
 2. **Pinpoint**, not yet reworked. Runs per occurrence, including every return
    visit, once identity is established. Whether the existing pinpoint route
    changes is open.
