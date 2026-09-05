@@ -30,6 +30,7 @@ from mellea_lrc.validation.duplicate_clusters import name_covers, name_words, or
 from mellea_lrc.validation.types import CaseNameAgreement
 
 _SIDE_SEPARATOR = re.compile(r"\s+vs?\.?\s+", re.IGNORECASE)
+_ACRONYM = re.compile(r"\b[A-Z]{3,}\b")
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +76,10 @@ def compare_case_names(
     recorded_sides = tuple(
         frozenset(_with_joins(part)) for part in _SIDE_SEPARATOR.split(recorded or "") if name_words(part)
     )
+    acronyms = frozenset(
+        match.group(0).lower() for part in (plaintiff, defendant) if part for match in _ACRONYM.finditer(part)
+    )
+    initials = tuple(_initials(part) for part in _SIDE_SEPARATOR.split(recorded or "") if name_words(part))
     comparison = CaseNameComparison(
         agreement=CaseNameAgreement.UNAVAILABLE,
         written=written,
@@ -88,26 +93,50 @@ def compare_case_names(
         return _with(comparison, CaseNameAgreement.EXACT)
     if not written_sides or not recorded_sides:
         return comparison
-    if _sides_contained(written_sides, recorded_sides):
+    recorded_with_initials = tuple(zip(recorded_sides, initials, strict=True))
+    if _sides_contained(written_sides, recorded_with_initials, acronyms):
         return _with(comparison, CaseNameAgreement.CONTAINED)
     return _with(comparison, CaseNameAgreement.MISMATCH)
 
 
-def _sides_contained(written: tuple[frozenset[str], ...], recorded: tuple[frozenset[str], ...]) -> bool:
+def _sides_contained(
+    written: tuple[frozenset[str], ...],
+    recorded: tuple[tuple[frozenset[str], str], ...],
+    acronyms: frozenset[str],
+) -> bool:
     """Whether each written side is covered by a distinct recorded side, in some order."""
     if len(written) > len(recorded):
         # A two-sided name written against a one-sided record: `In re Golden`
         # holds one party, and `Golden v. State` is not it.
         return False
+
+    def covers(side: tuple[frozenset[str], str], words: frozenset[str]) -> bool:
+        return _side_covers(side[0], side[1], words, acronyms)
+
     if len(written) == 1:
-        return any(name_covers(set(side), set(written[0])) for side in recorded)
-    straight = name_covers(set(recorded[0]), set(written[0])) and name_covers(
-        set(recorded[1]), set(written[1])
-    )
-    swapped = name_covers(set(recorded[0]), set(written[1])) and name_covers(
-        set(recorded[1]), set(written[0])
-    )
+        return any(covers(side, written[0]) for side in recorded)
+    straight = covers(recorded[0], written[0]) and covers(recorded[1], written[1])
+    swapped = covers(recorded[0], written[1]) and covers(recorded[1], written[0])
     return straight or swapped
+
+
+def _side_covers(
+    recorded: frozenset[str], initials: str, written: frozenset[str], acronyms: frozenset[str]
+) -> bool:
+    """Whether a record side covers every written word, an acronym by the record's initials.
+
+    `FDIC` is not a prefix of anything in `Federal Deposit Insurance Corp.`,
+    but it is the initials of it. A written word the filing set in capitals is
+    covered when it appears, in order, in the initials of the record's side.
+    """
+    return bool(written) and all(
+        name_covers(set(recorded), {word}) or (word in acronyms and word in initials) for word in written
+    )
+
+
+def _initials(recorded_side: str) -> str:
+    """The first letters of every word on a record's side, generic words included."""
+    return "".join(word[0] for word in ordered_words(recorded_side, minimum_length=1, keep_generic=True))
 
 
 def _with_joins(recorded_side: str) -> set[str]:

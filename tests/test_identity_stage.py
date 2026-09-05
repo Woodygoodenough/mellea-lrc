@@ -466,7 +466,8 @@ def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.Monk
         (("disagree", "agree", "agree"), "same_case", "rules out same_case"),
         (("agree", "disagree", "agree"), "undeterminable", "undeterminable field"),
         (("agree", "disagree", "agree"), "different_case", "same case"),
-        (("undeterminable", "disagree", "agree"), "different_case", None),
+        (("undeterminable", "disagree", "agree"), "different_case", "no case name"),
+        (("undeterminable", "disagree", "agree"), "undeterminable", None),
         (("variant", "agree", "agree"), "same_case", None),
         (("variant", "agree", "agree"), "different_case", "at least one field to disagree"),
         (("variant", "agree", "agree"), "undeterminable", "undeterminable field"),
@@ -554,6 +555,33 @@ def test_duplicates_merge_and_a_crowded_page_narrows_by_name() -> None:
     assert _resolution(record).outcome is IdentityOutcome.ESTABLISHED
     assert record.resolution is not None
     assert record.resolution.cluster_id == "c5"
+
+
+def test_the_rules_run_on_every_candidate_before_any_model_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _fake_model(monkeypatch, {})
+    text = "Lewis v. Clarke, 137 S. Ct. 1285 (2017)."
+    citation = FullCaseCitation(
+        plaintiff="Lewis",
+        defendant="Clarke",
+        volume="137",
+        reporter=SCT,
+        page="1285",
+        date=CitationDate(year="2017"),
+    )
+    root = _cite("c1", citation, text=text, locator="137 S. Ct. 1285", authority_id="c1")
+    page = (
+        CourtListenerOpinionCluster(
+            cluster_id="c-w", case_name="Williams v. Kelley", date_filed="2017-04-25"
+        ),
+        CourtListenerOpinionCluster(cluster_id="c-l", case_name="Lewis v. Clarke", date_filed="2017-04-25"),
+    )
+    result = _run(_document(text, root), Client({("137", "S. Ct.", "1285"): page}), session=object())
+
+    assert calls == []
+    record = result.record("c1")
+    assert _resolution(record).outcome is IdentityOutcome.ESTABLISHED
+    assert record.resolution is not None
+    assert record.resolution.cluster_id == "c-l"
 
 
 def test_a_crowded_page_that_matches_nothing_is_ambiguous_not_refuted() -> None:

@@ -77,7 +77,13 @@ if TYPE_CHECKING:
     from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinionCluster
     from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
     from mellea_lrc.extraction.types import ExtractedDocument
-    from mellea_lrc.validation.types import ExactLocatorLookupNode
+    from mellea_lrc.validation.types import (
+        CandidateEvaluationNode,
+        CaseNameAgreementNode,
+        CourtCheckNode,
+        DateCheckNode,
+        ExactLocatorLookupNode,
+    )
 
 RULE = "validation.identity.stage"
 
@@ -251,23 +257,21 @@ async def identify_root(
                 message="The page holds more cases than the stage will look at, and nothing separated them.",
             )
         )
-    verdicts: list[
-        tuple[IdentityOutcome, CourtListenerOpinionCluster, str, tuple[str, ...], tuple[str, ...]]
-    ] = []
     parent = selection.node_id if selection is not None else lookup.node_id
-    for index, cluster in enumerate(candidates, start=1):
-        verdict = await _judge_candidate(
-            record,
-            cluster=cluster,
-            candidate_index=index,
-            depends_on=(parent,),
-            document_text=document_text,
-            client=client,
-            session=session,
-        )
-        verdicts.append(verdict)
-        if verdict[0] is IdentityOutcome.ESTABLISHED:
-            break
+    # The rule guard runs on every candidate before any model is consulted: on
+    # a page of several cases the filing's case is usually one the rules can
+    # settle, and a model call on the wrong candidate first is a call wasted.
+    guarded = [
+        _rule_guard(record, cluster=cluster, candidate_index=index, depends_on=(parent,), client=client)
+        for index, cluster in enumerate(candidates, start=1)
+    ]
+    verdicts: list[Verdict] = [guard.verdict for guard in guarded if guard.verdict is not None]
+    if not verdicts:
+        for guard in guarded:
+            verdict = await _model_judge(record, guard, document_text=document_text, session=session)
+            verdicts.append(verdict)
+            if verdict[0] in (IdentityOutcome.ESTABLISHED, IdentityOutcome.ESTABLISHED_WITH_DEFECTS):
+                break
     return _conclude(record, verdicts, page_holds_one_case=len(candidates) == 1 and selection is None)
 
 
@@ -408,17 +412,35 @@ def _select_candidates(
     return (), selection
 
 
-async def _judge_candidate(
+Verdict = tuple[IdentityOutcome, "CourtListenerOpinionCluster", str, tuple[str, ...], tuple[str, ...]]
+"""An outcome, the cluster it is about, who decided, the defects, and the nodes it rests on."""
+
+
+@dataclass(frozen=True, slots=True)
+class _Guarded:
+    """One candidate after the rule guard, with a verdict when the rules settled it."""
+
+    cluster: CourtListenerOpinionCluster
+    candidate: CandidateEvaluationNode
+    case_name: CaseNameAgreementNode
+    date: DateCheckNode
+    court: CourtCheckNode
+    verdict: Verdict | None
+
+    @property
+    def node_ids(self) -> tuple[str, ...]:
+        return (self.candidate.node_id, self.case_name.node_id, self.date.node_id, self.court.node_id)
+
+
+def _rule_guard(
     record: CitationRecord,
     *,
     cluster: CourtListenerOpinionCluster,
     candidate_index: int,
     depends_on: tuple[str, ...],
-    document_text: str,
     client: CourtListenerServiceClient,
-    session: MelleaSession | None,
-) -> tuple[IdentityOutcome, CourtListenerOpinionCluster, str, tuple[str, ...], tuple[str, ...]]:
-    """Run the rule guard and, if it disagrees, the composite judgement, on one candidate."""
+) -> _Guarded:
+    """Run the three rule comparisons on one candidate. No model is consulted."""
     candidate = record.append(
         run_locator_candidate_evaluation(
             record.trace, cluster=cluster, candidate_index=candidate_index, depends_on=depends_on
@@ -435,37 +457,49 @@ async def _judge_candidate(
         and court.outcome is not FieldCheckOutcome.MISMATCH
         and date.outcome is not FieldCheckOutcome.MISMATCH
     )
-    node_ids = (candidate.node_id, case_name.node_id, date.node_id, court.node_id)
-    if rules_agree:
-        return IdentityOutcome.ESTABLISHED, cluster, "rule", (), node_ids
+    guarded = _Guarded(cluster, candidate, case_name, date, court, None)
+    if not rules_agree:
+        return guarded
+    verdict: Verdict = (IdentityOutcome.ESTABLISHED, cluster, "rule", (), guarded.node_ids)
+    return _Guarded(cluster, candidate, case_name, date, court, verdict)
+
+
+async def _model_judge(
+    record: CitationRecord,
+    guarded: _Guarded,
+    *,
+    document_text: str,
+    session: MelleaSession | None,
+) -> Verdict:
+    """Ask the model about one candidate the rules could not settle."""
     judgment = record.append(
         await run_mellea_identity_judgment(
             record,
             document_text=document_text,
-            candidate=candidate,
-            case_name=case_name,
-            court=court,
-            date=date,
+            candidate=guarded.candidate,
+            case_name=guarded.case_name,
+            court=guarded.court,
+            date=guarded.date,
             session=session,
         )
     )
     apply_readings(record, judgment)
-    defects = field_disagreements(judgment, case_name=case_name, court=court, date=date)
-    node_ids = (*node_ids, judgment.node_id)
+    defects = field_disagreements(
+        judgment, case_name=guarded.case_name, court=guarded.court, date=guarded.date
+    )
+    node_ids = (*guarded.node_ids, judgment.node_id)
     if judgment.outcome is IdentityVerdict.SAME_CASE:
         outcome = IdentityOutcome.ESTABLISHED_WITH_DEFECTS if defects else IdentityOutcome.ESTABLISHED
     elif judgment.outcome is IdentityVerdict.DIFFERENT_CASE:
         outcome = IdentityOutcome.REFUTED
     else:
         outcome = IdentityOutcome.UNRESOLVED
-    return outcome, cluster, judgment.node_id, defects, node_ids
+    return outcome, guarded.cluster, judgment.node_id, defects, node_ids
 
 
 def _conclude(
     record: CitationRecord,
-    verdicts: Sequence[
-        tuple[IdentityOutcome, CourtListenerOpinionCluster, str, tuple[str, ...], tuple[str, ...]]
-    ],
+    verdicts: Sequence[Verdict],
     *,
     page_holds_one_case: bool,
 ) -> IdentityResolutionNode:

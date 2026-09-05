@@ -70,6 +70,46 @@ from mellea_lrc.validation.types import (
             "United States v. Miguel Morales-Quinones",
             CaseNameAgreement.CONTAINED,
         ),
+        # An acronym the filing set in capitals is the record's initials.
+        (
+            "CFTC",
+            "American Metals Exchange",
+            "Commodity Futures Trading Commission v. American Metals Exchange Corp.",
+            CaseNameAgreement.CONTAINED,
+        ),
+        (
+            "Karim-Panahi",
+            "LAPD",
+            "Karim-Panahi v. Los Angeles Police Department",
+            CaseNameAgreement.CONTAINED,
+        ),
+        (
+            "Packard Elevator",
+            "ICC",
+            "Packard Elevator v. Interstate Commerce Commission",
+            CaseNameAgreement.CONTAINED,
+        ),
+        ("Smith", "ABC", "Smith v. Acme Brick Co.", CaseNameAgreement.CONTAINED),
+        ("Smith", "XYZ", "Smith v. Acme Brick Co.", CaseNameAgreement.MISMATCH),
+        # Contractions with the apostrophe removed.
+        (
+            "George",
+            "Prof'l Disposables Int'l, Inc.",
+            "George v. Professional Disposables International, Inc.",
+            CaseNameAgreement.CONTAINED,
+        ),
+        (
+            "Lujan",
+            "Nat'l Wildlife Fed'n",
+            "Lujan v. National Wildlife Federation",
+            CaseNameAgreement.CONTAINED,
+        ),
+        (
+            "Alaska",
+            "Native Village of Venetie Tribal Gov't",
+            "Alaska v. Native Village of Venetie Tribal Government",
+            CaseNameAgreement.CONTAINED,
+        ),
         # A misspelling is left to the judgement, which can call it a variant.
         (
             "Rufo",
