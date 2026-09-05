@@ -5,7 +5,7 @@ Two commands. ``validate`` runs the per-citation route end to end, and
 
     mellea-lrc validate "See Brown v. Board of Education, 347 U.S. 483, 495 (1954)."
     mellea-lrc validate --from-file filing.pdf
-    mellea-lrc identify --from-artifact data/extraction-v2.0/documents/001.json -o out.json
+    mellea-lrc identify --from-artifact data/runs/extraction-v2.0/documents/001.json -o out.json
 
 The source is read as text unless ``--from-file`` says it names a document or
 ``--from-artifact`` says it is an extracted-document JSON artifact, which is how
