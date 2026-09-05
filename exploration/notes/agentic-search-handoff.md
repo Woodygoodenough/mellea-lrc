@@ -143,7 +143,10 @@ plain function expresses it. Mellea makes every model call inside a graph node.
 - `validation/record.py` -- `CitationRecord`, the one mutable object
 - `validation/identity/` -- the stage, the rule guard, the composite judgement,
   the docket stub
-- `serialization/identified_document.py` -- the artifact
+- `serialization/identified_document.py` -- the artifact, and
+  `mellea-lrc identify --from-artifact` to produce one from extraction's
+- `evaluations/identity/run_extraction_artifacts.py` -- the stage over a whole
+  extraction run, stopping when uncached responses exceed a budget
 - `validation/duplicate_clusters.py` and the merge in `candidate_selection.py`
 - `search/narrowing.py`, unwired, waiting on the search-route measurement
 - `experimental/web_refutation/domains.py` -- the domain tiers, 12 tests
