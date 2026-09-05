@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-V2 = Path("data/false-citation-bench-v2.0/documents_txt")
+V2 = Path("data/extraction-v2.0/documents_txt")
 BODY_MARKER = "--- Plain text ---\n"
 _STANDALONE = re.compile(r"(?m)^[ \t]*(\d{1,3})[ \t]*$")
 
