@@ -423,6 +423,8 @@ def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.Monk
         (("agree", "undeterminable", "agree"), "different_case", "at least one field to disagree"),
         (("disagree", "agree", "agree"), "same_case", "rules out same_case"),
         (("agree", "disagree", "agree"), "undeterminable", "undeterminable field"),
+        (("agree", "disagree", "agree"), "different_case", "same case"),
+        (("undeterminable", "disagree", "agree"), "different_case", None),
         (("agree", "disagree", "agree"), "same_case", None),
         (("agree", "undeterminable", "agree"), "same_case", None),
         (("disagree", "agree", "agree"), "different_case", None),
