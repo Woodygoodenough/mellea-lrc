@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from itertools import pairwise
 
-from mellea_lrc.validation.duplicate_clusters import name_covers, name_words
+from mellea_lrc.validation.duplicate_clusters import name_covers, name_words, ordered_words
 from mellea_lrc.validation.types import CaseNameAgreement
 
 _SIDE_SEPARATOR = re.compile(r"\s+vs?\.?\s+", re.IGNORECASE)
@@ -70,11 +71,9 @@ def compare_case_names(
 ) -> CaseNameComparison:
     """Compare the parties a filing wrote against a record's case name."""
     written = written_case_name(plaintiff, defendant)
-    written_sides = tuple(
-        side for side in (frozenset(name_words(plaintiff)), frozenset(name_words(defendant))) if side
-    )
+    written_sides = tuple(frozenset(name_words(part)) for part in (plaintiff, defendant) if name_words(part))
     recorded_sides = tuple(
-        frozenset(name_words(part)) for part in _SIDE_SEPARATOR.split(recorded or "") if name_words(part)
+        frozenset(_with_joins(part)) for part in _SIDE_SEPARATOR.split(recorded or "") if name_words(part)
     )
     comparison = CaseNameComparison(
         agreement=CaseNameAgreement.UNAVAILABLE,
@@ -109,6 +108,19 @@ def _sides_contained(written: tuple[frozenset[str], ...], recorded: tuple[frozen
         set(recorded[1]), set(written[0])
     )
     return straight or swapped
+
+
+def _with_joins(recorded_side: str) -> set[str]:
+    """A record side's words, plus each adjacent pair run together.
+
+    A filing writes `JPMorgan` where the record has `JP Morgan`, or
+    `MoralesQuinones` where it has `Morales-Quinones`. The joined forms are
+    added to the record's side only, since that is the side that has to cover
+    what the filing wrote; the pairs are built before short words are dropped,
+    so `JP` survives into `jpmorgan`.
+    """
+    every = ordered_words(recorded_side, minimum_length=1)
+    return set(name_words(recorded_side)) | {a + b for a, b in pairwise(every)}
 
 
 def _fold(value: str) -> str:

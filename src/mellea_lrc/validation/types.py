@@ -144,6 +144,9 @@ class FieldAgreement(str, Enum):
     AGREE = "agree"
     DISAGREE = "disagree"
     UNDETERMINABLE = "undeterminable"
+    VARIANT = "variant"
+    """The same case, named defectively: a misspelt or garbled party, a party
+    dropped. Case name only. Counts as agreement for identity and as a defect."""
 
 
 class IdentityOutcome(str, Enum):

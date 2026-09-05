@@ -38,6 +38,45 @@ from mellea_lrc.validation.types import (
             CaseNameAgreement.CONTAINED,
         ),
         ("Smith", "Bros. Lumber", "Smith v. Brothers Lumber Co.", CaseNameAgreement.CONTAINED),
+        # The record may be the abbreviated side.
+        (
+            "Monell",
+            "Department of Social Services",
+            "Monell v. New York City Dept. of Social Servs.",
+            CaseNameAgreement.CONTAINED,
+        ),
+        (
+            "Doe",
+            "Commonwealth's Attorney",
+            "Doe v. Commonwealth's Atty. for City of Richmond",
+            CaseNameAgreement.CONTAINED,
+        ),
+        # Apostrophe contractions, and words a filing runs together.
+        (
+            "Pioneer Inv. Servs. Co.",
+            "Brunswick Assocs. Ltd. P'ship",
+            "Pioneer Investment Services Co. v. Brunswick Associates Ltd. Partnership",
+            CaseNameAgreement.CONTAINED,
+        ),
+        (
+            "Hausler",
+            "JPMorgan Chase Bank, N.A.",
+            "Hausler v. JP Morgan Chase Bank, N.A.",
+            CaseNameAgreement.CONTAINED,
+        ),
+        (
+            "United States",
+            "MoralesQuinones",
+            "United States v. Miguel Morales-Quinones",
+            CaseNameAgreement.CONTAINED,
+        ),
+        # A misspelling is left to the judgement, which can call it a variant.
+        (
+            "Rufo",
+            "Inmates of Suffock County Jail",
+            "Rufo v. Inmates of Suffolk County Jail",
+            CaseNameAgreement.MISMATCH,
+        ),
         # Sides swap on a cross-appeal.
         ("Iqbal", "Ashcroft", "Ashcroft v. Iqbal", CaseNameAgreement.CONTAINED),
         # A single-party caption on either side.

@@ -53,6 +53,7 @@ __all__ = [
     "merge_duplicates",
     "name_covers",
     "name_words",
+    "ordered_words",
     "same_case_name",
 ]
 
@@ -62,6 +63,7 @@ _GENERIC = re.compile(
     r"\b(inc|llc|llp|ltd|co|corp|corporation|company|the|of|and|et|al|state|"
     r"commonwealth|dept|department|in|re|matter|ex|rel)\b"
 )
+_APOSTROPHE = re.compile(r"['\u2019]")
 _PUNCTUATION = re.compile(r"[^a-z0-9 ]+")
 # Two records must share at least this many distinctive words before a
 # containment test is allowed to merge them. See same_case_name.
@@ -72,13 +74,24 @@ _MINIMUM_SHARED_WORDS = 2
 _MINIMUM_PREFIX = 3
 
 # Party-name abbreviations that drop the middle of a word and keep its end, so
-# no prefix test reaches them. The apostrophe is already gone by this point.
+# no prefix test reaches them. Apostrophes are removed before the word is
+# looked up here, so `Ass'n` arrives as `assn` and `P'ship` as `pship`.
 _CONTRACTIONS = {
     "assn": "assoc",
+    "atty": "attorney",
+    "bldg": "building",
+    "commcns": "communication",
+    "ctr": "center",
+    "engrs": "engineer",
+    "envt": "environment",
+    "grp": "group",
     "intl": "international",
     "natl": "national",
+    "mfg": "manufactur",
     "mgmt": "manage",
+    "mtge": "mortgage",
     "bhd": "brotherhood",
+    "pship": "partnership",
     "sys": "system",
     "servs": "service",
     "svcs": "service",
@@ -112,14 +125,25 @@ def name_covers(recorded: set[str], written: set[str]) -> bool:
 
 
 def _words(name: str | None) -> set[str]:
+    return set(ordered_words(name))
+
+
+def ordered_words(name: str | None, *, minimum_length: int = 3) -> list[str]:
+    """The distinctive words of a case name, in the order they were written.
+
+    Words shorter than ``minimum_length`` are dropped; the default drops the
+    two-letter initials that carry no identity.
+    """
     # Accents are stripped before punctuation is, so that `Dávila-González` is
     # the words `davila` and `gonzalez` rather than the fragments between them.
+    # Apostrophes are removed rather than replaced, so that `Ass'n` is the one
+    # word `assn` the contraction table knows and not `ass` and `n`.
     folded = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
-    folded = folded.lower().replace("&", " and ")
+    folded = _APOSTROPHE.sub("", folded.lower()).replace("&", " and ")
     folded = _PUNCTUATION.sub(" ", folded)
     folded = _GENERIC.sub(" ", folded)
     folded = _APPEAL_STAGE.sub(" ", " ".join(folded.split()))
-    return {word for word in folded.split() if len(word) > 2}
+    return [word for word in folded.split() if len(word) >= minimum_length]
 
 
 def same_case_name(left: str | None, right: str | None) -> bool:
@@ -237,15 +261,22 @@ def _same_word(written: str, recorded: str) -> bool:
     cut out the middle and keep the end, which no prefix test reaches, so those
     are listed. Without this, `Reyes v. Pac. Bell` does not match `Victor Reyes
     v. Pacific Bell`, which is the ordinary way that case is cited.
+
+    Either side may be the abbreviated one. An archive record is often the
+    abbreviation -- `Monell v. New York City Dept. of Social Servs.` -- and the
+    filing the full name, so the test runs both ways.
     """
-    if written == recorded:
+    return written == recorded or _abbreviates(written, recorded) or _abbreviates(recorded, written)
+
+
+def _abbreviates(short: str, full: str) -> bool:
+    """Whether `short` is a conventional abbreviation of `full`."""
+    expanded = _CONTRACTIONS.get(short)
+    if expanded is not None and full.startswith(expanded):
         return True
-    expanded = _CONTRACTIONS.get(written)
-    if expanded is not None and recorded.startswith(expanded):
-        return True
-    if len(written) >= _MINIMUM_PREFIX and recorded.startswith(written):
+    if len(short) >= _MINIMUM_PREFIX and full.startswith(short):
         return True
     # A plural abbreviation keeps its final s past the cut: `Assocs.` for
     # Associates, `Bros.` for Brothers. The stem is the prefix, not the word.
-    stem = written[:-1] if written.endswith("s") else ""
-    return len(stem) >= _MINIMUM_PREFIX and recorded.startswith(stem)
+    stem = short[:-1] if short.endswith("s") else ""
+    return len(stem) >= _MINIMUM_PREFIX and full.startswith(stem)
