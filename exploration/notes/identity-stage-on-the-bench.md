@@ -19,12 +19,12 @@ allowance; the model was `openai/gpt-5.6-luna`.
 
 | outcome | reason | roots |
 |---|---|---:|
-| confirmed identity | | 265 |
-| wrong identity | a different case at the locator | 20 |
-| wrong identity | a field the filing states disagrees | 15 |
+| confirmed identity | | 266 |
+| wrong identity | a different case at the locator | 19 |
+| wrong identity | a field the filing states disagrees | 17 |
 | ambiguous identity | crowded page | 1 |
 | defer to search | nothing at the locator | 83 |
-| defer to search | undeterminable | 7 |
+| defer to search | undeterminable | 5 |
 | defer to search | docket citation | 6 |
 
 Of the 897 citations, 397 are roots and the other 500 inherit: 12 of those
@@ -32,8 +32,8 @@ inherit through a parallel citation the lookup folded into its neighbour, and
 the rest through the citation tree extraction built. **One lookup per
 authority is the whole cost.**
 
-The 96 deferred to search are 49 Westlaw numbers, 3 LEXIS numbers, 8
-specialty reporters and 23 printed reporters the archive holds nothing for, 7
+The 94 deferred to search are 49 Westlaw numbers, 3 LEXIS numbers, 8
+specialty reporters and 23 printed reporters the archive holds nothing for, 5
 roots a judgement could not settle, and 6 docket citations. Two runs of the
 same code differ by one or two roots in the confirmed and field-disagreement
 rows, which is the model's variance on the calls the rules leave it. That is open
@@ -42,15 +42,15 @@ it was on LePhantomCite.
 
 ## 2. What the wrong identities are
 
-Twenty are a locator whose record names a different case from the one the
+Nineteen are a locator whose record names a different case from the one the
 filing describes -- `Cadle Co. v. Ayala` cited at a page that holds `Ramirez v.
-City of New York`. Nineteen are plainly that. The twentieth, `Lacey v. Maricopa
+City of New York`. Eighteen are plainly that. The nineteenth, `Lacey v. Maricopa
 County` at 693 F.3d 896, is the same case under the archive's caption `Michael
 Lacey v. Joseph Arpaio`, and nothing in the record says so; it is the one
 false wrong-identity left, and a docket fetch for the caption is what would settle
 it.
 
-The other 15 are the same case with a field the filing misstates: a court, a
+The other 17 are the same case with a field the filing misstates: a court, a
 year, or a party misspelt or dropped. Both kinds are
 `wrong_identity`; the reason and the fields under the node keep them apart,
 and the second kind still resolves the record, since the case was found.
@@ -91,14 +91,25 @@ when none settled. And the merge that treats one date as one decision folded
 which holds many cases with one date; records sharing a date now stay apart
 when both are named and share no word.
 
-## 4. What the corrections were
+## 4. What the judgement reads, and with what evidence
 
-Thirteen corrections to the filing's reading, each attributed to the model
-and pointing at the judgement node that made it: five plaintiffs, two
-defendants and six courts. `Under Norton` became `Norton`; a defendant that
-extraction read as `S.D.N.Y. May 12, 2020) ….6 |` from a table of authorities
-became `Townes`; six courts the parenthetical did not state were read from the
-reporter. The extracted citation stays beside each, unchanged.
+Every field the model reads comes with the string it read it from, checked
+against the window the field must come from: the text before the locator for
+the name, the parenthetical after it for the court and date. Over the 47
+judgements, all 47 grounded every field they read; 43 did so on the first
+answer and 4 after one repair turn, each time for a reading outside its
+window; none exhausted the budget. The court was read from a stated
+parenthetical 33 times, implied by a Supreme Court reporter 6 times, and left
+null 8 times where a regional reporter implies a family of courts and the
+parenthetical states none.
+
+Thirteen corrections to the filing's reading followed, each attributed to the
+model and pointing at the judgement node and its evidence: nine plaintiffs,
+three defendants and one court. `Under Norton` became `Norton`, `Justice`
+became `Sikhs for Justice`, `Rudy-Glanzer` became `Doe ex rel. Rudy-Glanzer`,
+each a name extraction cut short and the model read whole from the name
+window. The one court, `dcd`, was read from `D.D.C.` in the parenthetical. The
+extracted citation stays beside each, unchanged.
 
 ## 5. Against the bench's own labels
 
