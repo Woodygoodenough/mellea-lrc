@@ -243,4 +243,9 @@ def _same_word(written: str, recorded: str) -> bool:
     expanded = _CONTRACTIONS.get(written)
     if expanded is not None and recorded.startswith(expanded):
         return True
-    return len(written) >= _MINIMUM_PREFIX and recorded.startswith(written)
+    if len(written) >= _MINIMUM_PREFIX and recorded.startswith(written):
+        return True
+    # A plural abbreviation keeps its final s past the cut: `Assocs.` for
+    # Associates, `Bros.` for Brothers. The stem is the prefix, not the word.
+    stem = written[:-1] if written.endswith("s") else ""
+    return len(stem) >= _MINIMUM_PREFIX and recorded.startswith(stem)
