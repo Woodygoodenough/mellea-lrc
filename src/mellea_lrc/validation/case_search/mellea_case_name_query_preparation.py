@@ -209,7 +209,9 @@ def _court_id(validation: CitationValidation) -> str | None:
 
 def _year(validation: CitationValidation) -> str | None:
     citation = validation.citation.citation
-    return citation.year if isinstance(citation, FullCaseCitation) else None
+    if not isinstance(citation, FullCaseCitation) or citation.date is None:
+        return None
+    return citation.date.year
 
 
 def _proposal(value: object) -> _QueryTermsProposal:
