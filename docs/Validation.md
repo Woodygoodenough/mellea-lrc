@@ -175,8 +175,14 @@ words run together, so `JPMorgan` covers `JP Morgan`. The date
 is compared at the precision the filing stated, by year for `(2007)` and by
 day for `(E.D.N.Y. Oct. 31, 2024)`. The court is compared by courts-db
 identifier, which costs one docket fetch per candidate because the lookup
-endpoint returns no court. An absent field on either side is `unavailable`,
-never a disagreement.
+endpoint returns no court. A filing that states no court is not compared
+against nothing: the reporter holds only some courts — `N.C. App.` holds North
+Carolina's appellate courts, `So. 3d` the courts of five states — and the
+record's court is checked against that family, `compatible` when it is one of
+them and a mismatch when it is not. The family comes from reporters-db's
+jurisdiction list mapped onto courts-db identifiers, and it is a superset, so
+it can only catch a conflict, never supply a reading. Any other absent field
+on either side is `unavailable`, never a disagreement.
 
 **The composite judgement** runs only when a rule disagrees, and it sees the
 filing's own text rather than two strings, because a disagreement has three
@@ -194,8 +200,9 @@ been read from, matched fuzzily, so the model is not punished for writing
 `Suffolk` where the filing wrote `Suffock`. A court read from the parenthetical
 comes with its evidence string, which must be in the window and must resolve
 to the same courts-db identifier; a court implied by the reporter is allowed
-only where the reporter implies exactly one, which `U.S.` does and `F.3d` does
-not. A date comes with its evidence string, which must be in the window and
+only where the reporter holds exactly one, which `U.S.` does and `F.3d` does
+not. Where the model reads no court, the reporter's family stands in for the
+comparison, as in the rule guard. A date comes with its evidence string, which must be in the window and
 must contain the year, and the day when one is read.
 
 Court and date agreement are then computed from the reading and the record, at
