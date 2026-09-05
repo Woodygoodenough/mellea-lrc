@@ -21,23 +21,37 @@ from mellea_lrc.serialization.extracted_document import (
 )
 from mellea_lrc.validation.types import (
     AggregatedFieldOutcome,
+    AuthorityMergeNode,
+    AuthorityMergeOutcome,
     CandidateEvaluationNode,
     CandidateEvaluationOutcome,
     CandidateEvaluationSource,
     CandidateProvenance,
     CandidateSelectionNode,
     CandidateSelectionOutcome,
+    CaseNameAgreement,
+    CaseNameAgreementNode,
     CitationSummaryAssessmentOutcome,
     CitationSummaryCandidate,
     CitationSummaryPinpoint,
     CitationValidation,
     CourtCheckNode,
+    DateCheckNode,
+    DatePrecision,
     DocketCourtRetrievalNode,
     DocketCourtRetrievalOutcome,
+    DocketIdentityNode,
+    DocketIdentityOutcome,
     EvidenceQuoteMatchMethod,
     ExactCaseNameCheckNode,
     ExactLocatorLookupNode,
+    FieldAgreement,
     FieldCheckOutcome,
+    IdentityOutcome,
+    IdentityResolutionNode,
+    IdentityScope,
+    IdentityScopeNode,
+    IdentityVerdict,
     LocatorCandidateAssessmentNode,
     LocatorCandidateAssessmentOutcome,
     LocatorCitationSummaryNode,
@@ -51,6 +65,7 @@ from mellea_lrc.validation.types import (
     MelleaCaseNameReextractionOutcome,
     MelleaCitingPropositionExtractionNode,
     MelleaCitingPropositionExtractionOutcome,
+    MelleaIdentityJudgmentNode,
     MelleaPinpointCheckNode,
     MelleaPinpointCheckOutcome,
     MelleaReextractedCaseNameCheckNode,
@@ -100,6 +115,13 @@ _NODE_TYPES: dict[str, type[ValidationNode]] = {
         RecapSearchCandidateAssessmentNode,
         SearchCitationSummaryNode,
         YearCheckNode,
+        IdentityScopeNode,
+        DateCheckNode,
+        CaseNameAgreementNode,
+        MelleaIdentityJudgmentNode,
+        IdentityResolutionNode,
+        AuthorityMergeNode,
+        DocketIdentityNode,
     )
 }
 
@@ -125,6 +147,13 @@ _OUTCOME_TYPES = {
     RecapSearchCandidateAssessmentNode: SearchCandidateAssessmentOutcome,
     SearchCitationSummaryNode: SearchCitationSummaryOutcome,
     YearCheckNode: FieldCheckOutcome,
+    IdentityScopeNode: IdentityScope,
+    DateCheckNode: FieldCheckOutcome,
+    CaseNameAgreementNode: CaseNameAgreement,
+    MelleaIdentityJudgmentNode: IdentityVerdict,
+    IdentityResolutionNode: IdentityOutcome,
+    AuthorityMergeNode: AuthorityMergeOutcome,
+    DocketIdentityNode: DocketIdentityOutcome,
 }
 
 
@@ -236,6 +265,13 @@ def _deserialize_node(value: object) -> ValidationNode:
     ):
         for field_name in ("case_name_outcome", "year_outcome", "court_outcome"):
             fields[field_name] = AggregatedFieldOutcome(fields[field_name])
+    elif node_type is DateCheckNode:
+        fields["precision"] = _optional_enum(DatePrecision, fields["precision"])
+    elif node_type is MelleaIdentityJudgmentNode:
+        for field_name in ("case_name_agreement", "court_agreement", "date_agreement"):
+            fields[field_name] = _optional_enum(FieldAgreement, fields[field_name])
+    elif node_type is IdentityResolutionNode:
+        fields["defects"] = tuple(require_list(fields["defects"], name="node.defects"))
     elif node_type in (LocatorCitationSummaryNode, SearchCitationSummaryNode):
         overall_outcome = fields["overall_outcome"]
         fields["overall_outcome"] = (

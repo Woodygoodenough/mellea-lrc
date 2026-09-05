@@ -1,0 +1,119 @@
+"""Tests for the rule-based case-name comparison and the date comparison."""
+
+from __future__ import annotations
+
+import pytest
+
+from mellea_lrc.core.citations import CitationDate, FullCaseCitation
+from mellea_lrc.validation.identity.case_name import compare_case_names
+from mellea_lrc.validation.identity.field_checks import iso_date, run_date_check
+from mellea_lrc.validation.types import (
+    CandidateEvaluationNode,
+    CandidateEvaluationOutcome,
+    CandidateEvaluationSource,
+    CaseNameAgreement,
+    DatePrecision,
+    FieldCheckOutcome,
+    ValidationNodeStatus,
+)
+
+
+@pytest.mark.parametrize(
+    ("plaintiff", "defendant", "recorded", "expected"),
+    [
+        ("Ashcroft", "Iqbal", "Ashcroft v. Iqbal", CaseNameAgreement.EXACT),
+        ("Ashcroft", "Iqbal", "ashcroft  v. iqbal", CaseNameAgreement.EXACT),
+        # A written name shorter than the record's is the ordinary way to cite.
+        ("Golden", None, "Bobby Ray Golden", CaseNameAgreement.CONTAINED),
+        ("Reyes", "Pac. Bell", "Victor Reyes v. Pacific Bell", CaseNameAgreement.CONTAINED),
+        ("Bell Atl. Corp.", "Twombly", "Bell Atlantic Corp. v. Twombly", CaseNameAgreement.CONTAINED),
+        ("U.S.", "Smith", "United States v. Smith", CaseNameAgreement.CONTAINED),
+        ("Brown", "Board", "Brown v. Board of Education", CaseNameAgreement.CONTAINED),
+        ("Dávila-González", None, "United States v. Davila-Gonzalez", CaseNameAgreement.CONTAINED),
+        # Sides swap on a cross-appeal.
+        ("Iqbal", "Ashcroft", "Ashcroft v. Iqbal", CaseNameAgreement.CONTAINED),
+        # A single-party caption on either side.
+        (None, "Golden", "In re Golden", CaseNameAgreement.CONTAINED),
+        ("Smith", "Jones", "Smith vs. Jones-Bar Corp.", CaseNameAgreement.CONTAINED),
+        # A different party on one side is a different case.
+        ("Smith", "Jones", "Smith v. Williams", CaseNameAgreement.MISMATCH),
+        ("Conley", "Gibson", "Galeana v. Galeana", CaseNameAgreement.MISMATCH),
+        # A two-party name against a one-party record is not contained in it.
+        ("Golden", "Silver", "In re Golden", CaseNameAgreement.MISMATCH),
+        # Absence decides nothing.
+        ("Brown", "Board", None, CaseNameAgreement.UNAVAILABLE),
+        (None, None, "Brown v. Board", CaseNameAgreement.UNAVAILABLE),
+        ("The", "Inc.", "Brown v. Board", CaseNameAgreement.UNAVAILABLE),
+    ],
+)
+def test_compare_case_names(
+    plaintiff: str | None, defendant: str | None, recorded: str | None, expected: CaseNameAgreement
+) -> None:
+    comparison = compare_case_names(plaintiff=plaintiff, defendant=defendant, recorded=recorded)
+    assert comparison.agreement is expected
+    assert comparison.agreement.agrees is (expected in (CaseNameAgreement.EXACT, CaseNameAgreement.CONTAINED))
+    assert comparison.reason
+
+
+@pytest.mark.parametrize(
+    ("date", "expected"),
+    [
+        (None, None),
+        (CitationDate(year="2007"), "2007"),
+        (CitationDate(year="2024", month="Oct.", day="31"), "2024-10-31"),
+        (CitationDate(year="2024", month="Sept.", day="3"), "2024-09-03"),
+        (CitationDate(year="2024", month="Nonsense", day="3"), "2024"),
+    ],
+)
+def test_iso_date(date: CitationDate | None, expected: str | None) -> None:
+    assert iso_date(date) == expected
+
+
+def _candidate(date_filed: str | None) -> CandidateEvaluationNode:
+    return CandidateEvaluationNode(
+        node_id="c1:locator_candidate_evaluation:1",
+        status=ValidationNodeStatus.SUCCEEDED,
+        outcome=CandidateEvaluationOutcome.READY,
+        source=CandidateEvaluationSource.LOCATOR_LOOKUP,
+        candidate_index=1,
+        cluster_id="x",
+        case_name=None,
+        date_filed=date_filed,
+        court_id=None,
+        docket_id=None,
+        record={},
+        depends_on=(),
+    )
+
+
+@pytest.mark.parametrize(
+    ("stated", "filed", "outcome", "precision"),
+    [
+        (CitationDate(year="2007"), "2007-05-21", FieldCheckOutcome.MATCH, DatePrecision.YEAR),
+        (CitationDate(year="2008"), "2007-05-21", FieldCheckOutcome.MISMATCH, DatePrecision.YEAR),
+        (
+            CitationDate(year="2024", month="Oct.", day="31"),
+            "2024-10-31",
+            FieldCheckOutcome.MATCH,
+            DatePrecision.DAY,
+        ),
+        (
+            CitationDate(year="2024", month="Oct.", day="30"),
+            "2024-10-31",
+            FieldCheckOutcome.MISMATCH,
+            DatePrecision.DAY,
+        ),
+        (None, "2007-05-21", FieldCheckOutcome.UNAVAILABLE, None),
+        (CitationDate(year="2007"), None, FieldCheckOutcome.UNAVAILABLE, None),
+    ],
+)
+def test_the_date_is_compared_at_the_precision_the_filing_stated(
+    stated: CitationDate | None,
+    filed: str | None,
+    outcome: FieldCheckOutcome,
+    precision: DatePrecision | None,
+) -> None:
+    node = run_date_check(FullCaseCitation(date=stated), candidate=_candidate(filed))
+    assert node.outcome is outcome
+    assert node.precision is precision
+    assert node.depends_on == ("c1:locator_candidate_evaluation:1",)
