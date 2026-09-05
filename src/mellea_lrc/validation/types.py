@@ -92,6 +92,92 @@ class DocketCourtRetrievalOutcome(str, Enum):
     FAILED = "failed"
 
 
+class CaseNameAgreement(str, Enum):
+    """How the case name a filing wrote relates to the one a record holds."""
+
+    EXACT = "exact"
+    """Equal after whitespace and case folding."""
+    CONTAINED = "contained"
+    """Every distinctive word the filing wrote is in the record, side by side."""
+    MISMATCH = "mismatch"
+    UNAVAILABLE = "unavailable"
+    """One side wrote no name, or no distinctive word survives normalisation."""
+
+    @property
+    def agrees(self) -> bool:
+        """Whether the rule counts this as the same name."""
+        return self in (CaseNameAgreement.EXACT, CaseNameAgreement.CONTAINED)
+
+
+class IdentityScope(str, Enum):
+    """Whether a citation's identity is checked, and if not, why not."""
+
+    ROOT_CASE = "root_case"
+    """A full case citation that introduces its authority. Checked by locator."""
+    ROOT_DOCKET = "root_docket"
+    """A docket citation that introduces its authority. Its route is not built yet."""
+    NON_ROOT = "non_root"
+    """Refers to an authority another citation introduced, and inherits its identity."""
+    OUT_OF_SCOPE = "out_of_scope"
+    """Names no case: a statute, a journal, or a span that could not be parsed."""
+
+
+class DatePrecision(str, Enum):
+    """How much of a date the filing stated, which is how much is compared."""
+
+    YEAR = "year"
+    DAY = "day"
+
+
+class IdentityVerdict(str, Enum):
+    """A model's answer to whether the filing and the record name one case."""
+
+    SAME_CASE = "same_case"
+    DIFFERENT_CASE = "different_case"
+    UNDETERMINABLE = "undeterminable"
+    FAILED = "failed"
+
+
+class FieldAgreement(str, Enum):
+    """A model's answer about one field, read from the filing's context."""
+
+    AGREE = "agree"
+    DISAGREE = "disagree"
+    UNDETERMINABLE = "undeterminable"
+
+
+class IdentityOutcome(str, Enum):
+    """What the identity stage concluded about one root citation."""
+
+    ESTABLISHED = "established"
+    """The locator names one case and every field the filing states agrees with it."""
+    ESTABLISHED_WITH_DEFECTS = "established_with_defects"
+    """The same case, but a field the filing states disagrees with the record."""
+    REFUTED = "refuted"
+    """The locator names a case, and it is not the one the filing describes."""
+    UNRESOLVED = "unresolved"
+    """The archive holds nothing at the locator, or nothing could be decided. Open search's population."""
+    AMBIGUOUS = "ambiguous"
+    """More cases at the locator than the stage will look at, and nothing separated them."""
+    DEFERRED = "deferred"
+    """A route the stage does not run yet."""
+
+
+class AuthorityMergeOutcome(str, Enum):
+    """What became of a root that shares its text position with another root."""
+
+    MERGED_INTO = "merged_into"
+    """Both locators resolved to one cluster, so this root now refers to the other."""
+    KEPT = "kept"
+    """The locators resolved to different clusters, or one did not resolve."""
+
+
+class DocketIdentityOutcome(str, Enum):
+    """Results of identifying a case by docket number and court."""
+
+    NOT_IMPLEMENTED = "not_implemented"
+
+
 class ReporterPageRetrievalOutcome(str, Enum):
     """Results of retrieving a reporter page from citation-aware opinion HTML."""
 
@@ -696,6 +782,123 @@ class YearCheckNode:
     outcome_message: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class IdentityScopeNode:
+    """Whether this citation's identity is checked, decided from the citation tree."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: IdentityScope
+    authority_id: str | None
+    colocation_id: str | None
+    depends_on: tuple[str, ...] = ()
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DateCheckNode:
+    """Comparison of the date a filing states with a record's, at the precision stated."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: FieldCheckOutcome
+    precision: DatePrecision | None
+    extracted_date: str | None
+    retrieved_date: str | None
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CaseNameAgreementNode:
+    """Rule-based comparison of the written and recorded case names."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: CaseNameAgreement
+    written_case_name: str | None
+    recorded_case_name: str | None
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MelleaIdentityJudgmentNode:
+    """One composite model judgement over every field the rules disagreed on.
+
+    The model reads the filing's context, not the two strings, and states for
+    each field what the filing says and whether it agrees with the record. The
+    verdict is about identity -- the same case or not -- and a deterministic
+    requirement holds it to the field answers, so a verdict the answers do not
+    support is repaired rather than recorded.
+    """
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: IdentityVerdict
+    case_name_read: str | None
+    case_name_agreement: FieldAgreement | None
+    court_read: str | None
+    court_agreement: FieldAgreement | None
+    date_read: str | None
+    date_agreement: FieldAgreement | None
+    reason: str | None
+    depends_on: tuple[str, ...]
+    model: str | None = None
+    status_message: str | None = None
+    outcome_message: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class IdentityResolutionNode:
+    """The stage's conclusion for one root, and how it was reached."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: IdentityOutcome
+    cluster_id: str | None
+    decided_by: str | None
+    """``rule`` when no model was consulted, else the judgement node's identifier."""
+    defects: tuple[str, ...]
+    """Fields the filing states that disagree with the resolved record."""
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorityMergeNode:
+    """Decision on a root that shares a text position with an earlier root."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: AuthorityMergeOutcome
+    colocation_id: str
+    target_citation_id: str | None
+    cluster_id: str | None
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DocketIdentityNode:
+    """Identity of a case cited by docket number. The route is recorded, not run."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: DocketIdentityOutcome
+    docket_number: str | None
+    court_id: str | None
+    depends_on: tuple[str, ...] = ()
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
 # Expand this union as operation-specific validation nodes are introduced.
 ValidationNode: TypeAlias = (
     ExactLocatorLookupNode
@@ -719,6 +922,13 @@ ValidationNode: TypeAlias = (
     | RecapSearchCandidateAssessmentNode
     | SearchCitationSummaryNode
     | YearCheckNode
+    | IdentityScopeNode
+    | DateCheckNode
+    | CaseNameAgreementNode
+    | MelleaIdentityJudgmentNode
+    | IdentityResolutionNode
+    | AuthorityMergeNode
+    | DocketIdentityNode
 )
 
 
