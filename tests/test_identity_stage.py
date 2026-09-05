@@ -39,6 +39,7 @@ from mellea_lrc.validation.types import (
     CandidateSelectionNode,
     CandidateSelectionOutcome,
     IdentityOutcome,
+    IdentityReason,
     IdentityResolutionNode,
     IdentityScope,
     IdentityScopeNode,
@@ -198,7 +199,7 @@ def test_only_roots_are_looked_up_and_non_roots_inherit() -> None:
         next(n for n in r.trace.nodes if isinstance(n, IdentityScopeNode)).outcome for r in result.records
     ]
     assert scopes == [IdentityScope.ROOT_CASE, IdentityScope.NON_ROOT, IdentityScope.OUT_OF_SCOPE]
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.ESTABLISHED
+    assert _resolution(result.record("c1")).outcome is IdentityOutcome.CONFIRMED_IDENTITY
     assert result.resolution_of("c2") is _resolution(result.record("c1"))
     assert result.resolution_of("c3") is None
     assert result.record("c1").resolution is not None
@@ -218,7 +219,7 @@ def test_a_docket_root_is_deferred_and_says_so() -> None:
 
     assert client.lookups == []
     resolution = _resolution(result.record("c1"))
-    assert resolution.outcome is IdentityOutcome.DEFERRED
+    assert resolution.outcome is IdentityOutcome.DEFER_TO_SEARCH
     assert [type(n).__name__ for n in result.record("c1").trace.nodes] == [
         "IdentityScopeNode",
         "DocketIdentityNode",
@@ -239,9 +240,10 @@ def test_the_rule_guard_establishes_identity_without_a_model(monkeypatch: pytest
 
     assert calls == []
     resolution = _resolution(result.record("c1"))
-    assert resolution.outcome is IdentityOutcome.ESTABLISHED
+    assert resolution.outcome is IdentityOutcome.CONFIRMED_IDENTITY
     assert resolution.decided_by == "rule"
-    assert resolution.defects == ()
+    assert resolution.fields == ()
+    assert resolution.reason is None
 
 
 def test_an_absent_field_is_not_a_disagreement(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -253,7 +255,7 @@ def test_an_absent_field_is_not_a_disagreement(monkeypatch: pytest.MonkeyPatch) 
     result = _run(_document(text, root), client, session=object())
 
     assert calls == []
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.ESTABLISHED
+    assert _resolution(result.record("c1")).outcome is IdentityOutcome.CONFIRMED_IDENTITY
 
 
 def test_not_found_is_unresolved_not_refuted() -> None:
@@ -270,7 +272,7 @@ def test_not_found_is_unresolved_not_refuted() -> None:
 
     result = _run(_document(text, root), Client({}))
 
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.UNRESOLVED
+    assert _resolution(result.record("c1")).outcome is IdentityOutcome.DEFER_TO_SEARCH
     assert result.record("c1").resolution is None
 
 
@@ -281,7 +283,7 @@ def test_a_failed_lookup_is_unresolved_with_the_error_in_the_trace() -> None:
 
     result = _run(_document(text, root), client)
 
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.UNRESOLVED
+    assert _resolution(result.record("c1")).outcome is IdentityOutcome.DEFER_TO_SEARCH
     assert any(getattr(node, "error", None) == "boom" for node in result.record("c1").trace.nodes)
 
 
@@ -339,9 +341,13 @@ def test_a_rule_disagreement_sends_one_composite_call_and_records_its_verdict(
     judgment = next(n for n in record.trace.nodes if isinstance(n, MelleaIdentityJudgmentNode))
     assert judgment.model == "test-model"
     resolution = _resolution(record)
-    assert resolution.outcome is IdentityOutcome.REFUTED
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert resolution.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR
+    assert resolution.record_case_name == "Galeana v. Galeana"
     assert resolution.decided_by == judgment.node_id
-    assert resolution.defects == ("case_name",)
+    assert [(f.field, f.filing_value, f.record_value) for f in resolution.fields] == [
+        ("case_name", "Conley v. Gibson", "Galeana v. Galeana")
+    ]
     assert record.resolution is None
     assert record.corrections == ()
 
@@ -376,8 +382,11 @@ def test_the_model_corrects_the_filing_reading_but_never_the_filing(monkeypatch:
 
     record = result.record("c1")
     resolution = _resolution(record)
-    assert resolution.outcome is IdentityOutcome.ESTABLISHED_WITH_DEFECTS
-    assert resolution.defects == ("date",)
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert resolution.reason is IdentityReason.FIELD_DISAGREEMENT
+    assert [(f.field, f.filing_value, f.record_value, f.agreement.value) for f in resolution.fields] == [
+        ("date", "2009", "2007-05-21", "disagree")
+    ]
     assert record.citation.court == "scotus"
     assert record.citation.date == CitationDate(year="2009")
     assert record.source.citation.court == "ca9"
@@ -424,8 +433,9 @@ def test_a_misspelt_party_is_the_same_case_with_a_defect(monkeypatch: pytest.Mon
     result = _run(_document(text, root), client, session=object())
 
     resolution = _resolution(result.record("c1"))
-    assert resolution.outcome is IdentityOutcome.ESTABLISHED_WITH_DEFECTS
-    assert resolution.defects == ("case_name",)
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert resolution.reason is IdentityReason.FIELD_DISAGREEMENT
+    assert [(f.field, f.agreement.value) for f in resolution.fields] == [("case_name", "variant")]
     assert result.record("c1").resolution is not None
     assert result.record("c1").corrections == ()
 
@@ -454,7 +464,7 @@ def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.Monk
     record = result.record("c1")
     judgment = next(n for n in record.trace.nodes if isinstance(n, MelleaIdentityJudgmentNode))
     assert judgment.status is ValidationNodeStatus.FAILED
-    assert _resolution(record).outcome is IdentityOutcome.UNRESOLVED
+    assert _resolution(record).outcome is IdentityOutcome.DEFER_TO_SEARCH
 
 
 @pytest.mark.parametrize(
@@ -552,7 +562,7 @@ def test_duplicates_merge_and_a_crowded_page_narrows_by_name() -> None:
     assert selection.outcome is CandidateSelectionOutcome.NARROWED_BY_CASE_NAME
     assert selection.distinct_case_count == 5
     assert selection.selected_indices == (5,)
-    assert _resolution(record).outcome is IdentityOutcome.ESTABLISHED
+    assert _resolution(record).outcome is IdentityOutcome.CONFIRMED_IDENTITY
     assert record.resolution is not None
     assert record.resolution.cluster_id == "c5"
 
@@ -579,7 +589,7 @@ def test_the_rules_run_on_every_candidate_before_any_model_call(monkeypatch: pyt
 
     assert calls == []
     record = result.record("c1")
-    assert _resolution(record).outcome is IdentityOutcome.ESTABLISHED
+    assert _resolution(record).outcome is IdentityOutcome.CONFIRMED_IDENTITY
     assert record.resolution is not None
     assert record.resolution.cluster_id == "c-l"
 
@@ -601,7 +611,7 @@ def test_a_crowded_page_that_matches_nothing_is_ambiguous_not_refuted() -> None:
     )
     result = _run(_document(text, root), Client({("44", "So. 3d", "587"): page}))
 
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.AMBIGUOUS
+    assert _resolution(result.record("c1")).outcome is IdentityOutcome.AMBIGUOUS_IDENTITY
 
 
 def test_a_mismatch_on_a_page_of_several_cases_is_unresolved_not_refuted(
@@ -641,7 +651,7 @@ def test_a_mismatch_on_a_page_of_several_cases_is_unresolved_not_refuted(
 
     # Two candidates, each judged a different case: the archive may hold only
     # part of the page, so the filing's case is not shown absent.
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.UNRESOLVED
+    assert _resolution(result.record("c1")).outcome is IdentityOutcome.DEFER_TO_SEARCH
 
 
 # --- parallel citations ---------------------------------------------------------

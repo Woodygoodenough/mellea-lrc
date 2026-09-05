@@ -47,7 +47,9 @@ from mellea_lrc.validation.types import (
     ExactLocatorLookupNode,
     FieldAgreement,
     FieldCheckOutcome,
+    FieldDisagreement,
     IdentityOutcome,
+    IdentityReason,
     IdentityResolutionNode,
     IdentityScope,
     IdentityScopeNode,
@@ -271,7 +273,19 @@ def _deserialize_node(value: object) -> ValidationNode:
         for field_name in ("case_name_agreement", "court_agreement", "date_agreement"):
             fields[field_name] = _optional_enum(FieldAgreement, fields[field_name])
     elif node_type is IdentityResolutionNode:
-        fields["defects"] = tuple(require_list(fields["defects"], name="node.defects"))
+        fields["reason"] = _optional_enum(IdentityReason, fields["reason"])
+        fields["fields"] = tuple(
+            FieldDisagreement(
+                field=item["field"],
+                filing_value=item["filing_value"],
+                record_value=item["record_value"],
+                agreement=FieldAgreement(item["agreement"]),
+            )
+            for item in (
+                require_mapping(value, name="node.fields")
+                for value in require_list(fields["fields"], name="node.fields")
+            )
+        )
     elif node_type in (LocatorCitationSummaryNode, SearchCitationSummaryNode):
         overall_outcome = fields["overall_outcome"]
         fields["overall_outcome"] = (

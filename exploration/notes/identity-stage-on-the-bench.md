@@ -17,45 +17,51 @@ allowance; the model was `openai/gpt-5.6-luna`.
 | model calls | 47 |
 | parallel citations merged into one authority | 8 |
 
-| outcome | roots |
-|---|---:|
-| established | 267 |
-| established with defects | 14 |
-| refuted | 20 |
-| unresolved | 89 |
-| deferred (docket) | 6 |
-| ambiguous | 1 |
+| outcome | reason | roots |
+|---|---|---:|
+| confirmed identity | | 265 |
+| wrong identity | a different case at the locator | 20 |
+| wrong identity | a field the filing states disagrees | 15 |
+| ambiguous identity | crowded page | 1 |
+| defer to search | nothing at the locator | 83 |
+| defer to search | undeterminable | 7 |
+| defer to search | docket citation | 6 |
 
 Of the 897 citations, 397 are roots and the other 500 inherit: 12 of those
 inherit through a parallel citation the lookup folded into its neighbour, and
 the rest through the citation tree extraction built. **One lookup per
 authority is the whole cost.**
 
-The 89 unresolved are 49 Westlaw numbers, 3 LEXIS numbers, 8 specialty
-reporters and 24 printed reporters the archive holds nothing for, plus 6 roots
-a judgement could not settle. That is open search's population on this corpus,
-and it is dominated by vendor numbers, as it was on LePhantomCite.
+The 96 deferred to search are 49 Westlaw numbers, 3 LEXIS numbers, 8
+specialty reporters and 23 printed reporters the archive holds nothing for, 7
+roots a judgement could not settle, and 6 docket citations. Two runs of the
+same code differ by one or two roots in the confirmed and field-disagreement
+rows, which is the model's variance on the calls the rules leave it. That is open
+search's population on this corpus, and it is dominated by vendor numbers, as
+it was on LePhantomCite.
 
-## 2. What the refutations are
+## 2. What the wrong identities are
 
-All 20 are a locator whose record names a different case from the one the
+Twenty are a locator whose record names a different case from the one the
 filing describes -- `Cadle Co. v. Ayala` cited at a page that holds `Ramirez v.
 City of New York`. Nineteen are plainly that. The twentieth, `Lacey v. Maricopa
 County` at 693 F.3d 896, is the same case under the archive's caption `Michael
 Lacey v. Joseph Arpaio`, and nothing in the record says so; it is the one
-false refutation left, and a docket fetch for the caption is what would settle
+false wrong-identity left, and a docket fetch for the caption is what would settle
 it.
 
-The 14 established with defects are the same case with a field the filing
-misstates: a court in 8, a year in 4, a party misspelt or dropped in 2.
+The other 15 are the same case with a field the filing misstates: a court, a
+year, or a party misspelt or dropped. Both kinds are
+`wrong_identity`; the reason and the fields under the node keep them apart,
+and the second kind still resolves the record, since the case was found.
 `Hernandez v. Mario's Auto Sales` at 617 F. Supp. 2d 488 is that case whatever
-district the filing wrote, and the stage now says so rather than calling it a
-fabrication.
+district the filing wrote, and the node says which field is wrong rather than
+calling the citation a fabrication.
 
 ## 3. What five runs changed
 
-The first run made 71 model calls and refuted 35 roots. Reading the
-refutations by hand found three kinds of mistake, none of them the model's
+The first run made 71 model calls and called 35 roots a different case.
+Reading those by hand found three kinds of mistake, none of them the model's
 alone.
 
 **The rules compared one way.** `Monell v. Department of Social Services`
@@ -99,17 +105,17 @@ reporter. The extracted citation stays beside each, unchanged.
 The bench's 79 annotations are anchored to v1 text, so they were matched to
 the stage's output by document and locator rather than by offset. 25 are
 `misrepresented_authority`: the case exists and does not say what it is cited
-for. Identity establishes 19 of them and does not see the other 6, which is
+for. Identity confirms 19 of them and does not see the other 6, which is
 right -- that defect is the pinpoint stage's. The 54 `unverifiable_authority`
 annotations are the ones identity should catch:
 
 | what identity concluded | count |
 |---|---:|
-| refuted: the page holds a different case | 19 |
-| unresolved: the archive holds nothing there, mostly Westlaw numbers | 27 |
-| established with a court defect: the case exists, the filing names the wrong court | 5 |
-| established | 1 |
-| deferred: cited by docket number | 1 |
+| wrong identity, a different case at the locator | 19 |
+| defer to search, nothing at the locator, mostly Westlaw numbers | 27 |
+| wrong identity, the filing names the wrong court | 5 |
+| confirmed identity | 1 |
+| defer to search, cited by docket number | 1 |
 | no locator for extraction to read (`Kusulas v. GE/CO`) | 1 |
 
 **No bench-labelled false citation is passed as clean but one**, and that one
@@ -122,9 +128,9 @@ identity, and whatever is wrong is in what it is cited for: a
 misrepresentation, for the pinpoint stage, however plainly the proposition
 belongs to another case. The five court-defect cases are `Hernandez v. Mario's
 Auto Sales` and its kind: the case exists, the filing names the wrong court,
-and the stage reports that as a defect on an established identity. The audit
+and the stage reports a wrong identity with the court as the disagreeing field. The audit
 of every label the rule reads differently is untracked in the dataset
 directory, `data/false-citation-bench/audit-identity-vs-misrepresentation.md`.
 
-The 27 unresolved are not caught either. They are the open-search population,
+The 27 deferred to search are not caught either. They are the open-search population,
 and the bench's label says what a search would find: nothing.

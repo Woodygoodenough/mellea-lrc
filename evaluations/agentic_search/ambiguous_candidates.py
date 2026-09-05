@@ -164,9 +164,7 @@ def measure(path: Path, *, miss_budget: int, limit: int) -> tuple[Tally, int, in
         if client.last_response_cached is not True:
             misses += 1
             if misses > miss_budget:
-                sys.stderr.write(
-                    f"  stopping after {misses} uncached responses, which spend the allowance\n"
-                )
+                sys.stderr.write(f"  stopping after {misses} uncached responses, which spend the allowance\n")
                 break
         _record(tally, locator, lookup.clusters, limit=limit)
     return tally, requests_made, misses

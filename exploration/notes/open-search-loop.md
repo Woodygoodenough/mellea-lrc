@@ -9,9 +9,11 @@ come first.
 The identity stage leaves a root in one of two states that open search can act
 on:
 
-- **unresolved**: the archive holds nothing at the locator, the lookup failed,
-  or a candidate was judged undeterminable
-- **ambiguous**: a crowded page the filing's case name separated nothing on
+- **`DEFER_TO_SEARCH`**: the archive holds nothing at the locator, the lookup
+  failed, a candidate was judged undeterminable, or the case is cited by
+  docket number
+- **`AMBIGUOUS_IDENTITY`**: a crowded page the filing's case name separated
+  nothing on
 
 Both are absences. Neither is evidence that the citation is bad, and the
 current pipeline stops there with nothing to say. `agentic-search-population.md`

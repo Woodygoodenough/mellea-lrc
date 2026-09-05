@@ -10,7 +10,7 @@ import pytest
 from mellea_lrc.cli import main
 from mellea_lrc.extraction import extract_from_plain_text
 from mellea_lrc.serialization import deserialize_identified_document, serialize_extracted_document
-from mellea_lrc.validation.types import IdentityOutcome, IdentityResolutionNode
+from mellea_lrc.validation.types import IdentityOutcome, IdentityReason, IdentityResolutionNode
 
 
 def test_identify_reads_an_extraction_artifact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -33,10 +33,12 @@ def test_identify_reads_an_extraction_artifact(tmp_path: Path, monkeypatch: pyte
                     IdentityResolutionNode(
                         node_id=f"{record.citation_id}:identity_resolution",
                         status=ValidationNodeStatus.SUCCEEDED,
-                        outcome=IdentityOutcome.UNRESOLVED,
+                        outcome=IdentityOutcome.DEFER_TO_SEARCH,
+                        reason=IdentityReason.NOT_FOUND,
                         cluster_id=None,
+                        record_case_name=None,
                         decided_by="rule",
-                        defects=(),
+                        fields=(),
                         depends_on=(scope.node_id,),
                     )
                 )
@@ -50,4 +52,6 @@ def test_identify_reads_an_extraction_artifact(tmp_path: Path, monkeypatch: pyte
     identified = deserialize_identified_document(json.loads(output.read_text(encoding="utf-8")))
     assert identified.source.text == text
     assert [record.is_root for record in identified.records] == [True, False]
-    assert identified.resolution_of(identified.records[1].citation_id).outcome is IdentityOutcome.UNRESOLVED
+    assert (
+        identified.resolution_of(identified.records[1].citation_id).outcome is IdentityOutcome.DEFER_TO_SEARCH
+    )

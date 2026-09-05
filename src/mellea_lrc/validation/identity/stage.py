@@ -25,9 +25,11 @@ What the stage writes back:
   -- resolved to the same cluster, so the later one becomes a non-root and
   everything that referred to it follows
 
-Two routes are recorded and not run: a root cited by docket number
-(``docket.py`` describes the route), and a root the archive holds nothing for,
-which is open search's population.
+Every root ends in one of four outcomes: `CONFIRMED_IDENTITY`,
+`WRONG_IDENTITY` with a reason and the fields under it, `AMBIGUOUS_IDENTITY`,
+or `DEFER_TO_SEARCH` for what the lookup route cannot decide -- nothing at the
+locator, a docket number (``docket.py`` describes that route), or a judgement
+that could not decide.
 """
 
 from __future__ import annotations
@@ -61,6 +63,7 @@ from mellea_lrc.validation.types import (
     CandidateSelectionOutcome,
     FieldCheckOutcome,
     IdentityOutcome,
+    IdentityReason,
     IdentityResolutionNode,
     IdentityScope,
     IdentityScopeNode,
@@ -83,6 +86,7 @@ if TYPE_CHECKING:
         CourtCheckNode,
         DateCheckNode,
         ExactLocatorLookupNode,
+        FieldDisagreement,
     )
 
 RULE = "validation.identity.stage"
@@ -147,12 +151,10 @@ async def identify_document(
             record.append(
                 _resolution(
                     record,
-                    IdentityOutcome.DEFERRED,
-                    cluster_id=None,
-                    decided_by="rule",
-                    defects=(),
+                    IdentityOutcome.DEFER_TO_SEARCH,
+                    reason=IdentityReason.DOCKET,
                     depends_on=(docket.node_id,),
-                    message="Identity by docket number is deferred until the RECAP route is built.",
+                    message="A docket number is identified by the RECAP search route, which is not built.",
                 )
             )
     merge_colocated_roots(records)
@@ -222,22 +224,18 @@ async def identify_root(
         return record.append(
             _resolution(
                 record,
-                IdentityOutcome.UNRESOLVED,
-                cluster_id=None,
-                decided_by="rule",
-                defects=(),
+                IdentityOutcome.DEFER_TO_SEARCH,
+                reason=IdentityReason.NOT_FOUND,
                 depends_on=(scope.node_id, lookup.node_id),
-                message="The archive holds nothing at the locator. Open search's population.",
+                message="The archive holds nothing at the locator.",
             )
         )
     if lookup.outcome not in (LocatorLookupOutcome.FOUND, LocatorLookupOutcome.AMBIGUOUS):
         return record.append(
             _resolution(
                 record,
-                IdentityOutcome.UNRESOLVED,
-                cluster_id=None,
-                decided_by="rule",
-                defects=(),
+                IdentityOutcome.DEFER_TO_SEARCH,
+                reason=IdentityReason.LOOKUP_FAILED,
                 depends_on=(scope.node_id, lookup.node_id),
                 message=lookup.outcome_message or "The locator could not be looked up.",
             )
@@ -249,12 +247,13 @@ async def identify_root(
         return record.append(
             _resolution(
                 record,
-                IdentityOutcome.AMBIGUOUS,
-                cluster_id=None,
-                decided_by="rule",
-                defects=(),
+                IdentityOutcome.AMBIGUOUS_IDENTITY,
+                reason=IdentityReason.CROWDED_PAGE,
                 depends_on=(scope.node_id, selection.node_id if selection else lookup.node_id),
-                message="The page holds more cases than the stage will look at, and nothing separated them.",
+                message=(
+                    f"{selection.distinct_case_count if selection else '?'} distinct cases remain at the locator "
+                    "after merging duplicates, and the case name the filing wrote separates none."
+                ),
             )
         )
     parent = selection.node_id if selection is not None else lookup.node_id
@@ -270,7 +269,7 @@ async def identify_root(
         for guard in guarded:
             verdict = await _model_judge(record, guard, document_text=document_text, session=session)
             verdicts.append(verdict)
-            if verdict[0] in (IdentityOutcome.ESTABLISHED, IdentityOutcome.ESTABLISHED_WITH_DEFECTS):
+            if verdict.resolved:
                 break
     return _conclude(record, verdicts, page_holds_one_case=len(candidates) == 1 and selection is None)
 
@@ -412,8 +411,24 @@ def _select_candidates(
     return (), selection
 
 
-Verdict = tuple[IdentityOutcome, "CourtListenerOpinionCluster", str, tuple[str, ...], tuple[str, ...]]
-"""An outcome, the cluster it is about, who decided, the defects, and the nodes it rests on."""
+@dataclass(frozen=True, slots=True)
+class Verdict:
+    """What one candidate came to: the outcome and its reason, and what it rests on."""
+
+    outcome: IdentityOutcome
+    reason: IdentityReason | None
+    cluster: CourtListenerOpinionCluster
+    decided_by: str
+    fields: tuple[FieldDisagreement, ...]
+    node_ids: tuple[str, ...]
+
+    @property
+    def resolved(self) -> bool:
+        """Whether this candidate is the filing's case, defects or not."""
+        return (
+            self.outcome is IdentityOutcome.CONFIRMED_IDENTITY
+            or self.reason is IdentityReason.FIELD_DISAGREEMENT
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,7 +475,7 @@ def _rule_guard(
     guarded = _Guarded(cluster, candidate, case_name, date, court, None)
     if not rules_agree:
         return guarded
-    verdict: Verdict = (IdentityOutcome.ESTABLISHED, cluster, "rule", (), guarded.node_ids)
+    verdict = Verdict(IdentityOutcome.CONFIRMED_IDENTITY, None, cluster, "rule", (), guarded.node_ids)
     return _Guarded(cluster, candidate, case_name, date, court, verdict)
 
 
@@ -484,17 +499,40 @@ async def _model_judge(
         )
     )
     apply_readings(record, judgment)
-    defects = field_disagreements(
+    fields = field_disagreements(
         judgment, case_name=guarded.case_name, court=guarded.court, date=guarded.date
     )
     node_ids = (*guarded.node_ids, judgment.node_id)
     if judgment.outcome is IdentityVerdict.SAME_CASE:
-        outcome = IdentityOutcome.ESTABLISHED_WITH_DEFECTS if defects else IdentityOutcome.ESTABLISHED
-    elif judgment.outcome is IdentityVerdict.DIFFERENT_CASE:
-        outcome = IdentityOutcome.REFUTED
-    else:
-        outcome = IdentityOutcome.UNRESOLVED
-    return outcome, guarded.cluster, judgment.node_id, defects, node_ids
+        if fields:
+            return Verdict(
+                IdentityOutcome.WRONG_IDENTITY,
+                IdentityReason.FIELD_DISAGREEMENT,
+                guarded.cluster,
+                judgment.node_id,
+                fields,
+                node_ids,
+            )
+        return Verdict(
+            IdentityOutcome.CONFIRMED_IDENTITY, None, guarded.cluster, judgment.node_id, (), node_ids
+        )
+    if judgment.outcome is IdentityVerdict.DIFFERENT_CASE:
+        return Verdict(
+            IdentityOutcome.WRONG_IDENTITY,
+            IdentityReason.DIFFERENT_CASE_AT_LOCATOR,
+            guarded.cluster,
+            judgment.node_id,
+            fields,
+            node_ids,
+        )
+    return Verdict(
+        IdentityOutcome.DEFER_TO_SEARCH,
+        IdentityReason.UNDETERMINABLE,
+        guarded.cluster,
+        judgment.node_id,
+        fields,
+        node_ids,
+    )
 
 
 def _conclude(
@@ -504,47 +542,52 @@ def _conclude(
     page_holds_one_case: bool,
 ) -> IdentityResolutionNode:
     """Pick the strongest candidate verdict and write the resolution it implies."""
-    order = (
-        IdentityOutcome.ESTABLISHED,
-        IdentityOutcome.ESTABLISHED_WITH_DEFECTS,
-        IdentityOutcome.UNRESOLVED,
-        IdentityOutcome.REFUTED,
-    )
-    best = min(verdicts, key=lambda verdict: order.index(verdict[0]))
-    outcome, cluster, decided_by, defects, node_ids = best
-    if outcome is IdentityOutcome.REFUTED and not page_holds_one_case:
+
+    def rank(verdict: Verdict) -> int:
+        if verdict.outcome is IdentityOutcome.CONFIRMED_IDENTITY:
+            return 0
+        if verdict.reason is IdentityReason.FIELD_DISAGREEMENT:
+            return 1
+        if verdict.outcome is IdentityOutcome.DEFER_TO_SEARCH:
+            return 2
+        return 3
+
+    best = min(verdicts, key=rank)
+    outcome, reason = best.outcome, best.reason
+    if reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR and not page_holds_one_case:
         # On a crowded page the archive may hold only part of the page, so a
         # candidate that is not the filing's case does not show the filing's
         # case is absent. That is the standing rule for absence.
-        outcome = IdentityOutcome.UNRESOLVED
+        outcome, reason = IdentityOutcome.DEFER_TO_SEARCH, IdentityReason.UNDETERMINABLE
     scope = _scope_node(record)
-    messages = {
-        IdentityOutcome.ESTABLISHED: "The locator names one case and every field the filing states agrees with it.",
-        IdentityOutcome.ESTABLISHED_WITH_DEFECTS: (
-            f"The same case, but the filing's {', '.join(defects)} disagree{'s' if len(defects) == 1 else ''} with the record."
-        ),
-        IdentityOutcome.REFUTED: "The case at the locator is not the one the filing describes.",
-        IdentityOutcome.UNRESOLVED: "Nothing at the locator could be shown to be the filing's case.",
-    }
+    if outcome is IdentityOutcome.CONFIRMED_IDENTITY:
+        message = "The locator names one case and every field the filing states agrees with it."
+    elif reason is IdentityReason.FIELD_DISAGREEMENT:
+        names = ", ".join(field.field for field in best.fields)
+        message = f"The locator names the case, but the filing's {names} disagree{'s' if len(best.fields) == 1 else ''} with the record."
+    elif reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR:
+        message = f"The locator names a different case: {best.cluster.case_name or 'unnamed'}."
+    else:
+        message = "Nothing at the locator could be shown to be the filing's case, or not to be."
     node = _resolution(
         record,
         outcome,
-        cluster_id=cluster.cluster_id
-        if outcome in (IdentityOutcome.ESTABLISHED, IdentityOutcome.ESTABLISHED_WITH_DEFECTS)
-        else None,
-        decided_by=decided_by,
-        defects=defects,
-        depends_on=(scope.node_id, *node_ids),
-        message=messages[outcome],
+        reason=reason,
+        cluster_id=best.cluster.cluster_id,
+        record_case_name=best.cluster.case_name,
+        decided_by=best.decided_by,
+        fields=best.fields,
+        depends_on=(scope.node_id, *best.node_ids),
+        message=message,
     )
     record.append(node)
-    if node.cluster_id is not None:
+    if node.resolved:
         record.resolve(
             Resolution(
-                cluster_id=cluster.cluster_id,
-                case_name=cluster.case_name,
-                date_filed=cluster.date_filed,
-                court_id=_retrieved_court(record, node_ids),
+                cluster_id=best.cluster.cluster_id,
+                case_name=best.cluster.case_name,
+                date_filed=best.cluster.date_filed,
+                court_id=_retrieved_court(record, best.node_ids),
                 node_id=node.node_id,
             )
         )
@@ -562,19 +605,23 @@ def _resolution(
     record: CitationRecord,
     outcome: IdentityOutcome,
     *,
-    cluster_id: str | None,
-    decided_by: str,
-    defects: tuple[str, ...],
+    reason: IdentityReason | None,
     depends_on: tuple[str, ...],
     message: str,
+    cluster_id: str | None = None,
+    record_case_name: str | None = None,
+    decided_by: str = "rule",
+    fields: tuple[FieldDisagreement, ...] = (),
 ) -> IdentityResolutionNode:
     return IdentityResolutionNode(
         node_id=f"{record.citation_id}:identity_resolution",
         status=ValidationNodeStatus.SUCCEEDED,
         outcome=outcome,
+        reason=reason,
         cluster_id=cluster_id,
+        record_case_name=record_case_name,
         decided_by=decided_by,
-        defects=defects,
+        fields=fields,
         depends_on=depends_on,
         status_message="Identity resolution completed.",
         outcome_message=message,
