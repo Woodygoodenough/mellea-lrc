@@ -858,23 +858,41 @@ class CaseNameAgreementNode:
 class MelleaIdentityJudgmentNode:
     """One composite model judgement over every field the rules disagreed on.
 
-    The model reads the filing's context, not the two strings, and states for
-    each field what the filing says and whether it agrees with the record. The
-    verdict is about identity -- the same case or not -- and a deterministic
-    requirement holds it to the field answers, so a verdict the answers do not
-    support is repaired rather than recorded.
+    The model is a reader that must show its evidence. For each field it
+    states what the filing says and the string it read that from, and a
+    deterministic requirement checks the string against the window the field
+    has to come from. Court and date agreement are then computed from the
+    reading; only the case-name agreement is the model's answer. The verdict is
+    held to the agreements, so one they do not support is repaired rather than
+    recorded. When repair is exhausted the judgement fails, and the fields
+    whose evidence still passed are kept.
     """
 
     node_id: str
     status: ValidationNodeStatus
     outcome: IdentityVerdict
     case_name_read: str | None
+    """What the filing states, read from the name window. Kept only when grounded there."""
     case_name_agreement: FieldAgreement | None
+    """The model's answer: the one judgement rules cannot make."""
     court_read: str | None
+    """A courts-db identifier, kept only when its evidence grounds it."""
+    court_evidence: str | None
+    """The string in the parenthetical window the court was read from."""
+    court_basis: str | None
+    """``stated`` when the parenthetical names it, ``implied_by_reporter`` when the reporter does."""
     court_agreement: FieldAgreement | None
+    """Computed from ``court_read`` and the record, not asked of the model."""
     date_read: str | None
+    """``YYYY`` or ``YYYY-MM-DD``, kept only when its evidence grounds it."""
+    date_evidence: str | None
     date_agreement: FieldAgreement | None
+    """Computed at the precision ``date_read`` states, not asked of the model."""
     reason: str | None
+    grounded: tuple[str, ...]
+    """The fields whose evidence passed. On a failed judgement, the readings kept."""
+    name_window: Span | None
+    parenthetical_window: Span | None
     depends_on: tuple[str, ...]
     model: str | None = None
     status_message: str | None = None
