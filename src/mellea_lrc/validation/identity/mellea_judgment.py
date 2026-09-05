@@ -117,9 +117,9 @@ abbreviations spelt out, is `agree`, not `variant`.
 
 Verdict values: `same_case`, `different_case`, `undeterminable`. The verdict
 must follow from the field answers: if every field agrees, the verdict is
-`same_case`; `different_case` needs the case name to disagree or be
-undeterminable, and some field to disagree; a disagreeing case name rules out
-`same_case`; `undeterminable` needs at least one field to be undeterminable.
+`same_case`; `different_case` needs the case name to disagree; a disagreeing
+case name rules out `same_case`; `undeterminable` needs at least one field to
+be undeterminable, and is the verdict when no case name can be compared.
 
 `reason`: one or two sentences a lawyer could check against the context and
 the record.
@@ -161,6 +161,11 @@ def verdict_supported(judgment: IdentityJudgment) -> str | None:
         return (
             "The case name agrees, so this is the same case; a disagreeing court or date "
             "is a defect of the filing, and the verdict must be same_case."
+        )
+    if judgment.verdict == "different_case" and judgment.case_name_agreement == "undeterminable":
+        return (
+            "With no case name to compare, a disagreeing court or date cannot show a different "
+            "case; the verdict must be undeterminable."
         )
     if judgment.verdict == "same_case" and judgment.case_name_agreement == "disagree":
         return "A disagreeing case name rules out same_case."

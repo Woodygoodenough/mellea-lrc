@@ -81,7 +81,11 @@ _CONTRACTIONS = {
     "atty": "attorney",
     "bldg": "building",
     "commcns": "communication",
+    "cos": "compan",
     "ctr": "center",
+    "fedn": "federation",
+    "govt": "govern",
+    "profl": "profession",
     "engrs": "engineer",
     "envt": "environment",
     "grp": "group",
@@ -128,11 +132,12 @@ def _words(name: str | None) -> set[str]:
     return set(ordered_words(name))
 
 
-def ordered_words(name: str | None, *, minimum_length: int = 3) -> list[str]:
+def ordered_words(name: str | None, *, minimum_length: int = 3, keep_generic: bool = False) -> list[str]:
     """The distinctive words of a case name, in the order they were written.
 
     Words shorter than ``minimum_length`` are dropped; the default drops the
-    two-letter initials that carry no identity.
+    two-letter initials that carry no identity. ``keep_generic`` keeps the
+    corporate forms and wrappers, for a caller spelling out an acronym.
     """
     # Accents are stripped before punctuation is, so that `Dávila-González` is
     # the words `davila` and `gonzalez` rather than the fragments between them.
@@ -141,7 +146,8 @@ def ordered_words(name: str | None, *, minimum_length: int = 3) -> list[str]:
     folded = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
     folded = _APOSTROPHE.sub("", folded.lower()).replace("&", " and ")
     folded = _PUNCTUATION.sub(" ", folded)
-    folded = _GENERIC.sub(" ", folded)
+    if not keep_generic:
+        folded = _GENERIC.sub(" ", folded)
     folded = _APPEAL_STAGE.sub(" ", " ".join(folded.split()))
     return [word for word in folded.split() if len(word) >= minimum_length]
 
