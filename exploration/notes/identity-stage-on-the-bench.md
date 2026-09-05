@@ -2,7 +2,7 @@
 
 What the stage concludes on 26 real filings, and what each run taught. The
 numbers are from `evaluations/identity/run_extraction_artifacts.py` over the
-extraction run in `data/extraction-v2.0`, which is 897 citations the
+extraction run in `data/runs/extraction-v2.0`, which is 897 citations the
 deterministic extractor read with `Relaxation.FULL`. Every CourtListener
 response was served from the proxy's cache, so the runs spent no request
 allowance; the model was `openai/gpt-5.6-luna`.

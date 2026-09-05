@@ -13,8 +13,8 @@ allowance. Model calls are counted from the trace and reported; a run that
 wants none passes ``--no-model``, which turns every rule disagreement into an
 unresolved root rather than a judgement.
 
-    uv run python -m evaluations.identity.run_extraction_artifacts data/extraction-v2.0
-    uv run python -m evaluations.identity.run_extraction_artifacts data/extraction-v2.0 --miss-budget 50
+    uv run python -m evaluations.identity.run_extraction_artifacts data/runs/extraction-v2.0
+    uv run python -m evaluations.identity.run_extraction_artifacts data/runs/extraction-v2.0 --miss-budget 50
 """
 
 from __future__ import annotations
