@@ -112,9 +112,12 @@ def _courts_for(jurisdiction: str) -> set[str]:
         return {f"bap{circuit.group(1)}"}
     if (district := _DISTRICT.match(head)) and kind in ("district.court", "bankruptcy.court"):
         state, suffix = district.group(1), district.group(2)
-        if kind == "district.court":
-            return _known({f"{state}{suffix}"})
-        return _known({f"{state}{suffix[:-1]}b"})
+        constructed = _known({f"{state}{suffix}" if kind == "district.court" else f"{state}{suffix[:-1]}b"})
+        if constructed:
+            return constructed
+        # An identifier courts-db did not build regularly -- the Northern
+        # Mariana Islands district is `nmid`, not `mpd` -- is found by place.
+        return _federal_courts(_STATES.get(state, ""), bankruptcy=kind == "bankruptcy.court")
     if (
         (state := _STATE.match(head))
         and state.group(1) in _STATES
@@ -127,6 +130,26 @@ def _courts_for(jurisdiction: str) -> set[str]:
             return _state_courts(location, level=level)
         return _state_courts(location, level=None)
     return set()
+
+
+@lru_cache(maxsize=1)
+def _federal_index() -> dict[tuple[str, bool], frozenset[str]]:
+    """Federal trial and bankruptcy courts by (location, is_bankruptcy)."""
+    from courts_db import courts
+
+    by_key: dict[tuple[str, bool], set[str]] = {}
+    for court in courts:
+        if court.get("system") != "federal" or not court.get("location"):
+            continue
+        kind = court.get("type")
+        if kind not in ("trial", "bankruptcy"):
+            continue
+        by_key.setdefault((str(court["location"]), kind == "bankruptcy"), set()).add(str(court["id"]))
+    return {key: frozenset(value) for key, value in by_key.items()}
+
+
+def _federal_courts(location: str, *, bankruptcy: bool) -> set[str]:
+    return set(_federal_index().get((location, bankruptcy), frozenset())) if location else set()
 
 
 @lru_cache(maxsize=1)

@@ -222,6 +222,8 @@ def _reporter(name: str, *, scotus: bool = False) -> Reporter:
         ("Cal. App. 5th", ("calctapp",), ("cal", "cacd")),
         ("F. App'x", ("ca4", "cadc", "cafc"), ("nysd", "fladistctapp")),
         ("B.R.", ("nysb", "bap9"), ("fladistctapp",)),
+        # An identifier courts-db did not build regularly is found by place.
+        ("F. Supp. 2d", ("nmid", "nysd", "gud"), ("fladistctapp", "ca9")),
     ],
 )
 def test_a_reporter_implies_a_family_of_courts(
