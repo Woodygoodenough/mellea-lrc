@@ -179,20 +179,38 @@ endpoint returns no court. An absent field on either side is `unavailable`,
 never a disagreement.
 
 **The composite judgement** runs only when a rule disagrees, and it sees the
-filing's context rather than two strings, because a disagreement has three
+filing's own text rather than two strings, because a disagreement has three
 possible sources — the filing is wrong, the extractor misread it, or the two
 are the same thing written differently — that strings cannot tell apart. The
-model answers, per field, what the filing states and whether that agrees with
-the record, and gives one verdict. The case name has a fourth answer,
-`variant`: the same case written defectively, a misspelt or dropped party,
-which counts as agreement for identity and as a defect in the result. Two
-requirements are checked deterministically and repaired in a further turn if
-they fail: the verdict must follow from the field answers (all agree forces
-`same_case`; a disagreeing case name rules it out; `different_case` needs the
-case name to disagree, because a wrong court or year on an agreeing name is a
-defect of the filing and not a different case), and every value read from the
-filing must be in the context. What the model read that the extractor did not
-becomes a correction on the record, attributed to the model.
+model is a reader that must show its evidence. Two windows bound what it may
+read, both fixed by the citation's non-co-located neighbours: the text before
+the locator for the case name, and the parenthetical after it for the court
+and the date. A parallel citation shares one name window and reads its
+parenthetical past its co-located members.
+
+Each reading is checked deterministically and repaired in a further turn if it
+fails, up to three. The case name needs one place in its window it could have
+been read from, matched fuzzily, so the model is not punished for writing
+`Suffolk` where the filing wrote `Suffock`. A court read from the parenthetical
+comes with its evidence string, which must be in the window and must resolve
+to the same courts-db identifier; a court implied by the reporter is allowed
+only where the reporter implies exactly one, which `U.S.` does and `F.3d` does
+not. A date comes with its evidence string, which must be in the window and
+must contain the year, and the day when one is read.
+
+Court and date agreement are then computed from the reading and the record, at
+the precision the filing stated. The model's one judgement is the case name:
+`agree`, `variant` for the same case written defectively, `disagree`, or
+`undeterminable`. The verdict must follow from the agreements: all agree forces
+`same_case`; `different_case` needs the case name to disagree, because a wrong
+court or year on an agreeing name is a defect of the filing and not a
+different case; with no name to compare the verdict is `undeterminable`.
+
+When the requirements are still unmet after three turns, the judgement is
+recorded as failed with the model's last answer and what it failed, the
+readings whose evidence passed are kept and written onto the record as
+corrections, and the root defers to search. A good reading of the case name is
+not lost because the court could not be grounded.
 
 **Parallel citations** arrive as separate roots sharing a `colocation_id`,
 because extraction leaves identity to the lookup. When both resolve to one
