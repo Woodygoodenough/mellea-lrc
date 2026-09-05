@@ -30,6 +30,14 @@ from mellea_lrc.validation.types import (
         ("U.S.", "Smith", "United States v. Smith", CaseNameAgreement.CONTAINED),
         ("Brown", "Board", "Brown v. Board of Education", CaseNameAgreement.CONTAINED),
         ("Dávila-González", None, "United States v. Davila-Gonzalez", CaseNameAgreement.CONTAINED),
+        # A plural abbreviation keeps its s past the cut.
+        (
+            "Hoover",
+            "Langston Equip. Assocs., Inc.",
+            "Hoover v. Langston Equipment Associates, Inc.",
+            CaseNameAgreement.CONTAINED,
+        ),
+        ("Smith", "Bros. Lumber", "Smith v. Brothers Lumber Co.", CaseNameAgreement.CONTAINED),
         # Sides swap on a cross-appeal.
         ("Iqbal", "Ashcroft", "Ashcroft v. Iqbal", CaseNameAgreement.CONTAINED),
         # A single-party caption on either side.
