@@ -99,7 +99,6 @@ def deserialize_extracted_document(payload: Mapping[str, object]) -> ExtractedDo
             format=SourceFormat(
                 _required_string(source_metadata.get("format"), name="source_metadata.format")
             ),
-            header=_optional_string(source_metadata.get("header"), name="source_metadata.header"),
         ),
         text=text,
         preprocessing_metadata=PreprocessingMetadata(

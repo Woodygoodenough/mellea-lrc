@@ -16,15 +16,14 @@ from mellea_lrc.preprocessing import (
     preprocess,
     preprocess_plain_text_from_string,
     preprocess_with_docling,
-    split_plain_text_file,
 )
 
 
-def test_split_plain_text_file_splits_recap_header() -> None:
+def test_a_text_file_is_its_text() -> None:
+    """Nothing is stripped from the front, so a file offset is a document offset."""
     raw = "Case: Example\n\n--- Plain text ---\nBody text here."
-    header, body = split_plain_text_file(raw)
-    assert header == "Case: Example"
-    assert body == "Body text here."
+    document = preprocess_plain_text_from_string(raw)
+    assert document.text == raw
 
 
 def test_preprocess_plain_text_from_string_wraps_text() -> None:

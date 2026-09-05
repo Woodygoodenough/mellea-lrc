@@ -8,10 +8,7 @@ from mellea_lrc.preprocessing.margin_line_numbers import (
     reclassify_margin_line_numbers,
 )
 from mellea_lrc.preprocessing.pipeline import preprocess
-from mellea_lrc.preprocessing.plain_text import (
-    preprocess_plain_text_from_string,
-    split_plain_text_file,
-)
+from mellea_lrc.preprocessing.plain_text import preprocess_plain_text_from_string
 from mellea_lrc.preprocessing.repeated_furniture import (
     reclassify_repeated_furniture,
     repeated_furniture,
@@ -39,5 +36,4 @@ __all__ = [
     "reclassify_margin_line_numbers",
     "reclassify_repeated_furniture",
     "repeated_furniture",
-    "split_plain_text_file",
 ]
