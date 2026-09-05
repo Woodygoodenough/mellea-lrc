@@ -113,15 +113,18 @@ annotations are the ones identity should catch:
 | no locator for extraction to read (`Kusulas v. GE/CO`) | 1 |
 
 **No bench-labelled false citation is passed as clean but one**, and that one
-is `In re Soundview Elite Ltd., 503 B.R. 571 (Bankr. S.D.N.Y. 2014)`, which
-exists at that locator on that date. The court's correction points to a
-different Soundview opinion, 543 B.R. 78 (2016), for the proposition, so the
-defect is in what the citation is cited for, not in whether the case exists.
-The five court-defect cases are `Hernandez v. Mario's Auto Sales` and its
-kind: the bench calls them unverifiable because the citation as written names
-a court that never decided them, and the stage reports that court as a defect
-on an established identity, which is the more useful reading. Whether the
-paper counts them as caught depends on which question it asks.
+is misclassified by the bench rather than missed by the stage. `In re
+Soundview Elite Ltd., 503 B.R. 571 (Bankr. S.D.N.Y. 2014)` exists at that
+locator on that date, and the court's correction points to a different
+Soundview opinion, 543 B.R. 78 (2016), for the proposition. The rule is that a
+locator identifying one case whose fields agree with the filing is a sound
+identity, and whatever is wrong is in what it is cited for: a
+misrepresentation, for the pinpoint stage, however plainly the proposition
+belongs to another case. The five court-defect cases are `Hernandez v. Mario's
+Auto Sales` and its kind: the case exists, the filing names the wrong court,
+and the stage reports that as a defect on an established identity. The audit
+of every label the rule reads differently is untracked in the dataset
+directory, `data/false-citation-bench/audit-identity-vs-misrepresentation.md`.
 
 The 27 unresolved are not caught either. They are the open-search population,
 and the bench's label says what a search would find: nothing.
