@@ -166,7 +166,10 @@ the record's current citation. The case name is compared by containment, one
 side at a time: every distinctive word the filing wrote on a side must appear
 on the matching side of the record's name, sides may swap, and what the filing
 did not write is not held against it, so `Golden` agrees with `Bobby Ray
-Golden` and `Reyes v. Pac. Bell` with `Victor Reyes v. Pacific Bell`. The date
+Golden` and `Reyes v. Pac. Bell` with `Victor Reyes v. Pacific Bell`. Either
+side may be the abbreviated one, since the archive writes `Dept. of Social
+Servs.` as readily as a filing does, and a record side also offers its adjacent
+words run together, so `JPMorgan` covers `JP Morgan`. The date
 is compared at the precision the filing stated, by year for `(2007)` and by
 day for `(E.D.N.Y. Oct. 31, 2024)`. The court is compared by courts-db
 identifier, which costs one docket fetch per candidate because the lookup
@@ -178,12 +181,16 @@ filing's context rather than two strings, because a disagreement has three
 possible sources — the filing is wrong, the extractor misread it, or the two
 are the same thing written differently — that strings cannot tell apart. The
 model answers, per field, what the filing states and whether that agrees with
-the record, and gives one verdict. Two requirements are checked
-deterministically and repaired in a further turn if they fail: the verdict must
-follow from the field answers (all agree forces `same_case`; a disagreeing case
-name rules it out; `different_case` needs a disagreement), and every value read
-from the filing must be in the context. What the model read that the extractor
-did not becomes a correction on the record, attributed to the model.
+the record, and gives one verdict. The case name has a fourth answer,
+`variant`: the same case written defectively, a misspelt or dropped party,
+which counts as agreement for identity and as a defect in the result. Two
+requirements are checked deterministically and repaired in a further turn if
+they fail: the verdict must follow from the field answers (all agree forces
+`same_case`; a disagreeing case name rules it out; `different_case` needs the
+case name to disagree, because a wrong court or year on an agreeing name is a
+defect of the filing and not a different case), and every value read from the
+filing must be in the context. What the model read that the extractor did not
+becomes a correction on the record, attributed to the model.
 
 **Parallel citations** arrive as separate roots sharing a `colocation_id`,
 because extraction leaves identity to the lookup. When both resolve to one
