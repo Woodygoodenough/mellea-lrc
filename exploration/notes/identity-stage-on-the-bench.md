@@ -19,12 +19,12 @@ allowance; the model was `openai/gpt-5.6-luna`.
 
 | outcome | reason | roots |
 |---|---|---:|
-| confirmed identity | | 266 |
-| wrong identity | a different case at the locator | 19 |
-| wrong identity | a field the filing states disagrees | 17 |
+| confirmed identity | | 267 |
+| wrong identity | a different case at the locator | 20 |
+| wrong identity | a field the filing states disagrees | 16 |
 | ambiguous identity | crowded page | 1 |
 | defer to search | nothing at the locator | 83 |
-| defer to search | undeterminable | 5 |
+| defer to search | undeterminable | 4 |
 | defer to search | docket citation | 6 |
 
 Of the 897 citations, 397 are roots and the other 500 inherit: 12 of those
@@ -32,8 +32,8 @@ inherit through a parallel citation the lookup folded into its neighbour, and
 the rest through the citation tree extraction built. **One lookup per
 authority is the whole cost.**
 
-The 94 deferred to search are 49 Westlaw numbers, 3 LEXIS numbers, 8
-specialty reporters and 23 printed reporters the archive holds nothing for, 5
+The 93 deferred to search are 49 Westlaw numbers, 3 LEXIS numbers, 8
+specialty reporters and 23 printed reporters the archive holds nothing for, 4
 roots a judgement could not settle, and 6 docket citations. Two runs of the
 same code differ by one or two roots in the confirmed and field-disagreement
 rows, which is the model's variance on the calls the rules leave it. That is open
@@ -42,15 +42,15 @@ it was on LePhantomCite.
 
 ## 2. What the wrong identities are
 
-Nineteen are a locator whose record names a different case from the one the
+Twenty are a locator whose record names a different case from the one the
 filing describes -- `Cadle Co. v. Ayala` cited at a page that holds `Ramirez v.
-City of New York`. Eighteen are plainly that. The nineteenth, `Lacey v. Maricopa
+City of New York`. Nineteen are plainly that. The twentieth, `Lacey v. Maricopa
 County` at 693 F.3d 896, is the same case under the archive's caption `Michael
 Lacey v. Joseph Arpaio`, and nothing in the record says so; it is the one
 false wrong-identity left, and a docket fetch for the caption is what would settle
 it.
 
-The other 17 are the same case with a field the filing misstates: a court, a
+The other 16 are the same case with a field the filing misstates: a court, a
 year, or a party misspelt or dropped. Both kinds are
 `wrong_identity`; the reason and the fields under the node keep them apart,
 and the second kind still resolves the record, since the case was found.
@@ -102,6 +102,13 @@ window; none exhausted the budget. The court was read from a stated
 parenthetical 33 times, implied by a Supreme Court reporter 6 times, and left
 null 8 times where a regional reporter implies a family of courts and the
 parenthetical states none.
+
+A court the filing does not state is not compared against nothing. The
+reporter holds only some courts, and the record's court is checked against
+that family: 44 roots on this bench state no court, and every one's record is
+from a court its reporter holds. The check found no conflict here; what it
+found was the one gap in the mapping, the Northern Mariana Islands district
+that courts-db names `nmid`, which is now looked up by place.
 
 Thirteen corrections to the filing's reading followed, each attributed to the
 model and pointing at the judgement node and its evidence: nine plaintiffs,
