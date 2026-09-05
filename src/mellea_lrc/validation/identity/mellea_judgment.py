@@ -99,6 +99,11 @@ Domain knowledge to apply:
 - The record is what the archive holds at exactly this volume and page. If the
   filing describes a different case from the one on that page, the verdict is
   `different_case`, however plausible the filing's case name sounds on its own.
+- Identity is the case, not its fields. When the filing's case name agrees with
+  the record's, the filing is citing that case, and a court or date that
+  disagrees is a defect in the filing rather than evidence of a different case:
+  report the field as `disagree` and the verdict as `same_case`.
+  `different_case` is for a page whose record names a different case.
 
 Agreement values: `agree` when the filing's field and the record's field name
 the same thing; `disagree` when they name different things; `undeterminable`
@@ -106,9 +111,9 @@ when the filing or the record does not state the field.
 
 Verdict values: `same_case`, `different_case`, `undeterminable`. The verdict
 must follow from the field answers: if every field agrees, the verdict is
-`same_case`; `different_case` needs at least one field to disagree; a
-disagreeing case name rules out `same_case`; `undeterminable` needs at least
-one field to be undeterminable.
+`same_case`; `different_case` needs the case name to disagree or be
+undeterminable, and some field to disagree; a disagreeing case name rules out
+`same_case`; `undeterminable` needs at least one field to be undeterminable.
 
 `reason`: one or two sentences a lawyer could check against the context and
 the record.
@@ -146,6 +151,11 @@ def verdict_supported(judgment: IdentityJudgment) -> str | None:
         return "Every field agrees, so the verdict must be same_case."
     if judgment.verdict == "different_case" and "disagree" not in answers:
         return "A different_case verdict needs at least one field to disagree."
+    if judgment.verdict == "different_case" and judgment.case_name_agreement == "agree":
+        return (
+            "The case name agrees, so this is the same case; a disagreeing court or date "
+            "is a defect of the filing, and the verdict must be same_case."
+        )
     if judgment.verdict == "same_case" and judgment.case_name_agreement == "disagree":
         return "A disagreeing case name rules out same_case."
     if judgment.verdict == "undeterminable" and "undeterminable" not in answers:
