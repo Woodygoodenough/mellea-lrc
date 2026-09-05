@@ -23,7 +23,6 @@ class SourceMetadata:
 
     path: str | None = None
     format: SourceFormat = SourceFormat.UNKNOWN
-    header: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
