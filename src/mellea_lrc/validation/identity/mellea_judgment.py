@@ -1,25 +1,39 @@
-"""One model call over every field the rules could not settle.
+"""One model call over every field the rules could not settle, with evidence.
 
 The rules compare a field the extractor produced with a field the archive
 returned, and when they disagree the disagreement has three possible sources:
 the filing is wrong, the extractor misread the filing, or the two are the same
 thing written differently. Two strings cannot tell those apart. The filing's
-context can, so the model is shown it, along with the record, and asked three
-things per field: what the filing actually says, whether that agrees with the
-record, and -- once for the whole citation -- whether the two name one case.
+own text can, so the model is shown it and asked to read each field again.
 
-What comes back is held to itself. A deterministic requirement checks that the
-verdict is one the field answers support, and that every value the model read
-from the filing is actually in the filing; a response that fails either is
-repaired in a further turn rather than recorded. What the model reads that the
-extractor did not is written onto the record as a correction, attributed to the
-model, so a corrected court is distinguishable from a parsed one.
+The model is a reader that must show its evidence. Each field it reads comes
+with the string it read it from, and a deterministic requirement checks that
+string against the window the field has to come from: the text before the
+locator for the case name, the parenthetical after it for the court and the
+date. The check is fuzzy, because the model writes `Suffolk` where the filing
+wrote `Suffock` and is not to be punished for reading well; it needs one place
+in the window the string could have come from. A court read from a stated
+parenthetical must resolve to the identifier the model gave through courts-db,
+and a court the model infers from the reporter is allowed only where the
+reporter implies exactly one court.
+
+What the model does not decide: whether the court or the date agrees. Those
+follow from the reading and the record, at the precision the filing stated.
+The model's one judgement is the case name -- the same case abbreviated, a
+variant, or a different case -- and the verdict is held to the agreements by a
+requirement of its own.
+
+When the requirements are still unmet after the repair budget, the judgement
+is recorded as failed, and the fields whose evidence passed on the last
+attempt are kept and written onto the record. A good reading of the case name
+is not lost because the court could not be grounded.
 """
 
 from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Literal
 
@@ -29,15 +43,18 @@ from mellea.stdlib.sampling import MultiTurnStrategy
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from mellea_lrc.core.citations import FullCaseCitation
+from mellea_lrc.extraction.reading.courts import resolve_court
 from mellea_lrc.llm import (
     InstructIvrSpec,
     llm_api_config_from_env,
     run_instruct_ivr,
     start_mellea_session_from_env,
 )
+from mellea_lrc.text import find_all
 from mellea_lrc.validation.duplicate_clusters import name_words
 from mellea_lrc.validation.identity.case_name import written_case_name
 from mellea_lrc.validation.identity.field_checks import iso_date
+from mellea_lrc.validation.identity.windows import windows_for
 from mellea_lrc.validation.types import (
     FieldAgreement,
     FieldCheckOutcome,
@@ -48,9 +65,14 @@ from mellea_lrc.validation.types import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from mellea import MelleaSession
     from mellea.core.base import Context
 
+    from mellea_lrc.core.citations import Reporter
+    from mellea_lrc.extraction.types import ExtractedCitation
+    from mellea_lrc.validation.identity.windows import CitationWindows
     from mellea_lrc.validation.record import CitationRecord
     from mellea_lrc.validation.types import (
         CandidateEvaluationNode,
@@ -59,70 +81,64 @@ if TYPE_CHECKING:
         DateCheckNode,
     )
 
-MAX_TOKENS = 768
+MAX_TOKENS = 1024
 MAX_REPAIR_TURNS = 3
 CONTEXT_CHARS = 400
-"""Characters of the filing shown either side of the citation."""
+"""Characters of the filing shown either side of the citation, for orientation."""
 
 _DATE = re.compile(r"^\d{4}(-\d{2}-\d{2})?$")
 
 INSTRUCTION = """
 You are checking one legal citation in a court filing against the record an
-archive holds at that citation's volume, reporter and page. Decide, field by
-field, what the filing itself states and whether that agrees with the record,
-then decide whether the filing and the record name the same case.
+archive holds at that citation's volume, reporter and page. Read the filing's
+own words, report what it states for each field with the exact string you
+read it from, and decide whether the filing and the record name the same case.
 
-Read the filing's own words in `context`. The citation under review is marked
-between [[ and ]]. Do not rely on the extractor's reading of it; the extractor
-may have taken a court or a date from a neighbouring citation, or cut a party
-name short. What you report in each `*_read` field is what the filing states,
-copied from the context, or null when the filing states nothing for it.
+`context` shows the citation in its surroundings, marked between [[ and ]].
+Do not rely on the extractor's reading of it; the extractor may have taken a
+court or a date from a neighbouring citation, or cut a party name short.
 
-Domain knowledge to apply:
-- A case name in a filing is abbreviated by convention: `Pac.` for Pacific,
-  `Corp.` for Corporation, first names and `et al.` dropped, `United States`
-  written `U.S.`, sides sometimes reversed on appeal. None of that makes it a
-  different case. A different party on either side does.
-- The court is stated in the parenthetical before the year, such as
-  `(9th Cir. 2003)` or `(E.D.N.Y. Oct. 31, 2024)`. When the parenthetical
-  names no court, the reporter implies one: `U.S.` and `S. Ct.` are the Supreme
-  Court (id `scotus`); `F.`, `F.2d`, `F.3d`, `F.4th` and `F. App'x` are the
-  courts of appeals (ids `ca1` .. `ca11`, `cadc`, `cafc`); `F. Supp.` and
-  `F.R.D.` are district courts (ids like `nysd`, `cand`); a state's official
-  reporter is that state's highest court unless the parenthetical says
-  otherwise. Report the court as a courts-db identifier, such as `ca9`, `nyed`,
-  `cal`, `calctapp`, or null when you cannot name one.
-- The date in the parenthetical is the decision date. A filing usually states
-  the year alone; report `YYYY`, or `YYYY-MM-DD` when the filing states a day.
-  The record's date is the date the decision was filed. A one-year difference
-  can be a rehearing or an amended opinion of the same case; a difference of
-  several years is not.
-- The record is what the archive holds at exactly this volume and page. If the
-  filing describes a different case from the one on that page, the verdict is
-  `different_case`, however plausible the filing's case name sounds on its own.
-- Identity is the case, not its fields. When the filing's case name agrees with
-  the record's, the filing is citing that case, and a court or date that
-  disagrees is a defect in the filing rather than evidence of a different case:
-  report the field as `disagree` and the verdict as `same_case`.
-  `different_case` is for a page whose record names a different case.
+Two windows bound what you may read:
 
-Agreement values: `agree` when the filing's field and the record's field name
-the same thing; `disagree` when they name different things; `undeterminable`
-when the filing or the record does not state the field. The case name has one
-more: `variant`, for a name that is evidently the same case written
-defectively -- a misspelt party (`Suffock` for `Suffolk`), a party dropped or
-garbled, a caption that does not match the record's. `variant` is not
-`disagree`: the case is the same and the defect is reported. A record that
-carries more words than the filing wrote, or the filing's conventional
-abbreviations spelt out, is `agree`, not `variant`.
+- `name_window` is the text before the locator. The case name must come from
+  here. Report it in `case_name_read` as the filing wrote it, plaintiff v.
+  defendant, or null if the filing states no name there.
+- `parenthetical_window` is the text after the locator. The court and the date
+  must come from here.
 
-Verdict values: `same_case`, `different_case`, `undeterminable`. The verdict
-must follow from the field answers: if every field agrees, the verdict is
-`same_case`; `different_case` needs the case name to disagree; a disagreeing
-case name rules out `same_case`; `undeterminable` needs at least one field to
-be undeterminable, and is the verdict when no case name can be compared.
+For the court, report `court_read` as a courts-db identifier and say how you
+know. If the parenthetical names the court, `court_basis` is `stated` and
+`court_evidence` is the exact string that names it, such as `9th Cir.` or
+`E.D.N.Y.` or `Fla. Dist. Ct. App.`. If the parenthetical names no court but
+the reporter implies one -- `U.S.`, `S. Ct.` and `L. Ed.` are the Supreme
+Court, `scotus` -- `court_basis` is `implied_by_reporter` and
+`court_evidence` is null. A regional or federal reporter such as `F.3d` or
+`So. 3d` implies a family of courts and not one, so with no stated court the
+answer is null and `court_basis` is `none`.
 
-`reason`: one or two sentences a lawyer could check against the context and
+For the date, report `date_read` as `YYYY` when the filing states a year and
+`YYYY-MM-DD` when it states a day, and `date_evidence` as the exact string you
+read it from, such as `2007` or `Oct. 31, 2024`.
+
+Then the one judgement that is yours: `case_name_agreement`. `agree` when the
+filing's name and the record's name the same case, allowing the abbreviations
+a citation uses by convention -- `Pac.` for Pacific, `Corp.` for Corporation,
+first names and `et al.` dropped, `United States` written `U.S.`, sides
+reversed on appeal, a record carrying more words than the filing wrote.
+`variant` when it is evidently the same case written defectively: a misspelt
+party, a party dropped or garbled, a caption that does not match. `disagree`
+when a party on either side is a different party. `undeterminable` when the
+filing or the record states no name.
+
+`verdict` is `same_case`, `different_case` or `undeterminable`, and it must
+follow from the agreements. The court and date agreements are computed from
+your readings and the record, so read them carefully. Identity is the case,
+not its fields: a court or date the filing misstates on an agreeing name is a
+defect of the filing and the verdict is still `same_case`. `different_case`
+needs the case name to disagree. `undeterminable` needs a field nobody can
+compare.
+
+`reason`: one or two sentences a lawyer could check against the windows and
 the record.
 
 Extractor's reading of the citation (may be wrong):
@@ -144,72 +160,186 @@ class IdentityJudgment(BaseModel):
     case_name_read: str | None
     case_name_agreement: Literal["agree", "disagree", "undeterminable", "variant"]
     court_read: str | None
-    court_agreement: Literal["agree", "disagree", "undeterminable"]
+    court_evidence: str | None
+    court_basis: Literal["stated", "implied_by_reporter", "none"]
     date_read: str | None
-    date_agreement: Literal["agree", "disagree", "undeterminable"]
+    date_evidence: str | None
     verdict: Literal["same_case", "different_case", "undeterminable"]
     reason: str
 
 
-def verdict_supported(judgment: IdentityJudgment) -> str | None:
-    """Why the verdict does not follow from the field answers, or None when it does."""
-    answers = (judgment.case_name_agreement, judgment.court_agreement, judgment.date_agreement)
+@dataclass(frozen=True, slots=True)
+class Grounding:
+    """What the model may read from, and what the record holds, for the checks."""
+
+    name_window: str
+    parenthetical_window: str
+    reporter: Reporter | None
+    record_court_id: str | None
+    record_date: str | None
+
+
+# --- the checks ----------------------------------------------------------------
+
+
+def ground_case_name(judgment: IdentityJudgment, grounding: Grounding) -> str | None:
+    """Why the case name is not in the name window, or None when it is or none was read."""
+    if judgment.case_name_read is None:
+        return None
+    if find_all(judgment.case_name_read, grounding.name_window):
+        return None
+    return (
+        f"case_name_read {judgment.case_name_read!r} is not in name_window, even allowing for spelling; "
+        "read the name from name_window or answer null."
+    )
+
+
+def ground_court(judgment: IdentityJudgment, grounding: Grounding) -> str | None:
+    """Why the court reading is not supported, or None when it is or none was read."""
+    if judgment.court_read is None:
+        return None
+    if judgment.court_read not in _court_ids():
+        return f"court_read {judgment.court_read!r} is not a courts-db identifier."
+    spelled = grounding.reporter.as_written if grounding.reporter else "the reporter"
+    if judgment.court_basis == "stated":
+        if not judgment.court_evidence:
+            return (
+                "court_basis is stated, so court_evidence must be the string in "
+                "parenthetical_window that names the court."
+            )
+        if not find_all(judgment.court_evidence, grounding.parenthetical_window):
+            return f"court_evidence {judgment.court_evidence!r} is not in parenthetical_window."
+        resolved = resolve_court(judgment.court_evidence)
+        if resolved != judgment.court_read:
+            named = (
+                f"resolves to {resolved!r} ({_court_name(resolved)})"
+                if resolved
+                else "names no court courts-db knows"
+            )
+            return f"court_evidence {judgment.court_evidence!r} {named}, not {judgment.court_read!r}."
+        return None
+    if judgment.court_basis == "implied_by_reporter":
+        implied = _implied_court(grounding.reporter)
+        if implied is None:
+            return f"{spelled} does not imply exactly one court; cite the parenthetical or answer null."
+        if implied != judgment.court_read:
+            return f"{spelled} implies {implied!r}, not {judgment.court_read!r}."
+        return None
+    return (
+        "court_read is set but court_basis is none; say whether the parenthetical states it "
+        "or the reporter implies it."
+    )
+
+
+def ground_date(judgment: IdentityJudgment, grounding: Grounding) -> str | None:
+    """Why the date reading is not supported, or None when it is or none was read."""
+    if judgment.date_read is None:
+        return None
+    if not _DATE.match(judgment.date_read):
+        return "date_read must be YYYY or YYYY-MM-DD."
+    if not judgment.date_evidence:
+        return "date_evidence must be the string in parenthetical_window the date was read from."
+    if not find_all(judgment.date_evidence, grounding.parenthetical_window):
+        return f"date_evidence {judgment.date_evidence!r} is not in parenthetical_window."
+    if judgment.date_read[:4] not in judgment.date_evidence:
+        return (
+            f"date_read {judgment.date_read!r} states a year that date_evidence "
+            f"{judgment.date_evidence!r} does not."
+        )
+    if len(judgment.date_read) > 4 and str(int(judgment.date_read[8:10])) not in judgment.date_evidence:
+        return (
+            f"date_read {judgment.date_read!r} states a day that date_evidence "
+            f"{judgment.date_evidence!r} does not."
+        )
+    return None
+
+
+GROUNDING_CHECKS = {"case_name": ground_case_name, "court": ground_court, "date": ground_date}
+
+
+def readings_grounded(judgment: IdentityJudgment, grounding: Grounding) -> dict[str, str]:
+    """Each field whose reading fails its check, with why. Empty when all pass."""
+    return {
+        name: reason for name, check in GROUNDING_CHECKS.items() if (reason := check(judgment, grounding))
+    }
+
+
+def court_agreement(court_read: str | None, record_court_id: str | None) -> FieldAgreement:
+    """Computed, not asked: the same identifier or not, undeterminable on an absence."""
+    if court_read is None or record_court_id is None:
+        return FieldAgreement.UNDETERMINABLE
+    return FieldAgreement.AGREE if court_read == record_court_id else FieldAgreement.DISAGREE
+
+
+def date_agreement(date_read: str | None, record_date: str | None) -> FieldAgreement:
+    """Computed at the precision the filing stated: the year, or the day."""
+    if date_read is None or record_date is None:
+        return FieldAgreement.UNDETERMINABLE
+    same = date_read == record_date if len(date_read) > 4 else date_read == record_date[:4]
+    return FieldAgreement.AGREE if same else FieldAgreement.DISAGREE
+
+
+def verdict_supported(judgment: IdentityJudgment, grounding: Grounding) -> str | None:
+    """Why the verdict does not follow from the agreements, or None when it does."""
+    name = judgment.case_name_agreement
+    answers = (
+        name,
+        court_agreement(judgment.court_read, grounding.record_court_id).value,
+        date_agreement(judgment.date_read, grounding.record_date).value,
+    )
     if all(answer == "agree" for answer in answers) and judgment.verdict != "same_case":
         return "Every field agrees, so the verdict must be same_case."
     if judgment.verdict == "different_case" and "disagree" not in answers:
         return "A different_case verdict needs at least one field to disagree."
-    if judgment.verdict == "different_case" and judgment.case_name_agreement in ("agree", "variant"):
+    if judgment.verdict == "different_case" and name in ("agree", "variant"):
         return (
             "The case name agrees, so this is the same case; a disagreeing court or date "
             "is a defect of the filing, and the verdict must be same_case."
         )
-    if judgment.verdict == "different_case" and judgment.case_name_agreement == "undeterminable":
+    if judgment.verdict == "different_case" and name == "undeterminable":
         return (
             "With no case name to compare, a disagreeing court or date cannot show a different "
             "case; the verdict must be undeterminable."
         )
-    if judgment.verdict == "same_case" and judgment.case_name_agreement == "disagree":
+    if judgment.verdict == "same_case" and name == "disagree":
         return "A disagreeing case name rules out same_case."
     if judgment.verdict == "undeterminable" and "undeterminable" not in answers:
         return "An undeterminable verdict needs at least one undeterminable field."
     return None
 
 
-def readings_grounded(judgment: IdentityJudgment, *, context: str) -> str | None:
-    """Why a value the model read is not in the filing, or None when all are."""
-    if judgment.case_name_read is not None:
-        missing = [word for word in name_words(judgment.case_name_read) if word not in name_words(context)]
-        if missing:
-            return f"case_name_read contains {', '.join(sorted(missing))}, which the context does not."
-    if judgment.court_read is not None and judgment.court_read not in _court_ids():
-        return f"court_read {judgment.court_read!r} is not a courts-db identifier."
-    if judgment.date_read is not None and not _DATE.match(judgment.date_read):
-        return "date_read must be YYYY or YYYY-MM-DD."
-    if judgment.date_read is not None and judgment.date_read[:4] not in context:
-        return f"date_read {judgment.date_read!r} names a year the context does not."
-    return None
+# --- the call --------------------------------------------------------------------
 
 
 async def run_mellea_identity_judgment(
     record: CitationRecord,
     *,
     document_text: str,
+    citations: Sequence[ExtractedCitation],
     candidate: CandidateEvaluationNode,
     case_name: CaseNameAgreementNode,
     court: CourtCheckNode,
     date: DateCheckNode,
     session: MelleaSession | None = None,
 ) -> MelleaIdentityJudgmentNode:
-    """Ask the model to read the filing and judge the fields the rules could not."""
+    """Ask the model to read the filing, with evidence, and judge the case name."""
     node_id = f"{candidate.node_id}:mellea_identity_judgment"
     depends_on = (case_name.node_id, court.node_id, date.node_id)
-    context = _context(record, document_text)
+    windows = windows_for(record.source, citations, len(document_text))
     citation = record.citation
+    reporter = citation.reporter if isinstance(citation, FullCaseCitation) else None
+    grounding = Grounding(
+        name_window=document_text[windows.name.start : windows.name.end],
+        parenthetical_window=document_text[windows.parenthetical.start : windows.parenthetical.end],
+        reporter=reporter,
+        record_court_id=court.retrieved_court_id,
+        record_date=candidate.date_filed,
+    )
     extracted = _describe(
         case_name=written_case_name(citation.plaintiff, citation.defendant)
         if isinstance(citation, FullCaseCitation)
         else None,
-        court=citation.court if isinstance(citation, FullCaseCitation) else None,
+        court=_court_label(citation.court) if isinstance(citation, FullCaseCitation) else None,
         date=iso_date(citation.date) if isinstance(citation, FullCaseCitation) else None,
         locator=record.source.matched_text,
     )
@@ -232,16 +362,17 @@ async def run_mellea_identity_judgment(
         model_name = config.model
         spec = InstructIvrSpec(
             description=INSTRUCTION,
-            grounding_context={"context": context},
+            grounding_context={
+                "context": _context(record, document_text),
+                "name_window": grounding.name_window,
+                "parenthetical_window": grounding.parenthetical_window,
+            },
             user_variables={"extracted": extracted, "record": record_text, "rules": rules},
             output_format=IdentityJudgment,
             requirements=[
                 req("Return a valid identity-judgment object.", validation_fn=_valid_schema),
-                req("The verdict must follow from the field answers.", validation_fn=_consistent),
-                req(
-                    "Every value read from the filing must appear in the context.",
-                    validation_fn=_grounded(context),
-                ),
+                req("Every reading must be grounded in its window.", validation_fn=_grounded(grounding)),
+                req("The verdict must follow from the agreements.", validation_fn=_consistent(grounding)),
             ],
         )
         result = await run_instruct_ivr(
@@ -250,22 +381,53 @@ async def run_mellea_identity_judgment(
             strategy=MultiTurnStrategy(loop_budget=MAX_REPAIR_TURNS),
             model_options=config.mellea_call_options(max_tokens=MAX_TOKENS),
         )
-        if not result.success:
-            return _failed(
-                node_id,
-                depends_on,
-                model_name,
-                "Identity judgement exhausted its repair budget: " + _last_failures(result),
-                status_message="Mellea identity judgement exhausted its repair attempts.",
-            )
-        judgment = _parse(result.result.value)
+        last = _last_output(result)
+        judgment = _parse(last) if last is not None else None
     except Exception as exc:
         return _failed(
             node_id,
             depends_on,
             model_name,
+            windows,
             f"{type(exc).__name__}: {exc}",
             status_message="Mellea identity judgement failed during execution.",
+        )
+    if judgment is None:
+        return _failed(
+            node_id, depends_on, model_name, windows, "No output", status_message="Mellea returned no output."
+        )
+    failures = readings_grounded(judgment, grounding)
+    grounded = tuple(name for name in GROUNDING_CHECKS if name not in failures)
+    kept = _keep_grounded(judgment, grounded)
+    if not result.success:
+        # The judgement failed, and the readings whose evidence passed are
+        # still worth having: they are written onto the record like any other,
+        # and the verdict is not.
+        problems = [f"{name}: {reason}" for name, reason in failures.items()]
+        if (unsupported := verdict_supported(judgment, grounding)) is not None:
+            problems.append(f"verdict: {unsupported}")
+        return MelleaIdentityJudgmentNode(
+            node_id=node_id,
+            status=ValidationNodeStatus.FAILED,
+            outcome=IdentityVerdict.FAILED,
+            case_name_read=kept.case_name_read,
+            case_name_agreement=None,
+            court_read=kept.court_read,
+            court_evidence=kept.court_evidence,
+            court_basis=kept.court_basis if kept.court_read else None,
+            court_agreement=None,
+            date_read=kept.date_read,
+            date_evidence=kept.date_evidence,
+            date_agreement=None,
+            reason=judgment.reason,
+            grounded=grounded,
+            name_window=windows.name,
+            parenthetical_window=windows.parenthetical,
+            depends_on=depends_on,
+            model=model_name,
+            status_message="Mellea identity judgement exhausted its repair attempts.",
+            outcome_message=f"No verdict; kept the grounded readings ({', '.join(grounded) or 'none'}).",
+            error="; ".join(problems) or "requirements unmet",
         )
     return MelleaIdentityJudgmentNode(
         node_id=node_id,
@@ -274,10 +436,16 @@ async def run_mellea_identity_judgment(
         case_name_read=judgment.case_name_read,
         case_name_agreement=FieldAgreement(judgment.case_name_agreement),
         court_read=judgment.court_read,
-        court_agreement=FieldAgreement(judgment.court_agreement),
+        court_evidence=judgment.court_evidence,
+        court_basis=judgment.court_basis if judgment.court_read else None,
+        court_agreement=court_agreement(judgment.court_read, grounding.record_court_id),
         date_read=judgment.date_read,
-        date_agreement=FieldAgreement(judgment.date_agreement),
+        date_evidence=judgment.date_evidence,
+        date_agreement=date_agreement(judgment.date_read, grounding.record_date),
         reason=judgment.reason,
+        grounded=grounded,
+        name_window=windows.name,
+        parenthetical_window=windows.parenthetical,
         depends_on=depends_on,
         model=model_name,
         status_message="Mellea identity judgement completed.",
@@ -288,14 +456,15 @@ async def run_mellea_identity_judgment(
 def apply_readings(record: CitationRecord, judgment: MelleaIdentityJudgmentNode) -> None:
     """Write what the model read from the filing onto the record, where it differs.
 
-    Only the filing's reading changes. The archive's values never reach the
-    citation, so a filing that states the wrong year keeps it, and the
-    disagreement stays visible as a defect.
+    Only grounded readings are on the node, whether the judgement succeeded or
+    failed, so everything here rests on evidence in the filing. Only the
+    filing's reading changes; the archive's values never reach the citation.
     """
     citation = record.citation
-    if not isinstance(citation, FullCaseCitation) or judgment.status is not ValidationNodeStatus.SUCCEEDED:
+    if not isinstance(citation, FullCaseCitation):
         return
     made_by = judgment.model or "mellea"
+    reason = judgment.reason or ""
     if judgment.case_name_read is not None:
         plaintiff, defendant = _split_case_name(judgment.case_name_read)
         if name_words(judgment.case_name_read) != name_words(
@@ -304,145 +473,21 @@ def apply_readings(record: CitationRecord, judgment: MelleaIdentityJudgmentNode)
             for name, value in (("plaintiff", plaintiff), ("defendant", defendant)):
                 if getattr(record.citation, name) != value:
                     record.correct_field(
-                        name, value, made_by=made_by, reason=judgment.reason or "", node_id=judgment.node_id
+                        name, value, made_by=made_by, reason=reason, node_id=judgment.node_id
                     )
     if judgment.court_read is not None and judgment.court_read != citation.court:
+        evidence = (
+            f"the parenthetical states {judgment.court_evidence!r}"
+            if judgment.court_basis == "stated"
+            else "the reporter implies it"
+        )
         record.correct_field(
             "court",
             judgment.court_read,
             made_by=made_by,
-            reason=judgment.reason or "",
+            reason=f"{evidence}; {reason}",
             node_id=judgment.node_id,
         )
-
-
-def _context(record: CitationRecord, document_text: str) -> str:
-    span = record.source.full_span
-    start = max(0, span.start - CONTEXT_CHARS)
-    end = min(len(document_text), span.end + CONTEXT_CHARS)
-    return (
-        document_text[start : span.start]
-        + "[["
-        + document_text[span.start : span.end]
-        + "]]"
-        + document_text[span.end : end]
-    )
-
-
-def _describe(*, case_name: str | None, court: str | None, date: str | None, locator: str) -> str:
-    return "\n".join(
-        (
-            f"- locator: {locator}",
-            f"- case name: {case_name or '(none)'}",
-            f"- court: {court or '(none)'}",
-            f"- date: {date or '(none)'}",
-        )
-    )
-
-
-@lru_cache(maxsize=1)
-def _court_ids() -> frozenset[str]:
-    from courts_db import courts
-
-    return frozenset(court["id"] for court in courts)
-
-
-@lru_cache(maxsize=1)
-def _court_names() -> dict[str, str]:
-    from courts_db import courts
-
-    return {court["id"]: court.get("name") or court["id"] for court in courts}
-
-
-def _court_label(court_id: str | None) -> str | None:
-    if court_id is None:
-        return None
-    name = _court_names().get(court_id)
-    return f"{court_id} ({name})" if name and name != court_id else court_id
-
-
-def _split_case_name(value: str) -> tuple[str | None, str | None]:
-    parts = re.split(r"\s+vs?\.?\s+", value, maxsplit=1, flags=re.IGNORECASE)
-    if len(parts) == 2:
-        return parts[0].strip() or None, parts[1].strip() or None
-    return value.strip() or None, None
-
-
-def _parse(value: object) -> IdentityJudgment:
-    try:
-        return IdentityJudgment.model_validate_json(value)
-    except ValidationError as exc:
-        msg = f"Invalid identity-judgment output: {exc}"
-        raise ValueError(msg) from exc
-
-
-def _valid_schema(ctx: Context) -> ValidationResult:
-    try:
-        _parse(ctx.last_output().value)
-    except ValueError as exc:
-        return ValidationResult(result=False, reason=str(exc))
-    return ValidationResult(result=True)
-
-
-def _consistent(ctx: Context) -> ValidationResult:
-    try:
-        judgment = _parse(ctx.last_output().value)
-    except ValueError:
-        return ValidationResult(result=True)  # the schema requirement reports this
-    reason = verdict_supported(judgment)
-    return ValidationResult(result=reason is None, reason=reason)
-
-
-def _grounded(context: str):
-    def validation_fn(ctx: Context) -> ValidationResult:
-        try:
-            judgment = _parse(ctx.last_output().value)
-        except ValueError:
-            return ValidationResult(result=True)
-        reason = readings_grounded(judgment, context=context)
-        return ValidationResult(result=reason is None, reason=reason)
-
-    return validation_fn
-
-
-def _last_failures(result: object) -> str:
-    """The last attempt's output and the requirements it failed, for the trace."""
-    validations = getattr(result, "sample_validations", None) or []
-    generations = getattr(result, "sample_generations", None) or []
-    reasons = [
-        f"{requirement.description} ({outcome.reason})" if outcome.reason else requirement.description
-        for requirement, outcome in (validations[-1] if validations else [])
-        if not outcome
-    ]
-    last = getattr(generations[-1], "value", None) if generations else None
-    return "; ".join(reasons) + (f" | last output: {last}" if last else "")
-
-
-def _failed(
-    node_id: str,
-    depends_on: tuple[str, ...],
-    model: str | None,
-    error: str,
-    *,
-    status_message: str,
-) -> MelleaIdentityJudgmentNode:
-    return MelleaIdentityJudgmentNode(
-        node_id=node_id,
-        status=ValidationNodeStatus.FAILED,
-        outcome=IdentityVerdict.FAILED,
-        case_name_read=None,
-        case_name_agreement=None,
-        court_read=None,
-        court_agreement=None,
-        date_read=None,
-        date_agreement=None,
-        reason=None,
-        depends_on=depends_on,
-        model=model,
-        status_message=status_message,
-        outcome_message="No identity verdict is available.",
-        error=error,
-    )
 
 
 def field_disagreements(
@@ -454,9 +499,8 @@ def field_disagreements(
 ) -> tuple[FieldDisagreement, ...]:
     """Each field the filing states that disagrees with the record, by the best evidence.
 
-    The model's answer stands where it ran; the rule's where it did not. Each
-    carries the filing's value and the record's, so a reader of the node sees
-    the disagreement without walking back to the check that found it.
+    The judgement's answers stand where it succeeded; the rules' where it did
+    not. Each carries the filing's value and the record's.
     """
     values = {
         "case_name": (case_name.written_case_name, case_name.recorded_case_name),
@@ -487,4 +531,171 @@ def field_disagreements(
         )
         for name, answer in answers.items()
         if answer in (FieldAgreement.DISAGREE, FieldAgreement.VARIANT)
+    )
+
+
+# --- helpers ---------------------------------------------------------------------
+
+
+def _keep_grounded(judgment: IdentityJudgment, grounded: tuple[str, ...]) -> IdentityJudgment:
+    """The judgement with every ungrounded reading nulled."""
+    fields: dict[str, object] = judgment.model_dump()
+    if "case_name" not in grounded:
+        fields["case_name_read"] = None
+    if "court" not in grounded:
+        fields.update(court_read=None, court_evidence=None, court_basis="none")
+    if "date" not in grounded:
+        fields.update(date_read=None, date_evidence=None)
+    return IdentityJudgment(**fields)
+
+
+def _implied_court(reporter: Reporter | None) -> str | None:
+    """The one court a reporter implies, or None when it implies a family or nothing."""
+    if reporter is not None and reporter.is_scotus:
+        return "scotus"
+    return None
+
+
+def _context(record: CitationRecord, document_text: str) -> str:
+    span = record.source.full_span
+    start = max(0, span.start - CONTEXT_CHARS)
+    end = min(len(document_text), span.end + CONTEXT_CHARS)
+    return (
+        document_text[start : span.start]
+        + "[["
+        + document_text[span.start : span.end]
+        + "]]"
+        + document_text[span.end : end]
+    )
+
+
+def _describe(*, case_name: str | None, court: str | None, date: str | None, locator: str) -> str:
+    return "\n".join(
+        (
+            f"- locator: {locator}",
+            f"- case name: {case_name or '(none)'}",
+            f"- court: {court or '(none)'}",
+            f"- date: {date or '(none)'}",
+        )
+    )
+
+
+@lru_cache(maxsize=1)
+def _courts() -> dict[str, tuple[str, str | None]]:
+    from courts_db import courts
+
+    return {
+        str(court["id"]): (court.get("name") or str(court["id"]), court.get("citation_string") or None)
+        for court in courts
+    }
+
+
+def _court_ids() -> frozenset[str]:
+    return frozenset(_courts())
+
+
+def _court_name(court_id: str | None) -> str:
+    if court_id is None:
+        return "none"
+    name, _ = _courts().get(court_id, (court_id, None))
+    return name
+
+
+def _court_label(court_id: str | None) -> str | None:
+    """`ca4 (Court of Appeals for the Fourth Circuit, cited as 4th Cir.)`, for the prompt."""
+    if court_id is None:
+        return None
+    name, cited = _courts().get(court_id, (None, None))
+    if name is None:
+        return court_id
+    return f"{court_id} ({name}, cited as {cited})" if cited else f"{court_id} ({name})"
+
+
+def _split_case_name(value: str) -> tuple[str | None, str | None]:
+    parts = re.split(r"\s+vs?\.?\s+", value, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) == 2:
+        return parts[0].strip() or None, parts[1].strip() or None
+    return value.strip() or None, None
+
+
+def _parse(value: object) -> IdentityJudgment:
+    try:
+        return IdentityJudgment.model_validate_json(value)
+    except ValidationError as exc:
+        msg = f"Invalid identity-judgment output: {exc}"
+        raise ValueError(msg) from exc
+
+
+def _last_output(result: object) -> object | None:
+    generations = getattr(result, "sample_generations", None) or []
+    if generations:
+        return getattr(generations[-1], "value", None)
+    chosen = getattr(result, "result", None)
+    return getattr(chosen, "value", None) if chosen is not None else None
+
+
+def _valid_schema(ctx: Context) -> ValidationResult:
+    try:
+        _parse(ctx.last_output().value)
+    except ValueError as exc:
+        return ValidationResult(result=False, reason=str(exc))
+    return ValidationResult(result=True)
+
+
+def _grounded(grounding: Grounding):
+    def validation_fn(ctx: Context) -> ValidationResult:
+        try:
+            judgment = _parse(ctx.last_output().value)
+        except ValueError:
+            return ValidationResult(result=True)  # the schema requirement reports this
+        failures = readings_grounded(judgment, grounding)
+        reason = "; ".join(f"{name}: {why}" for name, why in failures.items())
+        return ValidationResult(result=not failures, reason=reason or None)
+
+    return validation_fn
+
+
+def _consistent(grounding: Grounding):
+    def validation_fn(ctx: Context) -> ValidationResult:
+        try:
+            judgment = _parse(ctx.last_output().value)
+        except ValueError:
+            return ValidationResult(result=True)
+        reason = verdict_supported(judgment, grounding)
+        return ValidationResult(result=reason is None, reason=reason)
+
+    return validation_fn
+
+
+def _failed(
+    node_id: str,
+    depends_on: tuple[str, ...],
+    model: str | None,
+    windows: CitationWindows,
+    error: str,
+    *,
+    status_message: str,
+) -> MelleaIdentityJudgmentNode:
+    return MelleaIdentityJudgmentNode(
+        node_id=node_id,
+        status=ValidationNodeStatus.FAILED,
+        outcome=IdentityVerdict.FAILED,
+        case_name_read=None,
+        case_name_agreement=None,
+        court_read=None,
+        court_evidence=None,
+        court_basis=None,
+        court_agreement=None,
+        date_read=None,
+        date_evidence=None,
+        date_agreement=None,
+        reason=None,
+        grounded=(),
+        name_window=windows.name,
+        parenthetical_window=windows.parenthetical,
+        depends_on=depends_on,
+        model=model,
+        status_message=status_message,
+        outcome_message="No identity verdict is available.",
+        error=error,
     )

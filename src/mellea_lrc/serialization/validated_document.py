@@ -272,6 +272,11 @@ def _deserialize_node(value: object) -> ValidationNode:
     elif node_type is MelleaIdentityJudgmentNode:
         for field_name in ("case_name_agreement", "court_agreement", "date_agreement"):
             fields[field_name] = _optional_enum(FieldAgreement, fields[field_name])
+        fields["grounded"] = tuple(require_list(fields["grounded"], name="node.grounded"))
+        fields["name_window"] = _optional_span(fields["name_window"], name="node.name_window")
+        fields["parenthetical_window"] = _optional_span(
+            fields["parenthetical_window"], name="node.parenthetical_window"
+        )
     elif node_type is IdentityResolutionNode:
         fields["reason"] = _optional_enum(IdentityReason, fields["reason"])
         fields["fields"] = tuple(

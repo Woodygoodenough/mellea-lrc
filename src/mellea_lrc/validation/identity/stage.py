@@ -79,7 +79,7 @@ if TYPE_CHECKING:
 
     from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinionCluster
     from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
-    from mellea_lrc.extraction.types import ExtractedDocument
+    from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument
     from mellea_lrc.validation.types import (
         CandidateEvaluationNode,
         CaseNameAgreementNode,
@@ -145,7 +145,13 @@ async def identify_document(
     for record in records:
         scope = _scope(record)
         if scope is IdentityScope.ROOT_CASE:
-            await identify_root(record, document_text=document.text, client=service, session=session)
+            await identify_root(
+                record,
+                document_text=document.text,
+                citations=document.citations,
+                client=service,
+                session=session,
+            )
         elif scope is IdentityScope.ROOT_DOCKET:
             docket = record.append(run_docket_identity(record))
             record.append(
@@ -214,6 +220,7 @@ async def identify_root(
     record: CitationRecord,
     *,
     document_text: str,
+    citations: Sequence[ExtractedCitation],
     client: CourtListenerServiceClient,
     session: MelleaSession | None,
 ) -> IdentityResolutionNode:
@@ -267,7 +274,9 @@ async def identify_root(
     verdicts: list[Verdict] = [guard.verdict for guard in guarded if guard.verdict is not None]
     if not verdicts:
         for guard in guarded:
-            verdict = await _model_judge(record, guard, document_text=document_text, session=session)
+            verdict = await _model_judge(
+                record, guard, document_text=document_text, citations=citations, session=session
+            )
             verdicts.append(verdict)
             if verdict.resolved:
                 break
@@ -484,6 +493,7 @@ async def _model_judge(
     guarded: _Guarded,
     *,
     document_text: str,
+    citations: Sequence[ExtractedCitation],
     session: MelleaSession | None,
 ) -> Verdict:
     """Ask the model about one candidate the rules could not settle."""
@@ -491,6 +501,7 @@ async def _model_judge(
         await run_mellea_identity_judgment(
             record,
             document_text=document_text,
+            citations=citations,
             candidate=guarded.candidate,
             case_name=guarded.case_name,
             court=guarded.court,

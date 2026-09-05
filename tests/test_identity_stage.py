@@ -28,7 +28,10 @@ from mellea_lrc.preprocessing import preprocess_plain_text_from_string
 from mellea_lrc.serialization import deserialize_identified_document, serialize_identified_document
 from mellea_lrc.validation.identity import identify_document
 from mellea_lrc.validation.identity.mellea_judgment import (
+    Grounding,
     IdentityJudgment,
+    court_agreement,
+    date_agreement,
     readings_grounded,
     verdict_supported,
 )
@@ -37,6 +40,7 @@ from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
     CandidateSelectionNode,
+    FieldAgreement,
     CandidateSelectionOutcome,
     IdentityOutcome,
     IdentityReason,
@@ -48,10 +52,18 @@ from mellea_lrc.validation.types import (
 )
 
 US = Reporter(
-    as_written="U.S.", short_name="U.S.", name="United States Supreme Court Reports", cite_type="federal"
+    as_written="U.S.",
+    short_name="U.S.",
+    name="United States Supreme Court Reports",
+    cite_type="federal",
+    is_scotus=True,
 )
 SCT = Reporter(
-    as_written="S. Ct.", short_name="S. Ct.", name="West's Supreme Court Reporter", cite_type="federal"
+    as_written="S. Ct.",
+    short_name="S. Ct.",
+    name="West's Supreme Court Reporter",
+    cite_type="federal",
+    is_scotus=True,
 )
 F3D = Reporter(as_written="F.3d", short_name="F.3d", name="Federal Reporter", cite_type="federal")
 
@@ -299,9 +311,10 @@ def test_a_rule_disagreement_sends_one_composite_call_and_records_its_verdict(
             "case_name_read": "Conley v. Gibson",
             "case_name_agreement": "disagree",
             "court_read": "fladistctapp",
-            "court_agreement": "agree",
+            "court_evidence": "Fla. Dist. Ct. App.",
+            "court_basis": "stated",
             "date_read": "2010",
-            "date_agreement": "agree",
+            "date_evidence": "2010",
             "verdict": "different_case",
             "reason": "The page holds Galeana v. Galeana.",
         },
@@ -334,8 +347,8 @@ def test_a_rule_disagreement_sends_one_composite_call_and_records_its_verdict(
     assert "case name: mismatch" in spec.user_variables["rules"]
     assert [r.description for r in spec.requirements] == [
         "Return a valid identity-judgment object.",
-        "The verdict must follow from the field answers.",
-        "Every value read from the filing must appear in the context.",
+        "Every reading must be grounded in its window.",
+        "The verdict must follow from the agreements.",
     ]
     record = result.record("c1")
     judgment = next(n for n in record.trace.nodes if isinstance(n, MelleaIdentityJudgmentNode))
@@ -361,9 +374,10 @@ def test_the_model_corrects_the_filing_reading_but_never_the_filing(monkeypatch:
             "case_name_read": "Bell Atl. Corp. v. Twombly",
             "case_name_agreement": "agree",
             "court_read": "scotus",
-            "court_agreement": "agree",
+            "court_evidence": None,
+            "court_basis": "implied_by_reporter",
             "date_read": "2009",
-            "date_agreement": "disagree",
+            "date_evidence": "2009",
             "verdict": "same_case",
             "reason": "Same case; the filing misdates it.",
         },
@@ -404,9 +418,10 @@ def test_a_misspelt_party_is_the_same_case_with_a_defect(monkeypatch: pytest.Mon
             "case_name_read": "Rufo v. Inmates of Suffock County Jail",
             "case_name_agreement": "variant",
             "court_read": "scotus",
-            "court_agreement": "agree",
+            "court_evidence": None,
+            "court_basis": "implied_by_reporter",
             "date_read": "1992",
-            "date_agreement": "agree",
+            "date_evidence": "1992",
             "verdict": "same_case",
             "reason": "Suffock is a misspelling of Suffolk.",
         },
@@ -490,17 +505,27 @@ def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.Monk
 def test_the_verdict_must_follow_from_the_field_answers(
     answers: tuple[str, str, str], verdict: str, reason: str | None
 ) -> None:
+    court_read = {"agree": "scotus", "disagree": "ca9", "undeterminable": None}[answers[1]]
+    date_read = {"agree": "2007", "disagree": "2009", "undeterminable": None}[answers[2]]
     judgment = IdentityJudgment(
         case_name_read=None,
         case_name_agreement=answers[0],
-        court_read=None,
-        court_agreement=answers[1],
-        date_read=None,
-        date_agreement=answers[2],
+        court_read=court_read,
+        court_evidence=None,
+        court_basis="implied_by_reporter" if court_read else "none",
+        date_read=date_read,
+        date_evidence=date_read,
         verdict=verdict,
         reason="",
     )
-    problem = verdict_supported(judgment)
+    grounding = Grounding(
+        name_window="",
+        parenthetical_window="",
+        reporter=US,
+        record_court_id="scotus",
+        record_date="2007-05-21",
+    )
+    problem = verdict_supported(judgment, grounding)
     if reason is None:
         assert problem is None
     else:
@@ -508,28 +533,166 @@ def test_the_verdict_must_follow_from_the_field_answers(
         assert reason in problem
 
 
-def test_readings_must_come_from_the_filing() -> None:
-    context = "See Conley v. Gibson, 44 So. 3d 587 (Fla. Dist. Ct. App. 2010)."
+def _grounding(**overrides: object) -> Grounding:
+    fields: dict[str, object] = {
+        "name_window": "See Conley v. Gibson, ",
+        "parenthetical_window": " (Fla. Dist. Ct. App. 2010).",
+        "reporter": Reporter(as_written="So. 3d", short_name="So. 3d", cite_type="state_regional"),
+        "record_court_id": "fladistctapp",
+        "record_date": "2010-08-11",
+    }
+    fields.update(overrides)
+    return Grounding(**fields)
 
-    def judgment(**overrides: object) -> IdentityJudgment:
-        fields: dict[str, object] = {
-            "case_name_read": "Conley v. Gibson",
-            "case_name_agreement": "agree",
-            "court_read": "fladistctapp",
-            "court_agreement": "agree",
-            "date_read": "2010",
-            "date_agreement": "agree",
-            "verdict": "same_case",
-            "reason": "",
-        }
-        fields.update(overrides)
-        return IdentityJudgment(**fields)
 
-    assert readings_grounded(judgment(), context=context) is None
-    assert "smith" in (readings_grounded(judgment(case_name_read="Smith v. Gibson"), context=context) or "")
-    assert "courts-db" in (readings_grounded(judgment(court_read="nowhere"), context=context) or "")
-    assert "YYYY" in (readings_grounded(judgment(date_read="Oct 2010"), context=context) or "")
-    assert "2011" in (readings_grounded(judgment(date_read="2011"), context=context) or "")
+def _judgment(**overrides: object) -> IdentityJudgment:
+    fields: dict[str, object] = {
+        "case_name_read": "Conley v. Gibson",
+        "case_name_agreement": "agree",
+        "court_read": "fladistctapp",
+        "court_evidence": "Fla. Dist. Ct. App.",
+        "court_basis": "stated",
+        "date_read": "2010",
+        "date_evidence": "2010",
+        "verdict": "same_case",
+        "reason": "",
+    }
+    fields.update(overrides)
+    return IdentityJudgment(**fields)
+
+
+def test_a_grounded_judgment_passes_every_check() -> None:
+    assert readings_grounded(_judgment(), _grounding()) == {}
+
+
+def test_the_case_name_must_come_from_the_name_window_allowing_for_spelling() -> None:
+    assert "case_name" in readings_grounded(_judgment(case_name_read="Smith v. Gibson"), _grounding())
+    # The model corrects a typo the filing made; that is reading well, not inventing.
+    assert readings_grounded(_judgment(case_name_read="Conley v. Gibsom"), _grounding()) == {}
+    # A name that is in the parenthetical window but not the name window is another citation's.
+    assert "case_name" in readings_grounded(
+        _judgment(case_name_read="Galeana v. Galeana"),
+        _grounding(parenthetical_window=" (Galeana v. Galeana, 2010)."),
+    )
+    assert readings_grounded(_judgment(case_name_read=None), _grounding()) == {}
+
+
+def test_a_stated_court_needs_evidence_in_the_parenthetical_that_resolves_to_it() -> None:
+    assert "courts-db" in readings_grounded(_judgment(court_read="nowhere"), _grounding())["court"]
+    assert "court_evidence" in readings_grounded(_judgment(court_evidence=None), _grounding())["court"]
+    assert (
+        "not in parenthetical_window"
+        in readings_grounded(_judgment(court_evidence="9th Cir."), _grounding())["court"]
+    )
+    assert (
+        "resolves to 'ca9'"
+        in readings_grounded(
+            _judgment(court_read="ca10", court_evidence="9th Cir."),
+            _grounding(parenthetical_window=" (9th Cir. 2010)"),
+        )["court"]
+    )
+    assert (
+        readings_grounded(
+            _judgment(court_read="ca9", court_evidence="9th Cir."),
+            _grounding(parenthetical_window=" (9th Cir. 2010)"),
+        )
+        == {}
+    )
+
+
+def test_an_implied_court_is_allowed_only_where_the_reporter_implies_one() -> None:
+    implied = _judgment(court_read="scotus", court_evidence=None, court_basis="implied_by_reporter")
+    assert readings_grounded(implied, _grounding(reporter=US, record_court_id="scotus")) == {}
+    assert "does not imply exactly one court" in readings_grounded(implied, _grounding())["court"]
+    wrong = _judgment(court_read="ca9", court_evidence=None, court_basis="implied_by_reporter")
+    assert "implies 'scotus'" in readings_grounded(wrong, _grounding(reporter=US))["court"]
+    unsaid = _judgment(court_read="fladistctapp", court_evidence=None, court_basis="none")
+    assert "court_basis is none" in readings_grounded(unsaid, _grounding())["court"]
+
+
+def test_a_date_needs_evidence_in_the_parenthetical_it_can_be_read_from() -> None:
+    assert "YYYY" in readings_grounded(_judgment(date_read="Oct 2010"), _grounding())["date"]
+    assert "date_evidence" in readings_grounded(_judgment(date_evidence=None), _grounding())["date"]
+    assert (
+        "not in parenthetical_window"
+        in readings_grounded(_judgment(date_evidence="2011"), _grounding())["date"]
+    )
+    assert "states a year" in readings_grounded(_judgment(date_read="2011"), _grounding())["date"]
+    day = _judgment(
+        date_read="2024-10-31", date_evidence="Oct. 31, 2024", court_read=None, court_basis="none"
+    )
+    assert readings_grounded(day, _grounding(parenthetical_window=" (E.D.N.Y. Oct. 31, 2024)")) == {}
+    off = _judgment(
+        date_read="2024-10-30", date_evidence="Oct. 31, 2024", court_read=None, court_basis="none"
+    )
+    assert (
+        "states a day"
+        in readings_grounded(off, _grounding(parenthetical_window=" (E.D.N.Y. Oct. 31, 2024)"))["date"]
+    )
+
+
+def test_court_and_date_agreement_are_computed_from_the_reading() -> None:
+    assert court_agreement("scotus", "scotus") is FieldAgreement.AGREE
+    assert court_agreement("ca9", "scotus") is FieldAgreement.DISAGREE
+    assert court_agreement(None, "scotus") is FieldAgreement.UNDETERMINABLE
+    assert date_agreement("2007", "2007-05-21") is FieldAgreement.AGREE
+    assert date_agreement("2007-05-22", "2007-05-21") is FieldAgreement.DISAGREE
+    assert date_agreement("2008", "2007-05-21") is FieldAgreement.DISAGREE
+    assert date_agreement("2007", None) is FieldAgreement.UNDETERMINABLE
+
+
+def test_a_failed_judgment_keeps_the_readings_whose_evidence_passed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MELLEA_LRC_LLM_MODEL", "test-model")
+    monkeypatch.setenv("MELLEA_LRC_LLM_API_BASE", "https://example.test/v1")
+    monkeypatch.setenv("MELLEA_LRC_LLM_API_KEY", "test-key")
+    answer = {
+        "case_name_read": "Norton v. Shelby County",
+        "case_name_agreement": "agree",
+        "court_read": "ca9",
+        "court_evidence": "9th Cir.",
+        "court_basis": "stated",
+        "date_read": "1886",
+        "date_evidence": "1886",
+        "verdict": "same_case",
+        "reason": "The extractor took Under into the name.",
+    }
+
+    async def exhausted(_session: object, spec: object, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            success=False, result=None, sample_generations=[SimpleNamespace(value=json.dumps(answer))]
+        )
+
+    monkeypatch.setattr("mellea_lrc.validation.identity.mellea_judgment.run_instruct_ivr", exhausted)
+    text = "Under Norton v. Shelby County, 118 U.S. 425 (1886), the rule is settled."
+    root = _cite(
+        "c1",
+        _twombly(
+            plaintiff="Under Norton",
+            defendant="Shelby County",
+            volume="118",
+            page="425",
+            date=CitationDate(year="1886"),
+        ),
+        text=text,
+        locator="118 U.S. 425",
+        authority_id="c1",
+    )
+    norton = CourtListenerOpinionCluster(
+        cluster_id="c-n", case_name="Norton v. Shelby County", date_filed="1886-05-10", docket_id="d"
+    )
+    client = Client({("118", "U.S.", "425"): (norton,)}, courts={"d": "scotus"})
+
+    result = _run(_document(text, root), client, session=object())
+
+    record = result.record("c1")
+    judgment = next(n for n in record.trace.nodes if isinstance(n, MelleaIdentityJudgmentNode))
+    assert judgment.status is ValidationNodeStatus.FAILED
+    assert judgment.grounded == ("case_name", "date")
+    assert judgment.case_name_read == "Norton v. Shelby County"
+    assert judgment.court_read is None
+    assert "9th Cir." in (judgment.error or "")
+    assert [(c.field, c.after) for c in record.corrections] == [("plaintiff", "Norton")]
+    assert _resolution(record).outcome is IdentityOutcome.DEFER_TO_SEARCH
 
 
 # --- a crowded page ---------------------------------------------------------------
@@ -623,9 +786,10 @@ def test_a_mismatch_on_a_page_of_several_cases_is_unresolved_not_refuted(
             "case_name_read": "Conley v. Gibson",
             "case_name_agreement": "disagree",
             "court_read": None,
-            "court_agreement": "undeterminable",
+            "court_evidence": None,
+            "court_basis": "none",
             "date_read": "2010",
-            "date_agreement": "agree",
+            "date_evidence": "2010",
             "verdict": "different_case",
             "reason": "Not this one.",
         },
@@ -753,9 +917,10 @@ def test_the_identified_document_round_trips_through_json(monkeypatch: pytest.Mo
             "case_name_read": "Bell Atl. Corp. v. Twombly",
             "case_name_agreement": "agree",
             "court_read": "scotus",
-            "court_agreement": "agree",
+            "court_evidence": None,
+            "court_basis": "implied_by_reporter",
             "date_read": "2009",
-            "date_agreement": "disagree",
+            "date_evidence": "2009",
             "verdict": "same_case",
             "reason": "Same case; the filing misdates it.",
         },
