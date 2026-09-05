@@ -41,6 +41,7 @@ from mellea_lrc.validation.identity.field_checks import iso_date
 from mellea_lrc.validation.types import (
     FieldAgreement,
     FieldCheckOutcome,
+    FieldDisagreement,
     IdentityVerdict,
     MelleaIdentityJudgmentNode,
     ValidationNodeStatus,
@@ -450,27 +451,40 @@ def field_disagreements(
     case_name: CaseNameAgreementNode,
     court: CourtCheckNode,
     date: DateCheckNode,
-) -> tuple[str, ...]:
-    """Which fields the filing states disagree with the record, by the best evidence.
+) -> tuple[FieldDisagreement, ...]:
+    """Each field the filing states that disagrees with the record, by the best evidence.
 
-    The model's answer stands where it ran; the rule's where it did not.
+    The model's answer stands where it ran; the rule's where it did not. Each
+    carries the filing's value and the record's, so a reader of the node sees
+    the disagreement without walking back to the check that found it.
     """
+    values = {
+        "case_name": (case_name.written_case_name, case_name.recorded_case_name),
+        "court": (court.extracted_court_id, court.retrieved_court_id),
+        "date": (date.extracted_date, date.retrieved_date),
+    }
     if judgment is not None and judgment.status is ValidationNodeStatus.SUCCEEDED:
         answers = {
             "case_name": judgment.case_name_agreement,
             "court": judgment.court_agreement,
             "date": judgment.date_agreement,
         }
-        return tuple(
-            name
-            for name, answer in answers.items()
-            if answer in (FieldAgreement.DISAGREE, FieldAgreement.VARIANT)
+        if judgment.case_name_read is not None:
+            values["case_name"] = (judgment.case_name_read, case_name.recorded_case_name)
+        if judgment.court_read is not None:
+            values["court"] = (judgment.court_read, court.retrieved_court_id)
+        if judgment.date_read is not None:
+            values["date"] = (judgment.date_read, date.retrieved_date)
+    else:
+        answers = {
+            "case_name": FieldAgreement.DISAGREE if case_name.outcome.value == "mismatch" else None,
+            "court": FieldAgreement.DISAGREE if court.outcome is FieldCheckOutcome.MISMATCH else None,
+            "date": FieldAgreement.DISAGREE if date.outcome is FieldCheckOutcome.MISMATCH else None,
+        }
+    return tuple(
+        FieldDisagreement(
+            field=name, filing_value=values[name][0], record_value=values[name][1], agreement=answer
         )
-    disagreements = []
-    if not case_name.outcome.agrees and case_name.outcome.value == "mismatch":
-        disagreements.append("case_name")
-    if court.outcome is FieldCheckOutcome.MISMATCH:
-        disagreements.append("court")
-    if date.outcome is FieldCheckOutcome.MISMATCH:
-        disagreements.append("date")
-    return tuple(disagreements)
+        for name, answer in answers.items()
+        if answer in (FieldAgreement.DISAGREE, FieldAgreement.VARIANT)
+    )

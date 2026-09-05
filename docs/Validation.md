@@ -125,8 +125,8 @@ fails rather than here.
 
 Two kinds of root are checked differently. A reporter locator goes through the
 route below. A **docket number** is a root too — the docket and the court name
-a case on their own — but it has no volume or page, so it is recorded as
-`deferred` with its RECAP route described in `validation/identity/docket.py`.
+a case on their own — but it has no volume or page, so it defers to search,
+with its RECAP route described in `validation/identity/docket.py`.
 
 ### The record
 
@@ -151,14 +151,16 @@ the right case under the wrong year keeps its year, gets the right one on
 ```
 identity scope ── non-root, or not a case → stop, inheriting or out of scope
 └── exact locator lookup
-    ├── not found → unresolved (open search's population)
+    ├── not found → DEFER_TO_SEARCH
     ├── ambiguous → merge duplicate records, narrow a crowded page by the filing's case name
+    │   └── nothing separated → AMBIGUOUS_IDENTITY
     └── per candidate: the rule guard
-        ├── every rule agrees or has nothing to compare → established, no model call
+        ├── every rule agrees or has nothing to compare → CONFIRMED_IDENTITY, no model call
         └── any rule disagrees → one composite Mellea judgement
-            ├── same case      → established, or established with defects
-            ├── different case → refuted, if the page holds one case; else unresolved
-            └── undeterminable → unresolved
+            ├── same case, fields agree  → CONFIRMED_IDENTITY
+            ├── same case, a field wrong → WRONG_IDENTITY, reason field_disagreement
+            ├── different case           → WRONG_IDENTITY, reason different_case_at_locator
+            └── undeterminable           → DEFER_TO_SEARCH
 ```
 
 **The rule guard** is three comparisons that cost no model call, each reading
@@ -199,19 +201,28 @@ citation that referred to it. When they resolve differently, both stay.
 
 ### Reading an identity result
 
-| outcome | means |
-|---|---|
-| `established` | the locator names one case and every field the filing states agrees |
-| `established_with_defects` | the same case; the fields named in `defects` disagree |
-| `refuted` | the one case at the locator is not the one the filing describes |
-| `unresolved` | nothing at the locator could be shown to be the filing's case |
-| `ambiguous` | more cases at the locator than the stage will look at, and the name separated none |
-| `deferred` | a route the stage does not run yet |
+Four outcomes, each with a reason under it:
 
-`refuted` is deliberately hard to reach. It needs the page to hold exactly one
-case; on a crowded page the archive may hold only part of the page, so a
-candidate that is not the filing's case does not show the filing's case absent.
-That is the same rule as *Absence is not falsity*, applied one level down.
+| outcome | reason | means |
+|---|---|---|
+| `confirmed_identity` | | the locator names one case and every field the filing states agrees |
+| `wrong_identity` | `field_disagreement` | the locator names the case, and a field the filing states disagrees; `fields` lists each with the filing's value and the record's |
+| `wrong_identity` | `different_case_at_locator` | the one case at the page is not the one the filing names; `record_case_name` says which it is |
+| `ambiguous_identity` | `crowded_page` | several distinct cases remain after merging duplicates, and the filing's name separates none |
+| `defer_to_search` | `not_found`, `lookup_failed`, `undeterminable`, `docket` | nothing the lookup route can decide; the search route's population |
+
+`wrong_identity` is deliberately wide: a filing citing the right case to the
+wrong court and a filing citing a page that holds some other case are both
+citing something other than what they say, and the reason and fields under
+the node keep them apart. A `field_disagreement` still resolves the record --
+the case was found -- so a later stage can decide whether to check its
+pinpoint.
+
+`different_case_at_locator` is deliberately hard to reach. It needs the page
+to hold exactly one case; on a crowded page the archive may hold only part of
+the page, so a candidate that is not the filing's case does not show the
+filing's case absent, and the root defers to search instead. That is the same
+rule as *Absence is not falsity*, applied one level down.
 
 `serialize_identified_document` writes the whole thing — source citation,
 current reading, corrections, resolution and trace — and reads it back.

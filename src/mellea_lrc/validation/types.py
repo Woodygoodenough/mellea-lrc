@@ -150,20 +150,46 @@ class FieldAgreement(str, Enum):
 
 
 class IdentityOutcome(str, Enum):
-    """What the identity stage concluded about one root citation."""
+    """What the identity stage concluded about one root citation.
 
-    ESTABLISHED = "established"
+    Four answers, and one reason under each that says why. `WRONG_IDENTITY` is
+    the wide one: the locator names a different case, or names the right case
+    and a field the filing states disagrees with it. Both are the filing citing
+    something other than what it says, and the reason and the fields under the
+    node keep them apart.
+    """
+
+    CONFIRMED_IDENTITY = "confirmed_identity"
     """The locator names one case and every field the filing states agrees with it."""
-    ESTABLISHED_WITH_DEFECTS = "established_with_defects"
-    """The same case, but a field the filing states disagrees with the record."""
-    REFUTED = "refuted"
-    """The locator names a case, and it is not the one the filing describes."""
-    UNRESOLVED = "unresolved"
-    """The archive holds nothing at the locator, or nothing could be decided. Open search's population."""
-    AMBIGUOUS = "ambiguous"
-    """More cases at the locator than the stage will look at, and nothing separated them."""
-    DEFERRED = "deferred"
-    """A route the stage does not run yet."""
+    WRONG_IDENTITY = "wrong_identity"
+    """The locator names a different case, or the right case with a field the filing misstates."""
+    AMBIGUOUS_IDENTITY = "ambiguous_identity"
+    """Several distinct cases remain at the locator after merging duplicates and narrowing by name."""
+    DEFER_TO_SEARCH = "defer_to_search"
+    """Nothing the lookup route can decide: nothing at the locator, a docket citation, a judgement that could not decide."""
+
+
+class IdentityReason(str, Enum):
+    """Why an identity outcome is what it is."""
+
+    DIFFERENT_CASE_AT_LOCATOR = "different_case_at_locator"
+    FIELD_DISAGREEMENT = "field_disagreement"
+    CROWDED_PAGE = "crowded_page"
+    NOT_FOUND = "not_found"
+    LOOKUP_FAILED = "lookup_failed"
+    UNDETERMINABLE = "undeterminable"
+    DOCKET = "docket"
+
+
+@dataclass(frozen=True, slots=True)
+class FieldDisagreement:
+    """One field the filing states that does not agree with the resolved record."""
+
+    field: str
+    filing_value: str | None
+    record_value: str | None
+    agreement: FieldAgreement
+    """``disagree`` or ``variant``, as the judgement or the rule answered."""
 
 
 class AuthorityMergeOutcome(str, Enum):
@@ -863,14 +889,26 @@ class IdentityResolutionNode:
     node_id: str
     status: ValidationNodeStatus
     outcome: IdentityOutcome
+    reason: IdentityReason | None
+    """Why. ``None`` only on a confirmed identity."""
     cluster_id: str | None
+    """The record the conclusion is about: the resolved case, or the different case at the locator."""
+    record_case_name: str | None
     decided_by: str | None
     """``rule`` when no model was consulted, else the judgement node's identifier."""
-    defects: tuple[str, ...]
-    """Fields the filing states that disagree with the resolved record."""
+    fields: tuple[FieldDisagreement, ...]
+    """Each field the filing states that disagrees with the record, with both values."""
     depends_on: tuple[str, ...]
     status_message: str | None = None
     outcome_message: str | None = None
+
+    @property
+    def resolved(self) -> bool:
+        """Whether the locator identified the filing's case, defects or not."""
+        return self.outcome is IdentityOutcome.CONFIRMED_IDENTITY or (
+            self.outcome is IdentityOutcome.WRONG_IDENTITY
+            and self.reason is IdentityReason.FIELD_DISAGREEMENT
+        )
 
 
 @dataclass(frozen=True, slots=True)

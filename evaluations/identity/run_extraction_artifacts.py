@@ -109,13 +109,13 @@ class Tally:
     documents: int = 0
     citations: int = 0
     roots: int = 0
-    outcomes: Counter[str] = field(default_factory=Counter)
+    outcomes: Counter[tuple[str, str | None]] = field(default_factory=Counter)
     decided_by_rule: int = 0
     model_calls: int = 0
     model_failures: int = 0
     corrections: Counter[str] = field(default_factory=Counter)
     merges: int = 0
-    defects: Counter[str] = field(default_factory=Counter)
+    disagreements: Counter[str] = field(default_factory=Counter)
 
     def add(self, identified: IdentifiedDocument) -> None:
         self.documents += 1
@@ -124,10 +124,10 @@ class Tally:
             for node in record.trace.nodes:
                 if isinstance(node, IdentityResolutionNode):
                     self.roots += 1
-                    self.outcomes[node.outcome.value] += 1
+                    self.outcomes[(node.outcome.value, node.reason.value if node.reason else None)] += 1
                     self.decided_by_rule += node.decided_by == "rule"
-                    for defect in node.defects:
-                        self.defects[defect] += 1
+                    for disagreement in node.fields:
+                        self.disagreements[disagreement.field] += 1
                 elif isinstance(node, MelleaIdentityJudgmentNode):
                     self.model_calls += 1
                     self.model_failures += node.status is ValidationNodeStatus.FAILED
@@ -144,11 +144,16 @@ class Tally:
             f"({self.model_failures} failed)",
             f"{self.merges} parallel citations merged into one authority",
             "outcomes:",
-            *(f"  {outcome:26} {count:4}" for outcome, count in self.outcomes.most_common()),
+            *(
+                f"  {outcome:22} {reason or '':28} {count:4}"
+                for (outcome, reason), count in sorted(
+                    self.outcomes.items(), key=lambda item: (item[0][0], -item[1])
+                )
+            ),
         ]
-        if self.defects:
-            lines += ["defects reported on established roots:"]
-            lines += [f"  {name:26} {count:4}" for name, count in self.defects.most_common()]
+        if self.disagreements:
+            lines += ["fields the filing states that disagree with the record:"]
+            lines += [f"  {name:26} {count:4}" for name, count in self.disagreements.most_common()]
         if self.corrections:
             lines += ["corrections to the filing's reading:"]
             lines += [f"  {name:26} {count:4}" for name, count in self.corrections.most_common()]
