@@ -93,7 +93,7 @@ def run_reporter_page_retrieval(
         citation_index = _citation_index(
             cluster.citations,
             volume=citation.volume,
-            reporter=citation.reporter,
+            reporter=citation.reporter.canonical if citation.reporter else None,
         )
         if citation_index is None:
             return _unavailable(
@@ -266,7 +266,7 @@ def _numeric_pin_page(pin_cite: str | None) -> str | None:
 def _reporter_citation(citation: FullCaseCitation) -> str | None:
     if citation.volume is None or citation.reporter is None or citation.page is None:
         return None
-    return f"{citation.volume} {citation.reporter} {citation.page}"
+    return f"{citation.volume} {citation.reporter.canonical} {citation.page}"
 
 
 def _normalized_reporter(reporter: str) -> str:
