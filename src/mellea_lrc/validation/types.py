@@ -39,6 +39,14 @@ class FieldCheckOutcome(str, Enum):
     MATCH = "match"
     MISMATCH = "mismatch"
     UNAVAILABLE = "unavailable"
+    COMPATIBLE = "compatible"
+    """The filing states no value, and what it implies does not conflict with the record.
+
+    A citation to `61 N.C. App. 134` names no court, but the reporter holds
+    North Carolina's appellate courts and no others; a record from one of them
+    is compatible, a record from a Texas district court is a mismatch. Counts
+    as agreement, and is kept apart from a match because nothing was read.
+    """
 
 
 class MelleaCaseNameCheckOutcome(str, Enum):
@@ -147,6 +155,9 @@ class FieldAgreement(str, Enum):
     VARIANT = "variant"
     """The same case, named defectively: a misspelt or garbled party, a party
     dropped. Case name only. Counts as agreement for identity and as a defect."""
+    COMPATIBLE = "compatible"
+    """The filing states no value, and what the reporter implies does not
+    conflict with the record. Court only. Counts as agreement."""
 
 
 class IdentityOutcome(str, Enum):
@@ -576,6 +587,8 @@ class CourtCheckNode:
     depends_on: tuple[str, ...]
     status_message: str | None = None
     outcome_message: str | None = None
+    implied_court_ids: tuple[str, ...] = ()
+    """The courts the reporter can hold, when the filing states none and they were consulted."""
 
 
 @dataclass(frozen=True, slots=True)

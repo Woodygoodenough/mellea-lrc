@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from mellea_lrc.core.citations import FullCaseCitation
 from mellea_lrc.validation.identity.case_name import CaseNameAgreement, compare_case_names
+from mellea_lrc.validation.identity.reporter_courts import describe, implied_courts
 from mellea_lrc.validation.types import (
     CaseNameAgreementNode,
     CourtCheckNode,
@@ -123,6 +124,30 @@ def run_court_comparison(
     extracted = citation.court if isinstance(citation, FullCaseCitation) else None
     retrieved = evidence.court_id
     node_id = f"{evidence.node_id}:court_check"
+    if extracted is None and retrieved is not None:
+        # The filing states no court, but its reporter holds only some courts.
+        # A record from one of them is compatible; from any other, a conflict.
+        family = implied_courts(citation.reporter if isinstance(citation, FullCaseCitation) else None)
+        if family:
+            compatible = retrieved in family
+            return CourtCheckNode(
+                node_id=node_id,
+                status=ValidationNodeStatus.SUCCEEDED,
+                outcome=FieldCheckOutcome.COMPATIBLE if compatible else FieldCheckOutcome.MISMATCH,
+                extracted_court_id=None,
+                retrieved_court_id=retrieved,
+                depends_on=(evidence.node_id,),
+                status_message="Court comparison completed against the courts the reporter holds.",
+                outcome_message=(
+                    f"The filing states no court; the record's {retrieved} is one the reporter holds."
+                    if compatible
+                    else (
+                        f"The filing states no court, and the record's {retrieved} is not one the "
+                        f"reporter holds ({describe(family)})."
+                    )
+                ),
+                implied_court_ids=tuple(sorted(family)),
+            )
     if extracted is None or retrieved is None:
         return CourtCheckNode(
             node_id=node_id,

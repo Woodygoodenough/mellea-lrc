@@ -54,6 +54,7 @@ from mellea_lrc.text import find_all
 from mellea_lrc.validation.duplicate_clusters import name_words
 from mellea_lrc.validation.identity.case_name import written_case_name
 from mellea_lrc.validation.identity.field_checks import iso_date
+from mellea_lrc.validation.identity.reporter_courts import describe, implied_courts
 from mellea_lrc.validation.identity.windows import windows_for
 from mellea_lrc.validation.types import (
     FieldAgreement,
@@ -114,7 +115,8 @@ the reporter implies one -- `U.S.`, `S. Ct.` and `L. Ed.` are the Supreme
 Court, `scotus` -- `court_basis` is `implied_by_reporter` and
 `court_evidence` is null. A regional or federal reporter such as `F.3d` or
 `So. 3d` implies a family of courts and not one, so with no stated court the
-answer is null and `court_basis` is `none`.
+answer is null and `court_basis` is `none`; whether the record's court is one
+the reporter holds is then checked without you.
 
 For the date, report `date_read` as `YYYY` when the filing states a year and
 `YYYY-MM-DD` when it states a day, and `date_evidence` as the exact string you
@@ -177,6 +179,8 @@ class Grounding:
     reporter: Reporter | None
     record_court_id: str | None
     record_date: str | None
+    implied: frozenset[str] = frozenset()
+    """The courts the reporter can hold; the compatibility check when no court is read."""
 
 
 # --- the checks ----------------------------------------------------------------
@@ -221,7 +225,11 @@ def ground_court(judgment: IdentityJudgment, grounding: Grounding) -> str | None
     if judgment.court_basis == "implied_by_reporter":
         implied = _implied_court(grounding.reporter)
         if implied is None:
-            return f"{spelled} does not imply exactly one court; cite the parenthetical or answer null."
+            return (
+                f"{spelled} holds more than one court ({describe(grounding.implied) or 'unknown'}), so it "
+                "implies none; cite the parenthetical or answer null, and the reporter's courts are "
+                "checked for conflict without a reading."
+            )
         if implied != judgment.court_read:
             return f"{spelled} implies {implied!r}, not {judgment.court_read!r}."
         return None
@@ -264,10 +272,20 @@ def readings_grounded(judgment: IdentityJudgment, grounding: Grounding) -> dict[
     }
 
 
-def court_agreement(court_read: str | None, record_court_id: str | None) -> FieldAgreement:
-    """Computed, not asked: the same identifier or not, undeterminable on an absence."""
-    if court_read is None or record_court_id is None:
+def court_agreement(
+    court_read: str | None, record_court_id: str | None, implied: frozenset[str] = frozenset()
+) -> FieldAgreement:
+    """Computed, not asked: the same identifier or not.
+
+    With no court read, the reporter's courts stand in: a record from one of
+    them is compatible, from any other a disagreement. With neither, undeterminable.
+    """
+    if record_court_id is None:
         return FieldAgreement.UNDETERMINABLE
+    if court_read is None:
+        if not implied:
+            return FieldAgreement.UNDETERMINABLE
+        return FieldAgreement.COMPATIBLE if record_court_id in implied else FieldAgreement.DISAGREE
     return FieldAgreement.AGREE if court_read == record_court_id else FieldAgreement.DISAGREE
 
 
@@ -282,9 +300,10 @@ def date_agreement(date_read: str | None, record_date: str | None) -> FieldAgree
 def verdict_supported(judgment: IdentityJudgment, grounding: Grounding) -> str | None:
     """Why the verdict does not follow from the agreements, or None when it does."""
     name = judgment.case_name_agreement
+    court = court_agreement(judgment.court_read, grounding.record_court_id, grounding.implied).value
     answers = (
         name,
-        court_agreement(judgment.court_read, grounding.record_court_id).value,
+        "agree" if court == "compatible" else court,
         date_agreement(judgment.date_read, grounding.record_date).value,
     )
     if all(answer == "agree" for answer in answers) and judgment.verdict != "same_case":
@@ -334,6 +353,7 @@ async def run_mellea_identity_judgment(
         reporter=reporter,
         record_court_id=court.retrieved_court_id,
         record_date=candidate.date_filed,
+        implied=implied_courts(reporter),
     )
     extracted = _describe(
         case_name=written_case_name(citation.plaintiff, citation.defendant)
@@ -438,7 +458,7 @@ async def run_mellea_identity_judgment(
         court_read=judgment.court_read,
         court_evidence=judgment.court_evidence,
         court_basis=judgment.court_basis if judgment.court_read else None,
-        court_agreement=court_agreement(judgment.court_read, grounding.record_court_id),
+        court_agreement=court_agreement(judgment.court_read, grounding.record_court_id, grounding.implied),
         date_read=judgment.date_read,
         date_evidence=judgment.date_evidence,
         date_agreement=date_agreement(judgment.date_read, grounding.record_date),
@@ -502,9 +522,14 @@ def field_disagreements(
     The judgement's answers stand where it succeeded; the rules' where it did
     not. Each carries the filing's value and the record's.
     """
+    unstated = (
+        f"none stated; the reporter holds {describe(frozenset(court.implied_court_ids))}"
+        if court.extracted_court_id is None and court.implied_court_ids
+        else court.extracted_court_id
+    )
     values = {
         "case_name": (case_name.written_case_name, case_name.recorded_case_name),
-        "court": (court.extracted_court_id, court.retrieved_court_id),
+        "court": (unstated, court.retrieved_court_id),
         "date": (date.extracted_date, date.retrieved_date),
     }
     if judgment is not None and judgment.status is ValidationNodeStatus.SUCCEEDED:

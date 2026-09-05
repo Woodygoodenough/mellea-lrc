@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from mellea_lrc.core.citations import CitationDate, FullCaseCitation
+from mellea_lrc.core.citations import CitationDate, FullCaseCitation, Reporter
 from mellea_lrc.validation.identity.case_name import compare_case_names
-from mellea_lrc.validation.identity.field_checks import iso_date, run_date_check
+from mellea_lrc.validation.identity.field_checks import iso_date, run_court_comparison, run_date_check
+from mellea_lrc.validation.identity.reporter_courts import describe, implied_courts
 from mellea_lrc.validation.types import (
     CandidateEvaluationNode,
     CandidateEvaluationOutcome,
@@ -205,3 +206,71 @@ def test_the_date_is_compared_at_the_precision_the_filing_stated(
     assert node.outcome is outcome
     assert node.precision is precision
     assert node.depends_on == ("c1:locator_candidate_evaluation:1",)
+
+
+def _reporter(name: str, *, scotus: bool = False) -> Reporter:
+    return Reporter(as_written=name, short_name=name, editions=(name,), is_scotus=scotus)
+
+
+@pytest.mark.parametrize(
+    ("reporter", "inside", "outside"),
+    [
+        ("N.C. App.", ("ncctapp", "nc"), ("txsd", "ca4")),
+        ("N.C.", ("nc", "ncctapp"), ("txsd",)),
+        ("So. 3d", ("fladistctapp", "fla", "lactapp"), ("ca9", "nysd")),
+        ("A.D.3d", ("nyappdiv", "ny"), ("ca2",)),
+        ("Cal. App. 5th", ("calctapp",), ("cal", "cacd")),
+        ("F. App'x", ("ca4", "cadc", "cafc"), ("nysd", "fladistctapp")),
+        ("B.R.", ("nysb", "bap9"), ("fladistctapp",)),
+    ],
+)
+def test_a_reporter_implies_a_family_of_courts(
+    reporter: str, inside: tuple[str, ...], outside: tuple[str, ...]
+) -> None:
+    family = implied_courts(_reporter(reporter))
+    assert all(court in family for court in inside), sorted(family)[:10]
+    assert not any(court in family for court in outside)
+
+
+def test_the_supreme_court_reporter_implies_the_supreme_court() -> None:
+    assert "scotus" in implied_courts(_reporter("U.S.", scotus=True))
+    assert implied_courts(None) == frozenset()
+    assert implied_courts(Reporter(as_written="Nowhere")) == frozenset()
+    assert describe(frozenset({"b", "a"})) == "a, b"
+    assert describe(frozenset(f"c{i}" for i in range(10))).endswith("(10 courts)")
+
+
+def _court_candidate(court_id: str | None) -> CandidateEvaluationNode:
+    return CandidateEvaluationNode(
+        node_id="c1:locator_candidate_evaluation:1",
+        status=ValidationNodeStatus.SUCCEEDED,
+        outcome=CandidateEvaluationOutcome.READY,
+        source=CandidateEvaluationSource.LOCATOR_LOOKUP,
+        candidate_index=1,
+        cluster_id="x",
+        case_name=None,
+        date_filed=None,
+        court_id=court_id,
+        docket_id=None,
+        record={},
+        depends_on=(),
+    )
+
+
+def test_an_unstated_court_is_compatible_or_in_conflict_with_the_reporter() -> None:
+    citation = FullCaseCitation(reporter=_reporter("N.C. App."), court=None)
+    compatible = run_court_comparison(citation, evidence=_court_candidate("ncctapp"))
+    assert compatible.outcome is FieldCheckOutcome.COMPATIBLE
+    assert "ncctapp" in compatible.implied_court_ids
+    conflict = run_court_comparison(citation, evidence=_court_candidate("txsd"))
+    assert conflict.outcome is FieldCheckOutcome.MISMATCH
+    assert "not one the reporter holds" in (conflict.outcome_message or "")
+    unknown = run_court_comparison(
+        FullCaseCitation(reporter=Reporter(as_written="Nowhere")), evidence=_court_candidate("txsd")
+    )
+    assert unknown.outcome is FieldCheckOutcome.UNAVAILABLE
+    stated = run_court_comparison(
+        FullCaseCitation(reporter=_reporter("N.C. App."), court="nc"), evidence=_court_candidate("ncctapp")
+    )
+    assert stated.outcome is FieldCheckOutcome.MISMATCH
+    assert stated.implied_court_ids == ()

@@ -603,7 +603,7 @@ def test_a_stated_court_needs_evidence_in_the_parenthetical_that_resolves_to_it(
 def test_an_implied_court_is_allowed_only_where_the_reporter_implies_one() -> None:
     implied = _judgment(court_read="scotus", court_evidence=None, court_basis="implied_by_reporter")
     assert readings_grounded(implied, _grounding(reporter=US, record_court_id="scotus")) == {}
-    assert "does not imply exactly one court" in readings_grounded(implied, _grounding())["court"]
+    assert "holds more than one court" in readings_grounded(implied, _grounding())["court"]
     wrong = _judgment(court_read="ca9", court_evidence=None, court_basis="implied_by_reporter")
     assert "implies 'scotus'" in readings_grounded(wrong, _grounding(reporter=US))["court"]
     unsaid = _judgment(court_read="fladistctapp", court_evidence=None, court_basis="none")
@@ -628,6 +628,24 @@ def test_a_date_needs_evidence_in_the_parenthetical_it_can_be_read_from() -> Non
     assert (
         "states a day"
         in readings_grounded(off, _grounding(parenthetical_window=" (E.D.N.Y. Oct. 31, 2024)"))["date"]
+    )
+
+
+def test_an_unstated_court_is_checked_for_conflict_with_the_reporter() -> None:
+    nc_app = frozenset({"nc", "ncctapp"})
+    assert court_agreement(None, "ncctapp", nc_app) is FieldAgreement.COMPATIBLE
+    assert court_agreement(None, "txsd", nc_app) is FieldAgreement.DISAGREE
+    assert court_agreement(None, "txsd", frozenset()) is FieldAgreement.UNDETERMINABLE
+    compatible = _judgment(court_read=None, court_evidence=None, court_basis="none", verdict="same_case")
+    grounding = _grounding(record_court_id="ncctapp", implied=nc_app)
+    assert verdict_supported(compatible, grounding) is None
+    conflicting = _grounding(record_court_id="txsd", implied=nc_app)
+    assert "must be same_case" in (
+        verdict_supported(
+            _judgment(court_read=None, court_evidence=None, court_basis="none", verdict="different_case"),
+            conflicting,
+        )
+        or ""
     )
 
 
