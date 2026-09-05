@@ -131,6 +131,7 @@ from mellea_lrc.validation.types import (
         ("Brown", "Board", None, CaseNameAgreement.UNAVAILABLE),
         (None, None, "Brown v. Board", CaseNameAgreement.UNAVAILABLE),
         ("The", "Inc.", "Brown v. Board", CaseNameAgreement.UNAVAILABLE),
+        ("Schwartz", "American College", "No. 98-2228", CaseNameAgreement.UNAVAILABLE),
     ],
 )
 def test_compare_case_names(

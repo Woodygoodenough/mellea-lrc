@@ -149,7 +149,10 @@ def ordered_words(name: str | None, *, minimum_length: int = 3, keep_generic: bo
     if not keep_generic:
         folded = _GENERIC.sub(" ", folded)
     folded = _APPEAL_STAGE.sub(" ", " ".join(folded.split()))
-    return [word for word in folded.split() if len(word) >= minimum_length]
+    # A run of digits is not a name. An archive record titled `No. 98-2228`
+    # carries a docket number where its case name should be, and comparing a
+    # filing's parties against it must report nothing to compare.
+    return [word for word in folded.split() if len(word) >= minimum_length and not word.isdigit()]
 
 
 def same_case_name(left: str | None, right: str | None) -> bool:
@@ -200,12 +203,22 @@ def _is_duplicate(
     """Whether the candidate is another record of the decision already seen."""
     if known.date_filed and candidate.date_filed:
         if known.date_filed == candidate.date_filed:
-            return True
+            # One date is one decision, unless both records are named and the
+            # names share nothing: a Supreme Court orders page holds many
+            # cases decided on one day, and `Williams v. Kelley` beside
+            # `Lewis v. Clarke` at 137 S. Ct. 1285 is two of them.
+            return not _names_contradict(known.case_name, candidate.case_name)
         # Different dates on one page are the 3 genuine collisions in the
         # measurement, and also the 12 same-case pairs split by a rehearing.
         # A name agreement separates them; without both names, decline.
         return same_case_name(known.case_name, candidate.case_name)
     return same_case_name(known.case_name, candidate.case_name)
+
+
+def _names_contradict(left: str | None, right: str | None) -> bool:
+    """Whether two names are both stated and have no distinctive word in common."""
+    first, second = _words(left), _words(right)
+    return bool(first) and bool(second) and not (first & second)
 
 
 def matching_case_names(

@@ -32,6 +32,17 @@ def test_two_records_sharing_a_date_are_one_case() -> None:
     assert len(merge_duplicates(records)) == 1
 
 
+def test_two_named_cases_decided_on_one_day_are_not_one_case() -> None:
+    """An orders page holds many cases with one date; unrelated names keep them apart."""
+    clusters = (
+        CourtListenerOpinionCluster(cluster_id="w", case_name="Williams v. Kelley", date_filed="2017-04-25"),
+        CourtListenerOpinionCluster(cluster_id="l", case_name="Lewis v. Clarke", date_filed="2017-04-25"),
+        CourtListenerOpinionCluster(cluster_id="l2", case_name="Lewis v. Clarke", date_filed="2017-04-25"),
+    )
+    groups = merge_duplicates(clusters)
+    assert [[c.cluster_id for c in group] for group in groups] == [["w"], ["l", "l2"]]
+
+
 def test_a_record_with_no_name_still_merges_on_its_date() -> None:
     """Ten of the 76 pairs have an empty name on one side.
 

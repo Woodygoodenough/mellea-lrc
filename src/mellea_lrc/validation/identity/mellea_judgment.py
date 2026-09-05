@@ -254,7 +254,7 @@ async def run_mellea_identity_judgment(
                 node_id,
                 depends_on,
                 model_name,
-                "Identity judgement exhausted its repair budget",
+                "Identity judgement exhausted its repair budget: " + _last_failures(result),
                 status_message="Mellea identity judgement exhausted its repair attempts.",
             )
         judgment = _parse(result.result.value)
@@ -402,6 +402,19 @@ def _grounded(context: str):
         return ValidationResult(result=reason is None, reason=reason)
 
     return validation_fn
+
+
+def _last_failures(result: object) -> str:
+    """The last attempt's output and the requirements it failed, for the trace."""
+    validations = getattr(result, "sample_validations", None) or []
+    generations = getattr(result, "sample_generations", None) or []
+    reasons = [
+        f"{requirement.description} ({outcome.reason})" if outcome.reason else requirement.description
+        for requirement, outcome in (validations[-1] if validations else [])
+        if not outcome
+    ]
+    last = getattr(generations[-1], "value", None) if generations else None
+    return "; ".join(reasons) + (f" | last output: {last}" if last else "")
 
 
 def _failed(

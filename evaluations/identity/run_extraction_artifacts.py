@@ -155,9 +155,9 @@ class Tally:
         return "\n".join(lines)
 
 
-def run(run_dir: Path, out_dir: Path, *, miss_budget: int, limit: int | None) -> int:
+def run(run_dir: Path, out_dir: Path, *, miss_budget: int, limit: int | None, only: str | None) -> int:
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-    entries = manifest["entries"][:limit]
+    entries = [entry for entry in manifest["entries"] if not only or only in entry["document"]][:limit]
     client = BudgetedClient(CourtListenerClient(), miss_budget=miss_budget)
     tally = Tally()
     (out_dir / "documents").mkdir(parents=True, exist_ok=True)
@@ -195,9 +195,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=None, help="where to write; default <run_dir>-identified")
     parser.add_argument("--miss-budget", type=int, default=25, help="stop after this many uncached responses")
     parser.add_argument("--limit", type=int, default=None, help="only the first N documents")
+    parser.add_argument("--only", default=None, help="only documents whose name contains this")
     args = parser.parse_args(argv)
     out = args.out or args.run_dir.with_name(args.run_dir.name + "-identified")
-    return run(args.run_dir, out, miss_budget=args.miss_budget, limit=args.limit)
+    return run(args.run_dir, out, miss_budget=args.miss_budget, limit=args.limit, only=args.only)
 
 
 if __name__ == "__main__":
