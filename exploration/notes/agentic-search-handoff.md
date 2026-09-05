@@ -1,43 +1,37 @@
 # Agentic retrieval: make the whole search stage a loop
 
-The design brief for the search loop. `agentic-search-population.md` carries the
-counts it rests on and should be read alongside it, because those counts have
-not yet found the loop a population worth its cost.
+The brief for the validation side of this branch: what is built, what is
+designed, and what has to be measured before the rest is built.
+`agentic-search-population.md` carries the counts and `open-search-loop.md`
+the loop's design.
 
-## 1. What is being built, and what has not yet earned it
+## 1. Where this stands
 
-The search stage becomes a loop that owns **the whole stage**, CourtListener
-included: issue a query, read what came back, and decide what to do next —
-narrow the candidates already in hand, reformulate, widen, switch index, or go
-to the open web. It stops when it has an answer or has spent its budget.
+The branch is based on `preprocessing-and-extraction-summary`, whose citation
+tree and date and reporter objects the validation side now depends on. The
+stages, in the order they run and the order they are being built:
 
-Two candidate populations have been measured over 659 distinct locators, and
-neither justifies the loop on its own.
+1. **Identity**, built. `validation/identity/` runs once per root of the
+   citation tree, establishes which case each authority names, and writes
+   corrections onto a mutable record with the trace node that justifies each.
+   `docs/Validation.md` describes it.
+2. **Pinpoint**, not yet reworked. Runs per occurrence, including every return
+   visit, once identity is established. Whether the existing pinpoint route
+   changes is open.
+3. **Secondary citations**, not started. Primarily a pinpoint check per return
+   visit; a pinpoint that fails on a return visit is how a misattribution in
+   the citation tree shows up.
+4. **Open search**, designed and not built. Its population is every root the
+   identity stage left `unresolved` or `ambiguous`. `open-search-loop.md` is
+   the design, and section 4 of it names the measurement that has to come
+   first: whether a full-text search for opinions that quote the locator
+   recovers the vendor-number citations the cluster search cannot reach.
 
-**The unresolved locator**, where CourtListener holds nothing at the cited page,
-is 94 citations. 91 are labelled sound, 70 name a Westlaw or LEXIS record the
-search endpoint cannot reach at all, and 15 are reporter citations a name search
-could act on. Sections 2 and 3 of `agentic-search-population.md`.
-
-**The ambiguous locator**, where CourtListener returns more cases at the page
-than the pipeline will look at, is 94 citations, and three moves that send no
-request settle 85 of them. The nine left over are tables of unpublished
-decisions, and no query can settle them either: section 11 of
-`open-ended-search.md` established that a table page's dispositions are
-reachable by citation lookup and absent from search. Sections 4 to 6 of
-`agentic-search-population.md`.
-
-What remains untested is the **search route** itself: the 79 locators the lookup
-found nothing for, and what a query returns when it runs. A search result set
-carries a court and a filing date where a lookup record carries neither, and a
-query returning 111 results is deferred whole today. Section 7 of
-`agentic-search-population.md` item 2 is the measurement that would settle it,
-and unlike everything else here it costs request allowance.
-
-**Do not build the loop before that measurement.** Everything the ambiguous
-route could use turned out to be free, and what was left over could not be
-reached by a query at all. A loop written for that route would have had nothing
-to do.
+The counts in `agentic-search-population.md` still hold and are the reason the
+loop is last. Nothing in the ambiguous route wanted a query, and the unresolved
+route on LePhantomCite is mostly vendor numbers. The citing-opinion move is the
+first thing that could change that reading, and it costs 85 requests to find
+out.
 
 ## 2. Why search is the one stage that earns this
 
@@ -130,41 +124,40 @@ before designing the loop. In particular: CourtListener throttles on two
 windows whose 429 bodies look nearly identical, one clearing in thirty seconds
 and one in hours, and treating them alike costs most of a day.
 
-## 6. No LangGraph
+## 6. LangGraph, for the loop only
 
-The loop is four or five states and a plain `while` expresses that. The one
-thing worth a dependency would be **trajectory persistence and replay** —
-storing what the agent did and re-running it — because given section 3 that is
-what makes an agentic component auditable at all: the search cannot be
-reproduced, but the record of it can be kept.
+The open-search loop is a state graph in LangGraph. The reason is not
+persistence -- `CitationValidation` already gives an append-only, replayable
+trace, and every node the loop runs is written back into it -- but enforced
+transitions and model-chosen branching. The next move depends on what the last
+query returned and on what kind of citation this is, so a model chooses it,
+and the graph is what keeps the model to the moves that exist and the budget
+each may spend. Written as a hand-coded decision tree the same logic would be
+wrong at every leaf the tree did not anticipate.
 
-The project already has that. `CitationValidation` is an append-only sequence of
-frozen typed nodes, each with a `node_id` and a `depends_on` tuple, and `append`
-refuses a duplicate identifier or an unknown dependency. Every node round-trips
-through `serialization/validated_document.py` on a type-name registry. A loop
-written as nodes in that model is persisted, replayable and type-checked without
-a second orchestration model beside Mellea.
-
-What the node model does not do is resume a run from a checkpoint partway
-through. Nothing in this design needs that.
+Nothing before the loop uses it. The identity stage is a fixed sequence and a
+plain function expresses it. Mellea makes every model call inside a graph node.
 
 ## 7. What is on this branch
 
-- `src/mellea_lrc/experimental/web_refutation/` — the domain tiers, 12 tests
-- `evaluations/agentic_search/search_population.py` — the counts in
-  `agentic-search-population.md`, re-runnable against a probe file and free of
-  the API allowance
-- this brief and `agentic-search-population.md`
+- `validation/record.py` -- `CitationRecord`, the one mutable object
+- `validation/identity/` -- the stage, the rule guard, the composite judgement,
+  the docket stub
+- `serialization/identified_document.py` -- the artifact
+- `validation/duplicate_clusters.py` and the merge in `candidate_selection.py`
+- `search/narrowing.py`, unwired, waiting on the search-route measurement
+- `experimental/web_refutation/domains.py` -- the domain tiers, 12 tests
+- `evaluations/agentic_search/` -- the two population counts, free of the API
+  allowance
+- this brief, `agentic-search-population.md`, and `open-search-loop.md`
 
-Inherited from `main`: `courtlistener/search.py` and the transport beneath it,
-`validation/case_search/` with the single-shot query preparation and the opinion
-and RECAP searches, and `validation/candidate_selection.py` with the limit
-section 1 names. Those are what the loop wraps rather than replaces.
+Inherited from the extraction branch: the citation tree, co-location, the
+reporter and date objects, and the adjudication layer whose model half is
+unfinished. Inherited from `main`: `courtlistener/`, `validation/case_search/`
+with the single-shot query, and the pinpoint route.
 
-Not here, and needed by section 7 of `agentic-search-population.md`:
-`caselaw/cap_index.py` and the checks built on it, and
-`evaluations/lephantomcite/locator_probe.py`, all on
-`experiment/general-explorations`.
+Not here: `caselaw/cap_index.py` and `evaluations/lephantomcite/locator_probe.py`,
+on `experiment/general-explorations`.
 
 ## 8. Where to read what already exists
 

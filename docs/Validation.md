@@ -101,6 +101,116 @@ same category error as reading `not_found` as fabrication.
 
 ---
 
+## The identity stage
+
+`identify_document` answers one question for a whole filing: which case does
+each authority it cites name? It runs beside `validate_document`, takes the same
+`client` and `session`, and returns an `IdentifiedDocument`.
+
+```python
+from mellea_lrc.validation.identity import identify_document
+
+identified = asyncio.run(identify_document(document, client=my_client, session=my_session))
+```
+
+### Once per root, not once per citation
+
+Extraction's citation tree resolves every `Id.`, short form and repeated full
+citation to the **root** that introduced its authority. The stage looks up the
+roots and nothing else. A filing citing one case ten times costs one lookup;
+the nine return visits inherit the answer, and `identified.resolution_of(id)`
+follows the tree to it. Their own pages are pinpoint claims for a later stage,
+and a return visit extraction attributed wrongly is found where its pinpoint
+fails rather than here.
+
+Two kinds of root are checked differently. A reporter locator goes through the
+route below. A **docket number** is a root too — the docket and the court name
+a case on their own — but it has no volume or page, so it is recorded as
+`deferred` with its RECAP route described in `validation/identity/docket.py`.
+
+### The record
+
+Each citation gets a `CitationRecord`, the one mutable object in validation:
+
+| field | what it is |
+|---|---|
+| `source` | the extracted citation, never changed |
+| `citation` | the pipeline's current reading of what the filing states |
+| `authority_id` | which root this refers to, after any merge |
+| `resolution` | what the archive holds: cluster, name, date, court |
+| `corrections` | every change to `citation` or `authority_id`, each naming the trace node that justified it and who made it — a rule by module name, or a model by name |
+| `trace` | the ordered nodes, as in a `CitationValidation` |
+
+Two rules keep the record honest. A correction with no node in the trace is
+refused. And the archive's values never reach `citation`: a filing that cites
+the right case under the wrong year keeps its year, gets the right one on
+`resolution`, and the disagreement between them is the finding.
+
+### The route
+
+```
+identity scope ── non-root, or not a case → stop, inheriting or out of scope
+└── exact locator lookup
+    ├── not found → unresolved (open search's population)
+    ├── ambiguous → merge duplicate records, narrow a crowded page by the filing's case name
+    └── per candidate: the rule guard
+        ├── every rule agrees or has nothing to compare → established, no model call
+        └── any rule disagrees → one composite Mellea judgement
+            ├── same case      → established, or established with defects
+            ├── different case → refuted, if the page holds one case; else unresolved
+            └── undeterminable → unresolved
+```
+
+**The rule guard** is three comparisons that cost no model call, each reading
+the record's current citation. The case name is compared by containment, one
+side at a time: every distinctive word the filing wrote on a side must appear
+on the matching side of the record's name, sides may swap, and what the filing
+did not write is not held against it, so `Golden` agrees with `Bobby Ray
+Golden` and `Reyes v. Pac. Bell` with `Victor Reyes v. Pacific Bell`. The date
+is compared at the precision the filing stated, by year for `(2007)` and by
+day for `(E.D.N.Y. Oct. 31, 2024)`. The court is compared by courts-db
+identifier, which costs one docket fetch per candidate because the lookup
+endpoint returns no court. An absent field on either side is `unavailable`,
+never a disagreement.
+
+**The composite judgement** runs only when a rule disagrees, and it sees the
+filing's context rather than two strings, because a disagreement has three
+possible sources — the filing is wrong, the extractor misread it, or the two
+are the same thing written differently — that strings cannot tell apart. The
+model answers, per field, what the filing states and whether that agrees with
+the record, and gives one verdict. Two requirements are checked
+deterministically and repaired in a further turn if they fail: the verdict must
+follow from the field answers (all agree forces `same_case`; a disagreeing case
+name rules it out; `different_case` needs a disagreement), and every value read
+from the filing must be in the context. What the model read that the extractor
+did not becomes a correction on the record, attributed to the model.
+
+**Parallel citations** arrive as separate roots sharing a `colocation_id`,
+because extraction leaves identity to the lookup. When both resolve to one
+cluster, the later root is re-attributed to the earlier one, and so is every
+citation that referred to it. When they resolve differently, both stay.
+
+### Reading an identity result
+
+| outcome | means |
+|---|---|
+| `established` | the locator names one case and every field the filing states agrees |
+| `established_with_defects` | the same case; the fields named in `defects` disagree |
+| `refuted` | the one case at the locator is not the one the filing describes |
+| `unresolved` | nothing at the locator could be shown to be the filing's case |
+| `ambiguous` | more cases at the locator than the stage will look at, and the name separated none |
+| `deferred` | a route the stage does not run yet |
+
+`refuted` is deliberately hard to reach. It needs the page to hold exactly one
+case; on a crowded page the archive may hold only part of the page, so a
+candidate that is not the filing's case does not show the filing's case absent.
+That is the same rule as *Absence is not falsity*, applied one level down.
+
+`serialize_identified_document` writes the whole thing — source citation,
+current reading, corrections, resolution and trace — and reads it back.
+
+---
+
 ## The route
 
 Everything begins with an exact locator lookup — volume, reporter, page — and
