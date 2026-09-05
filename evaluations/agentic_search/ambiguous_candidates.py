@@ -115,15 +115,15 @@ def locators(path: Path) -> Iterator[Locator]:
                 continue
             if not (citation.volume and citation.reporter and citation.page):
                 continue
-            written = record["text"][item.span.start : item.span.end] if item.span else ""
+            written = record["text"][item.locator_span.start : item.locator_span.end]
             yield Locator(
                 volume=citation.volume,
-                reporter=citation.reporter,
+                reporter=citation.reporter.canonical,
                 page=citation.page,
                 plaintiff=citation.plaintiff,
                 defendant=citation.defendant,
                 court_id=citation.court,
-                year=citation.year,
+                year=citation.date.year if citation.date else None,
                 label=str(labels.get(written, UNLABELLED)),
             )
 
