@@ -42,7 +42,8 @@ def run_exact_locator_lookup(
         )
 
     volume = citation.volume
-    reporter = citation.reporter
+    # The lookup takes the reporter as the databases spell it, not as the filing did.
+    reporter = citation.reporter.canonical if citation.reporter else None
     page = citation.page
     if not volume or not reporter or not page:
         return ExactLocatorLookupNode(

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from mellea_lrc.core.citations import FullCaseCitation
+from mellea_lrc.core.citations import FullCaseCitation, Reporter
 from mellea_lrc.core.spans import Span
 from mellea_lrc.courtlistener.opinion_models import (
     CourtListenerOpinion,
@@ -47,7 +47,7 @@ def _validation(
         matched_text="376 F.3d 615",
         citation=FullCaseCitation(
             volume="376",
-            reporter=reporter,
+            reporter=Reporter(as_written=reporter, short_name=reporter),
             page="615",
             pin_cite=pin_cite,
         ),

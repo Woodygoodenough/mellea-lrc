@@ -7,7 +7,7 @@ import pytest
 from mellea.stdlib.sampling import MultiTurnStrategy
 from pydantic import BaseModel
 
-from mellea_lrc.core.citations import CitationDate, FullCaseCitation, FullLawCitation
+from mellea_lrc.core.citations import CitationDate, FullCaseCitation, FullLawCitation, Reporter
 from mellea_lrc.core.spans import Span
 from mellea_lrc.courtlistener import (
     CourtListenerCitationLookup,
@@ -177,7 +177,9 @@ def test_instruct_ivr_forwards_the_pydantic_output_format(monkeypatch: pytest.Mo
 
 
 def test_initialize_validation_instances_one_progression_per_extracted_citation() -> None:
-    extracted = _document(FullCaseCitation(volume="347", reporter="U.S.", page="483"))
+    extracted = _document(
+        FullCaseCitation(volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="483")
+    )
 
     validation = initialize_validation(extracted)
 
@@ -193,7 +195,7 @@ def test_exact_locator_found_fans_out_to_field_checks() -> None:
             plaintiff="Brown",
             defendant="Board",
             volume="347",
-            reporter="U.S.",
+            reporter=Reporter(as_written="U.S.", short_name="U.S."),
             page="483",
             date=CitationDate(year="1954"),
             court="scotus",
@@ -273,7 +275,7 @@ def test_found_field_checks_treat_unavailable_year_as_a_full_match() -> None:
             plaintiff="Brown",
             defendant="Board",
             volume="347",
-            reporter="U.S.",
+            reporter=Reporter(as_written="U.S.", short_name="U.S."),
             page="483",
             date=None,
             court="scotus",
@@ -325,7 +327,7 @@ def test_found_field_checks_record_mismatch_without_failing_execution(
             plaintiff="Brown",
             defendant="Board",
             volume="347",
-            reporter="U.S.",
+            reporter=Reporter(as_written="U.S.", short_name="U.S."),
             page="483",
             date=CitationDate(year="1954"),
             court="ca10",
@@ -395,7 +397,9 @@ def test_found_field_checks_record_mismatch_without_failing_execution(
 
 
 def test_found_field_checks_skip_unavailable_values() -> None:
-    extracted = _document(FullCaseCitation(volume="347", reporter="U.S.", page="483"))
+    extracted = _document(
+        FullCaseCitation(volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="483")
+    )
     client = LookupClient(
         CourtListenerCitationLookup(
             citation="347 U.S. 483",
@@ -435,7 +439,9 @@ def test_found_unavailable_extraction_with_retrieved_name_still_reextracts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A missing local extraction with a retrieved name to compare against still recovers."""
-    extracted = _document(FullCaseCitation(volume="503", reporter="B.R.", page="571"))
+    extracted = _document(
+        FullCaseCitation(volume="503", reporter=Reporter(as_written="B.R.", short_name="B.R."), page="571")
+    )
     client = LookupClient(
         CourtListenerCitationLookup(
             citation="503 B.R. 571",
@@ -494,7 +500,9 @@ def test_mellea_case_name_reextraction_uses_only_local_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Ground Mellea re-extraction in local text without a retrieved case name."""
-    document = _document(FullCaseCitation(volume="347", reporter="U.S.", page="483"))
+    document = _document(
+        FullCaseCitation(volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="483")
+    )
     validation = initialize_validation(document).citations[0]
     exact_locator_lookup_node = ExactLocatorLookupNode(
         node_id="cite-0001:exact_locator_lookup",
@@ -559,7 +567,9 @@ def test_not_found_reextracts_case_parties_in_the_mellea_progression(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Route a locator miss to local party re-extraction before candidate search."""
-    extracted = _document(FullCaseCitation(volume="347", reporter="U.S.", page="9999"))
+    extracted = _document(
+        FullCaseCitation(volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="9999")
+    )
     prepared_query = 'caseName:("Brown" AND "Board")'
     client = LookupClient(
         CourtListenerCitationLookup(citation="347 U.S. 9999", status=404, clusters=()),
@@ -745,7 +755,7 @@ def test_search_candidate_uses_semantic_check_without_reextracting(
             plaintiff="Brown",
             defendant="Board of Education",
             volume="347",
-            reporter="U.S.",
+            reporter=Reporter(as_written="U.S.", short_name="U.S."),
             page="9999",
             date=CitationDate(year="1954"),
             court="scotus",
@@ -845,7 +855,7 @@ def test_opinion_search_candidate_assessment_requires_every_field_to_match() -> 
             plaintiff="Brown",
             defendant="Board of Education",
             volume="347",
-            reporter="U.S.",
+            reporter=Reporter(as_written="U.S.", short_name="U.S."),
             page="9999",
             date=CitationDate(year="1954"),
             court="scotus",
@@ -895,7 +905,7 @@ def test_recap_search_candidate_assessment_does_not_treat_docket_year_as_a_misma
             plaintiff="Brown",
             defendant="Board of Education",
             volume="347",
-            reporter="U.S.",
+            reporter=Reporter(as_written="U.S.", short_name="U.S."),
             page="9999",
             date=CitationDate(year="1954"),
             court="scotus",
@@ -939,7 +949,11 @@ def test_recap_search_candidate_assessment_does_not_treat_docket_year_as_a_misma
 def test_recap_candidate_summary_exposes_canonical_docket_url() -> None:
     """Carry CourtListener's raw docket path into the terminal summary candidate."""
     validation = initialize_validation(
-        _document(FullCaseCitation(volume="347", reporter="U.S.", page="9999"))
+        _document(
+            FullCaseCitation(
+                volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="9999"
+            )
+        )
     ).citations[0]
     candidate = CandidateEvaluationNode(
         node_id="cite-0001:recap_search_candidate_evaluation:1",
@@ -989,7 +1003,11 @@ def test_mellea_case_name_query_preparation_constructs_the_courtlistener_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Keep CourtListener syntax in project code, not the Mellea response."""
-    document = _document(FullCaseCitation(volume="347", reporter="U.S.", page="9999", court="scotus"))
+    document = _document(
+        FullCaseCitation(
+            volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="9999", court="scotus"
+        )
+    )
     validation = initialize_validation(document).citations[0]
     locator = ExactLocatorLookupNode(
         node_id="cite-0001:exact_locator_lookup",
@@ -1044,7 +1062,9 @@ def test_mellea_case_name_query_preparation_constructs_the_courtlistener_query(
 
 
 def test_ambiguous_lookup_records_a_bounded_candidate_selection() -> None:
-    extracted = _document(FullCaseCitation(volume="1", reporter="F.2d", page="2"))
+    extracted = _document(
+        FullCaseCitation(volume="1", reporter=Reporter(as_written="F.2d", short_name="F.2d"), page="2")
+    )
     clusters = (
         CourtListenerOpinionCluster(case_name="First"),
         CourtListenerOpinionCluster(case_name="Second"),
@@ -1082,7 +1102,9 @@ def test_ambiguous_lookup_records_a_bounded_candidate_selection() -> None:
 
 
 def test_ambiguous_lookup_defers_candidate_selection_over_the_limit() -> None:
-    extracted = _document(FullCaseCitation(volume="1", reporter="F.2d", page="2"))
+    extracted = _document(
+        FullCaseCitation(volume="1", reporter=Reporter(as_written="F.2d", short_name="F.2d"), page="2")
+    )
     clusters = tuple(CourtListenerOpinionCluster(case_name=f"Case {index}") for index in range(4))
     client = LookupClient(CourtListenerCitationLookup(citation="1 F.2d 2", status=300, clusters=clusters))
 
@@ -1109,7 +1131,9 @@ def test_records_of_one_decision_do_not_count_as_separate_candidates() -> None:
     Merging first is what stops four copies of one case looking like four
     cases.
     """
-    extracted = _document(FullCaseCitation(volume="1", reporter="F.2d", page="2"))
+    extracted = _document(
+        FullCaseCitation(volume="1", reporter=Reporter(as_written="F.2d", short_name="F.2d"), page="2")
+    )
     clusters = tuple(
         CourtListenerOpinionCluster(case_name=name, date_filed="1995-06-09")
         for name in (
@@ -1137,7 +1161,13 @@ def test_a_crowded_page_is_narrowed_by_the_case_name_the_filing_wrote() -> None:
     them. The filing names the one it means.
     """
     extracted = _document(
-        FullCaseCitation(volume="21", reporter="F.3d", page="1115", plaintiff="Reyes", defendant="Pac. Bell")
+        FullCaseCitation(
+            volume="21",
+            reporter=Reporter(as_written="F.3d", short_name="F.3d"),
+            page="1115",
+            plaintiff="Reyes",
+            defendant="Pac. Bell",
+        )
     )
     clusters = tuple(
         CourtListenerOpinionCluster(case_name=name, date_filed=date)
@@ -1166,7 +1196,11 @@ def test_a_crowded_page_the_name_does_not_match_is_still_deferred() -> None:
     """
     extracted = _document(
         FullCaseCitation(
-            volume="21", reporter="F.3d", page="1115", plaintiff="Sprague", defendant="Gen. Motors"
+            volume="21",
+            reporter=Reporter(as_written="F.3d", short_name="F.3d"),
+            page="1115",
+            plaintiff="Sprague",
+            defendant="Gen. Motors",
         )
     )
     clusters = tuple(
@@ -1194,7 +1228,9 @@ def test_a_locator_is_ambiguous_on_two_clusters_whatever_status_came_with_them()
     and raise, stopping a whole validation run. The cluster count is what
     decides; the status it arrived with does not.
     """
-    extracted = _document(FullCaseCitation(volume="1", reporter="F.2d", page="2"))
+    extracted = _document(
+        FullCaseCitation(volume="1", reporter=Reporter(as_written="F.2d", short_name="F.2d"), page="2")
+    )
     clusters = (
         CourtListenerOpinionCluster(case_name="First"),
         CourtListenerOpinionCluster(case_name="Second"),
@@ -1210,7 +1246,9 @@ def test_a_locator_is_ambiguous_on_two_clusters_whatever_status_came_with_them()
 
 
 def test_unsupported_citation_is_skipped_without_service_access() -> None:
-    extracted = _document(FullLawCitation(volume="28", reporter="U.S.C.", page="636"))
+    extracted = _document(
+        FullLawCitation(volume="28", reporter=Reporter(as_written="U.S.C.", short_name="U.S.C."), page="636")
+    )
     client = LookupClient(CourtListenerCitationLookup(citation="28 U.S.C. 636", status=200, clusters=()))
 
     node = _validate(extracted, client).citations[0].nodes[0]
@@ -1221,7 +1259,9 @@ def test_unsupported_citation_is_skipped_without_service_access() -> None:
 
 
 def test_service_failure_is_a_terminal_validation_node() -> None:
-    extracted = _document(FullCaseCitation(volume="347", reporter="U.S.", page="483"))
+    extracted = _document(
+        FullCaseCitation(volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="483")
+    )
     client = LookupClient(
         CourtListenerError(
             "service unavailable",
@@ -1239,7 +1279,9 @@ def test_service_failure_is_a_terminal_validation_node() -> None:
 
 def test_unexpected_lookup_response_raises() -> None:
     """Reject a response that violates the expected lookup contract."""
-    extracted = _document(FullCaseCitation(volume="347", reporter="U.S.", page="483"))
+    extracted = _document(
+        FullCaseCitation(volume="347", reporter=Reporter(as_written="U.S.", short_name="U.S."), page="483")
+    )
     client = LookupClient(CourtListenerCitationLookup(citation="347 U.S. 483", status=200, clusters=()))
 
     with pytest.raises(AssertionError, match="Unexpected CourtListener lookup response"):

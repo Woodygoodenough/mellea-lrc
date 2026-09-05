@@ -39,6 +39,7 @@ declares one -- so a rule that consulted it would silently never fire.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -111,7 +112,10 @@ def name_covers(recorded: set[str], written: set[str]) -> bool:
 
 
 def _words(name: str | None) -> set[str]:
-    folded = (name or "").lower().replace("&", " and ")
+    # Accents are stripped before punctuation is, so that `Dávila-González` is
+    # the words `davila` and `gonzalez` rather than the fragments between them.
+    folded = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
+    folded = folded.lower().replace("&", " and ")
     folded = _PUNCTUATION.sub(" ", folded)
     folded = _GENERIC.sub(" ", folded)
     folded = _APPEAL_STAGE.sub(" ", " ".join(folded.split()))
