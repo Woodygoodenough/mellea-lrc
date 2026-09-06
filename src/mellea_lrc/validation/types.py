@@ -883,6 +883,8 @@ class DateReconciliationNode:
     """Every sub-opinion whose header was read, in order."""
     dated_phrases: tuple[str, ...]
     """Every dated event found, such as `Amended Feb. 5, 2014`."""
+    phrases_by_opinion: tuple[tuple[str, tuple[str, ...]], ...]
+    """For each opinion header read, its id and the dated events found in it."""
     matched_phrase: str | None
     """The phrase that states the filing's date, when one does."""
     depends_on: tuple[str, ...]

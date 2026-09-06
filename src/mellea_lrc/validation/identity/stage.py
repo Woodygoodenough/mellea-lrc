@@ -44,7 +44,7 @@ from mellea_lrc.courtlistener import CourtListenerClient
 from mellea_lrc.validation.candidate_evaluation import run_locator_candidate_evaluation
 from mellea_lrc.validation.citation_lookup import run_exact_locator_lookup
 from mellea_lrc.validation.court_retrieval import run_docket_court_retrieval
-from mellea_lrc.validation.identity.dates import run_date_reconciliation
+from mellea_lrc.validation.identity.dates import exploration_of, run_date_reconciliation
 from mellea_lrc.validation.identity.docket import run_docket_identity
 from mellea_lrc.validation.identity.field_checks import (
     run_case_name_agreement,
@@ -58,7 +58,7 @@ from mellea_lrc.validation.identity.mellea_judgment import (
     field_disagreements,
     run_mellea_identity_judgment,
 )
-from mellea_lrc.validation.record import CitationRecord, Resolution
+from mellea_lrc.validation.record import CitationRecord, DateExploration, Resolution
 from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
@@ -121,6 +121,29 @@ class IdentifiedDocument:
     def roots(self) -> tuple[CitationRecord, ...]:
         """The records that introduce an authority, after any merge."""
         return tuple(record for record in self.records if record.is_root)
+
+    def date_only_disagreements(self) -> tuple[CitationRecord, ...]:
+        """The roots that are a wrong identity on the date and nothing else.
+
+        Each carries its resolution, with the case the archive holds and the
+        ``DateExploration`` of everything read about its dates. These are the
+        records where the case is very likely real and the dates differ for a
+        reason the reconciliation could not find in the archive.
+
+        TODO(date-analysis): this is the entry point for the step that decides
+        what each disagreement is. It is not written; nothing yet consumes
+        this list.
+        """
+        found = []
+        for record in self.records:
+            node = self.resolution_of(record.citation_id) if record.is_root else None
+            if node is None or node.outcome is not IdentityOutcome.WRONG_IDENTITY:
+                continue
+            if node.reason is IdentityReason.FIELD_DISAGREEMENT and [f.field for f in node.fields] == [
+                "date"
+            ]:
+                found.append(record)
+        return tuple(found)
 
     def resolution_of(self, citation_id: str) -> IdentityResolutionNode | None:
         """The identity conclusion a citation inherits, through its root."""
@@ -640,9 +663,18 @@ def _conclude(
                 court_id=_retrieved_court(record, verdict.node_ids),
                 node_id=node.node_id,
                 opinion_ids=_opinions_read(record, verdict.node_ids),
+                dates=_dates_explored(record, verdict.node_ids),
             )
         )
     return node
+
+
+def _dates_explored(record: CitationRecord, node_ids: tuple[str, ...]) -> DateExploration | None:
+    """The date history the reconciliation wrote for this candidate, when it ran."""
+    for node in record.trace.nodes:
+        if isinstance(node, DateReconciliationNode) and node.node_id in node_ids:
+            return exploration_of(node)
+    return None
 
 
 def _opinions_read(record: CitationRecord, node_ids: tuple[str, ...]) -> tuple[str, ...]:
