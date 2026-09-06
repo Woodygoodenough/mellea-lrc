@@ -43,6 +43,7 @@ from mellea_lrc.validation.types import (
 if TYPE_CHECKING:
     from mellea_lrc.courtlistener import (
         CourtListenerCitationLookup,
+        CourtListenerClusterDetail,
         CourtListenerDocket,
         CourtListenerOpinion,
         CourtListenerSearchResult,
@@ -99,6 +100,12 @@ class BudgetedClient:
     def get_opinion(self, opinion_id: str) -> CourtListenerOpinion:
         try:
             return self.inner.get_opinion(opinion_id)
+        finally:
+            self._after()
+
+    def get_cluster(self, cluster_id: str) -> CourtListenerClusterDetail:
+        try:
+            return self.inner.get_cluster(cluster_id)
         finally:
             self._after()
 
