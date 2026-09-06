@@ -280,7 +280,11 @@ async def identify_root(
             verdicts.append(verdict)
             if verdict.resolved:
                 break
-    return _conclude(record, verdicts, page_holds_one_case=len(candidates) == 1 and selection is None)
+    # A refutation needs every case the archive holds at the page to have been
+    # examined. A found page and a page whose distinct cases all fit within the
+    # limit qualify; a page narrowed by the filing's name left others unread.
+    every_case_examined = selection is None or selection.outcome is CandidateSelectionOutcome.ALL_SELECTED
+    return _conclude(record, verdicts, every_case_examined=every_case_examined)
 
 
 def merge_colocated_roots(records: Sequence[CitationRecord]) -> None:
@@ -550,7 +554,7 @@ def _conclude(
     record: CitationRecord,
     verdicts: Sequence[Verdict],
     *,
-    page_holds_one_case: bool,
+    every_case_examined: bool,
 ) -> IdentityResolutionNode:
     """Pick the strongest candidate verdict and write the resolution it implies."""
 
@@ -565,10 +569,12 @@ def _conclude(
 
     best = min(verdicts, key=rank)
     outcome, reason = best.outcome, best.reason
-    if reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR and not page_holds_one_case:
-        # On a crowded page the archive may hold only part of the page, so a
-        # candidate that is not the filing's case does not show the filing's
-        # case is absent. That is the standing rule for absence.
+    all_different = all(v.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR for v in verdicts)
+    if reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR and not (every_case_examined and all_different):
+        # A page narrowed by the filing's name left cases unread, and a page
+        # where one candidate could not be judged is not settled either; on
+        # neither does a candidate that is not the filing's case show the
+        # filing's case absent. That is the standing rule for absence.
         outcome, reason = IdentityOutcome.DEFER_TO_SEARCH, IdentityReason.UNDETERMINABLE
     scope = _scope_node(record)
     if outcome is IdentityOutcome.CONFIRMED_IDENTITY:
@@ -577,7 +583,12 @@ def _conclude(
         names = ", ".join(field.field for field in best.fields)
         message = f"The locator names the case, but the filing's {names} disagree{'s' if len(best.fields) == 1 else ''} with the record."
     elif reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR:
-        message = f"The locator names a different case: {best.cluster.case_name or 'unnamed'}."
+        names = [v.cluster.case_name or "unnamed" for v in verdicts]
+        message = (
+            f"The locator names a different case: {names[0]}."
+            if len(names) == 1
+            else f"The locator names {len(names)} cases, none the filing's: {'; '.join(names)}."
+        )
     else:
         message = "Nothing at the locator could be shown to be the filing's case, or not to be."
     node = _resolution(

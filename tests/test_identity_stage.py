@@ -795,45 +795,120 @@ def test_a_crowded_page_that_matches_nothing_is_ambiguous_not_refuted() -> None:
     assert _resolution(result.record("c1")).outcome is IdentityOutcome.AMBIGUOUS_IDENTITY
 
 
-def test_a_mismatch_on_a_page_of_several_cases_is_unresolved_not_refuted(
+def test_a_page_holding_one_case_twice_still_refutes(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_model(
+        monkeypatch,
+        {
+            "case_name_read": "JPMorgan Chase Bank, N.A. v. Szajna",
+            "case_name_agreement": "disagree",
+            "court_read": None,
+            "court_evidence": None,
+            "court_basis": "none",
+            "date_read": "2013",
+            "date_evidence": "2013",
+            "verdict": "different_case",
+            "reason": "The page holds Bunting v. Haynes.",
+        },
+    )
+    text = "JPMorgan Chase Bank, N.A. v. Szajna, 104 A.D.3d 715 (2d Dept. 2013)."
+    ad3d = Reporter(as_written="A.D.3d", short_name="A.D.3d", editions=("A.D.3d",), cite_type="state")
+    citation = FullCaseCitation(
+        plaintiff="JPMorgan Chase Bank, N.A.", defendant="Szajna", volume="104", reporter=ad3d, page="715"
+    )
+    root = _cite("c1", citation, text=text, locator="104 A.D.3d 715", authority_id="c1")
+    page = (
+        CourtListenerOpinionCluster(cluster_id="c-a", case_name="Bunting v. Haynes", date_filed="2013-03-13"),
+        CourtListenerOpinionCluster(cluster_id="c-b", case_name="Bunting v. Haynes", date_filed="2013-03-13"),
+    )
+    result = _run(_document(text, root), Client({("104", "A.D.3d", "715"): page}), session=object())
+
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert resolution.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR
+
+
+def test_a_page_whose_every_case_was_judged_different_refutes(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_model(
+        monkeypatch,
+        {
+            "case_name_read": "Boss v. N.Y. Life Ins. Co.",
+            "case_name_agreement": "disagree",
+            "court_read": None,
+            "court_evidence": None,
+            "court_basis": "none",
+            "date_read": None,
+            "date_evidence": None,
+            "verdict": "different_case",
+            "reason": "Not this one.",
+        },
+    )
+    text = "Boss v. N.Y. Life Ins. Co., 298 N.Y. 917."
+    ny = Reporter(as_written="N.Y.", short_name="N.Y.", editions=("N.Y.",), cite_type="state")
+    citation = FullCaseCitation(
+        plaintiff="Boss", defendant="N.Y. Life Ins. Co.", volume="298", reporter=ny, page="917"
+    )
+    root = _cite("c1", citation, text=text, locator="298 N.Y. 917", authority_id="c1")
+    page = (
+        CourtListenerOpinionCluster(
+            cluster_id="c1", case_name="Condur Affiliates, Inc. v. Ronnie, Inc.", date_filed="1949-03-03"
+        ),
+        CourtListenerOpinionCluster(
+            cluster_id="c2", case_name="Marks v. Prov. Mut. Life Ins. Co.", date_filed="1949-03-03"
+        ),
+    )
+    result = _run(_document(text, root), Client({("298", "N.Y.", "917"): page}), session=object())
+
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert resolution.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR
+    assert "2 cases" in (resolution.outcome_message or "")
+
+
+def test_a_page_narrowed_by_name_leaves_cases_unread_so_a_mismatch_defers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _fake_model(
         monkeypatch,
         {
-            "case_name_read": "Conley v. Gibson",
+            "case_name_read": "Galura v. State",
             "case_name_agreement": "disagree",
             "court_read": None,
             "court_evidence": None,
             "court_basis": "none",
-            "date_read": "2010",
-            "date_evidence": "2010",
+            "date_read": "2011",
+            "date_evidence": "2011",
             "verdict": "different_case",
             "reason": "Not this one.",
         },
     )
-    text = "Conley v. Gibson, 44 So. 3d 587 (Fla. Dist. Ct. App. 2010)."
+    text = "Galura v. State, 44 So. 3d 587 (Fla. Dist. Ct. App. 2011)."
     so3d = Reporter(
         as_written="So. 3d", short_name="So. 3d", name="Southern Reporter", cite_type="state_regional"
     )
     citation = FullCaseCitation(
-        plaintiff="Conley",
-        defendant="Gibson",
+        plaintiff="Galura",
+        defendant="State",
         volume="44",
         reporter=so3d,
         page="587",
-        date=CitationDate(year="2010"),
+        date=CitationDate(year="2011"),
     )
     root = _cite("c1", citation, text=text, locator="44 So. 3d 587", authority_id="c1")
-    page = (
-        CourtListenerOpinionCluster(cluster_id="c1", case_name="Galeana v. Galeana", date_filed="2010-01-01"),
-        CourtListenerOpinionCluster(cluster_id="c2", case_name="Galura v. State", date_filed="2010-02-01"),
+    names = ("Galeana v. Galeana", "Galura v. State", "Gest v. State", "Gillins v. State", "Grady v. State")
+    page = tuple(
+        CourtListenerOpinionCluster(cluster_id=f"c{i}", case_name=name, date_filed=f"2010-0{i}-01")
+        for i, name in enumerate(names, 1)
     )
     result = _run(_document(text, root), Client({("44", "So. 3d", "587"): page}), session=object())
 
-    # Two candidates, each judged a different case: the archive may hold only
-    # part of the page, so the filing's case is not shown absent.
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.DEFER_TO_SEARCH
+    # Five cases at the page, the filing's name picked one, the year sent it
+    # to the model, and the model called it a different case: four cases were
+    # never read, so the filing's case is not shown absent.
+    selection = next(n for n in result.record("c1").trace.nodes if isinstance(n, CandidateSelectionNode))
+    assert selection.outcome is CandidateSelectionOutcome.NARROWED_BY_CASE_NAME
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.DEFER_TO_SEARCH
+    assert resolution.reason is IdentityReason.UNDETERMINABLE
 
 
 # --- parallel citations ---------------------------------------------------------
