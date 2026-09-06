@@ -887,7 +887,7 @@ def test_a_page_narrowed_by_name_leaves_cases_unread_so_a_mismatch_defers(
     )
     citation = FullCaseCitation(
         plaintiff="Galura",
-        defendant="State",
+        defendant="Ronnie",
         volume="44",
         reporter=so3d,
         page="587",
