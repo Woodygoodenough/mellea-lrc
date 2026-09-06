@@ -13,13 +13,14 @@ from pydantic import ValidationError
 from mellea_lrc.courtlistener.citation_lookup import normalize_citation_lookup_payload
 from mellea_lrc.courtlistener.docket import normalize_docket_payload
 from mellea_lrc.courtlistener.opinion import normalize_opinion_payload
+from mellea_lrc.courtlistener.opinion_models import CourtListenerClusterDetail
 from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
 from mellea_lrc.courtlistener.search import normalize_search_payload
 
 if TYPE_CHECKING:
     from mellea_lrc.courtlistener.citation_lookup_models import CourtListenerCitationLookup
     from mellea_lrc.courtlistener.docket_models import CourtListenerDocket
-    from mellea_lrc.courtlistener.opinion_models import CourtListenerClusterDetail, CourtListenerOpinion
+    from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinion
     from mellea_lrc.courtlistener.search_models import CourtListenerSearchResult
 
 
