@@ -92,6 +92,9 @@ from mellea_lrc.validation.types import (
         ),
         ("Smith", "ABC", "Smith v. Acme Brick Co.", CaseNameAgreement.CONTAINED),
         ("Smith", "XYZ", "Smith v. Acme Brick Co.", CaseNameAgreement.MISMATCH),
+        # The record may stop short of the acronym's last word.
+        ("FDIC", "Garner", "Federal Deposit Insurance v. Garner", CaseNameAgreement.CONTAINED),
+        ("Smith", "ABCD", "Smith v. A", CaseNameAgreement.MISMATCH),
         # Contractions with the apostrophe removed.
         (
             "George",

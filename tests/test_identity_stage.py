@@ -870,7 +870,7 @@ def test_a_page_narrowed_by_name_leaves_cases_unread_so_a_mismatch_defers(
     _fake_model(
         monkeypatch,
         {
-            "case_name_read": "Galura v. State",
+            "case_name_read": "Galura v. Ronnie",
             "case_name_agreement": "disagree",
             "court_read": None,
             "court_evidence": None,
@@ -881,7 +881,7 @@ def test_a_page_narrowed_by_name_leaves_cases_unread_so_a_mismatch_defers(
             "reason": "Not this one.",
         },
     )
-    text = "Galura v. State, 44 So. 3d 587 (Fla. Dist. Ct. App. 2011)."
+    text = "Galura v. Ronnie, 44 So. 3d 587 (Fla. Dist. Ct. App. 2011)."
     so3d = Reporter(
         as_written="So. 3d", short_name="So. 3d", name="Southern Reporter", cite_type="state_regional"
     )
@@ -894,7 +894,7 @@ def test_a_page_narrowed_by_name_leaves_cases_unread_so_a_mismatch_defers(
         date=CitationDate(year="2011"),
     )
     root = _cite("c1", citation, text=text, locator="44 So. 3d 587", authority_id="c1")
-    names = ("Galeana v. Galeana", "Galura v. State", "Gest v. State", "Gillins v. State", "Grady v. State")
+    names = ("Galeana v. Galeana", "Galura v. Ronnie", "Gest v. State", "Gillins v. State", "Grady v. State")
     page = tuple(
         CourtListenerOpinionCluster(cluster_id=f"c{i}", case_name=name, date_filed=f"2010-0{i}-01")
         for i, name in enumerate(names, 1)

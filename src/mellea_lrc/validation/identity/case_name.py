@@ -130,7 +130,23 @@ def _side_covers(
     covered when it appears, in order, in the initials of the record's side.
     """
     return bool(written) and all(
-        name_covers(set(recorded), {word}) or (word in acronyms and word in initials) for word in written
+        name_covers(set(recorded), {word}) or (word in acronyms and _acronym_covered(word, initials))
+        for word in written
+    )
+
+
+def _acronym_covered(acronym: str, initials: str) -> bool:
+    """Whether the initials spell the acronym, allowing the record to stop short.
+
+    `FDIC` against `Federal Deposit Insurance v. Garner`: the archive dropped
+    `Corporation`, so its initials are `fdi`, a prefix of the acronym. Three
+    letters of the acronym must be spelled, so `ABC` is not covered by `A`.
+    """
+    if acronym in initials:
+        return True
+    return any(
+        initials[i:].startswith(acronym[:3]) and acronym.startswith(initials[i:])
+        for i in range(len(initials))
     )
 
 
