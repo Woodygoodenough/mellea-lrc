@@ -191,6 +191,8 @@ class Grounding:
     record_date: str | None
     implied: frozenset[str] = frozenset()
     """The courts the reporter can hold; the compatibility check when no court is read."""
+    compatible_years: tuple[str, ...] = ()
+    """Years the archive holds for the record beside its filing date, from the reconciliation."""
 
 
 # --- the checks ----------------------------------------------------------------
@@ -299,22 +301,31 @@ def court_agreement(
     return FieldAgreement.AGREE if court_read == record_court_id else FieldAgreement.DISAGREE
 
 
-def date_agreement(date_read: str | None, record_date: str | None) -> FieldAgreement:
-    """Computed at the precision the filing stated: the year, or the day."""
+def date_agreement(
+    date_read: str | None, record_date: str | None, compatible_years: tuple[str, ...] = ()
+) -> FieldAgreement:
+    """Computed at the precision the filing stated: the year, or the day.
+
+    A year the archive holds for the record beside its filing date -- an
+    amendment, a decision date the header prints -- is compatible.
+    """
     if date_read is None or record_date is None:
         return FieldAgreement.UNDETERMINABLE
     same = date_read == record_date if len(date_read) > 4 else date_read == record_date[:4]
-    return FieldAgreement.AGREE if same else FieldAgreement.DISAGREE
+    if same:
+        return FieldAgreement.AGREE
+    return FieldAgreement.COMPATIBLE if date_read[:4] in compatible_years else FieldAgreement.DISAGREE
 
 
 def verdict_supported(judgment: IdentityJudgment, grounding: Grounding) -> str | None:
     """Why the verdict does not follow from the agreements, or None when it does."""
     name = judgment.case_name_agreement
     court = court_agreement(judgment.court_read, grounding.record_court_id, grounding.implied).value
+    date = date_agreement(judgment.date_read, grounding.record_date, grounding.compatible_years).value
     answers = (
         "agree" if name == "variant" else name,
         "agree" if court == "compatible" else court,
-        date_agreement(judgment.date_read, grounding.record_date).value,
+        "agree" if date == "compatible" else date,
     )
     if all(answer == "agree" for answer in answers) and judgment.verdict != "same_case":
         return "Every field agrees, so the verdict must be same_case."
@@ -351,6 +362,7 @@ async def run_mellea_identity_judgment(
     case_name: CaseNameAgreementNode,
     court: CourtCheckNode,
     date: DateCheckNode,
+    compatible_years: tuple[str, ...] = (),
     session: MelleaSession | None = None,
 ) -> MelleaIdentityJudgmentNode:
     """Ask the model to read the filing, with evidence, and judge the case name."""
@@ -366,6 +378,7 @@ async def run_mellea_identity_judgment(
         record_court_id=court.retrieved_court_id,
         record_date=candidate.date_filed,
         implied=implied_courts(reporter),
+        compatible_years=compatible_years,
     )
     extracted = describe_fields(
         case_name=written_case_name(citation.plaintiff, citation.defendant)
@@ -479,7 +492,7 @@ async def run_mellea_identity_judgment(
         court_agreement=court_agreement(judgment.court_read, grounding.record_court_id, grounding.implied),
         date_read=judgment.date_read,
         date_evidence=judgment.date_evidence,
-        date_agreement=date_agreement(judgment.date_read, grounding.record_date),
+        date_agreement=date_agreement(judgment.date_read, grounding.record_date, grounding.compatible_years),
         reason=judgment.reason,
         grounded=grounded,
         name_window=windows.name,
@@ -536,6 +549,7 @@ def chosen_disagreements(
     case_name: CaseNameAgreementNode,
     court: CourtCheckNode,
     date: DateCheckNode,
+    compatible_years: tuple[str, ...] = (),
 ) -> tuple[FieldDisagreement, ...]:
     """Each field of the filing that disagrees with the record the judgement chose.
 
@@ -545,7 +559,7 @@ def chosen_disagreements(
     """
     implied = frozenset(court.implied_court_ids)
     court_answer = court_agreement(judgment.court_read, court.retrieved_court_id, implied)
-    date_answer = date_agreement(judgment.date_read, date.retrieved_date)
+    date_answer = date_agreement(judgment.date_read, date.retrieved_date, compatible_years)
     answers = {
         "case_name": (
             answer.case_name_agreement,
