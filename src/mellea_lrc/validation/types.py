@@ -914,6 +914,52 @@ class MelleaIdentityJudgmentNode:
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateAnswer:
+    """The model's answer about one record at the locator, in the multi-candidate judgement."""
+
+    candidate_index: int
+    cluster_id: str | None
+    case_name: str | None
+    case_name_agreement: FieldAgreement
+    same_case: str
+    """``yes``, ``no`` or ``undeterminable``: whether this record is the filing's case."""
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class MelleaCandidateJudgmentNode:
+    """One model call over every record at a locator none of which the rules could match.
+
+    The filing's reading is shared -- one case name, court and date, each with
+    its evidence, grounded in the same windows as the single-candidate
+    judgement -- and the model answers per record whether it is the filing's
+    case, then chooses one or none. A requirement holds the choice to the
+    per-record answers.
+    """
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: IdentityVerdict
+    case_name_read: str | None
+    court_read: str | None
+    court_evidence: str | None
+    court_basis: str | None
+    date_read: str | None
+    date_evidence: str | None
+    candidates: tuple[CandidateAnswer, ...]
+    chosen_index: int | None
+    reason: str | None
+    grounded: tuple[str, ...]
+    name_window: Span | None
+    parenthetical_window: Span | None
+    depends_on: tuple[str, ...]
+    model: str | None = None
+    status_message: str | None = None
+    outcome_message: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class IdentityResolutionNode:
     """The stage's conclusion for one root, and how it was reached."""
 
@@ -932,6 +978,10 @@ class IdentityResolutionNode:
     depends_on: tuple[str, ...]
     status_message: str | None = None
     outcome_message: str | None = None
+    records_at_locator: int = 1
+    """How many records the archive returned at the locator."""
+    agreeing_cluster_ids: tuple[str, ...] = ()
+    """Every record whose fields all agreed with the filing, when more than one did: the duplicates."""
 
     @property
     def resolved(self) -> bool:
@@ -998,6 +1048,7 @@ ValidationNode: TypeAlias = (
     | DateCheckNode
     | CaseNameAgreementNode
     | MelleaIdentityJudgmentNode
+    | MelleaCandidateJudgmentNode
     | IdentityResolutionNode
     | AuthorityMergeNode
     | DocketIdentityNode

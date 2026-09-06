@@ -23,6 +23,7 @@ from mellea_lrc.validation.types import (
     AggregatedFieldOutcome,
     AuthorityMergeNode,
     AuthorityMergeOutcome,
+    CandidateAnswer,
     CandidateEvaluationNode,
     CandidateEvaluationOutcome,
     CandidateEvaluationSource,
@@ -59,6 +60,7 @@ from mellea_lrc.validation.types import (
     LocatorCitationSummaryNode,
     LocatorCitationSummaryOutcome,
     LocatorLookupOutcome,
+    MelleaCandidateJudgmentNode,
     MelleaCaseNameCheckNode,
     MelleaCaseNameCheckOutcome,
     MelleaCaseNameQueryPreparationNode,
@@ -121,6 +123,7 @@ _NODE_TYPES: dict[str, type[ValidationNode]] = {
         DateCheckNode,
         CaseNameAgreementNode,
         MelleaIdentityJudgmentNode,
+        MelleaCandidateJudgmentNode,
         IdentityResolutionNode,
         AuthorityMergeNode,
         DocketIdentityNode,
@@ -153,6 +156,7 @@ _OUTCOME_TYPES = {
     DateCheckNode: FieldCheckOutcome,
     CaseNameAgreementNode: CaseNameAgreement,
     MelleaIdentityJudgmentNode: IdentityVerdict,
+    MelleaCandidateJudgmentNode: IdentityVerdict,
     IdentityResolutionNode: IdentityOutcome,
     AuthorityMergeNode: AuthorityMergeOutcome,
     DocketIdentityNode: DocketIdentityOutcome,
@@ -281,8 +285,31 @@ def _deserialize_node(value: object) -> ValidationNode:
         fields["parenthetical_window"] = _optional_span(
             fields["parenthetical_window"], name="node.parenthetical_window"
         )
+    elif node_type is MelleaCandidateJudgmentNode:
+        fields["grounded"] = tuple(require_list(fields["grounded"], name="node.grounded"))
+        fields["name_window"] = _optional_span(fields["name_window"], name="node.name_window")
+        fields["parenthetical_window"] = _optional_span(
+            fields["parenthetical_window"], name="node.parenthetical_window"
+        )
+        fields["candidates"] = tuple(
+            CandidateAnswer(
+                candidate_index=item["candidate_index"],
+                cluster_id=item["cluster_id"],
+                case_name=item["case_name"],
+                case_name_agreement=FieldAgreement(item["case_name_agreement"]),
+                same_case=item["same_case"],
+                reason=item["reason"],
+            )
+            for item in (
+                require_mapping(value, name="node.candidates")
+                for value in require_list(fields["candidates"], name="node.candidates")
+            )
+        )
     elif node_type is IdentityResolutionNode:
         fields["reason"] = _optional_enum(IdentityReason, fields["reason"])
+        fields["agreeing_cluster_ids"] = tuple(
+            require_list(fields.get("agreeing_cluster_ids", []), name="node.agreeing_cluster_ids")
+        )
         fields["fields"] = tuple(
             FieldDisagreement(
                 field=item["field"],
