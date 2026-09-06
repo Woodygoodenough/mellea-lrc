@@ -35,6 +35,7 @@ from mellea_lrc.courtlistener import CourtListenerError
 from mellea_lrc.validation.types import DateReconciliationNode, FieldCheckOutcome, ValidationNodeStatus
 
 if TYPE_CHECKING:
+    from mellea_lrc.courtlistener import CourtListenerOpinion
     from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
     from mellea_lrc.validation.types import CandidateEvaluationNode, DateCheckNode
 
@@ -61,8 +62,13 @@ def run_date_reconciliation(
     date: DateCheckNode,
     *,
     client: CourtListenerServiceClient,
+    fetched: dict[str, CourtListenerOpinion] | None = None,
 ) -> DateReconciliationNode:
-    """Read the archive's other dates for a record the plain comparison disagreed with."""
+    """Read the archive's other dates for a record the plain comparison disagreed with.
+
+    ``fetched`` collects every opinion read, by id, so the caller can keep the
+    text for a later stage rather than fetch it twice.
+    """
     node_id = f"{date.node_id}:date_reconciliation"
     year = (date.extracted_date or "")[:4]
     if date.outcome is not FieldCheckOutcome.MISMATCH or not year or candidate.cluster_id is None:
@@ -111,6 +117,8 @@ def run_date_reconciliation(
                 error=exc.message,
             )
         opinions_read.append(candidate_opinion)
+        if fetched is not None:
+            fetched[candidate_opinion] = opinion
         header = " ".join(_TAG.sub(" ", opinion.html_with_citations).split())[:HEADER_CHARS]
         found = dated_events(header)
         phrases.extend(found)

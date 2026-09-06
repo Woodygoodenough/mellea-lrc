@@ -63,6 +63,7 @@ from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
     CandidateEvaluationNode,
+    DateReconciliationNode,
     FieldCheckOutcome,
     IdentityOutcome,
     IdentityReason,
@@ -86,7 +87,6 @@ if TYPE_CHECKING:
         CaseNameAgreementNode,
         CourtCheckNode,
         DateCheckNode,
-        DateReconciliationNode,
         ExactLocatorLookupNode,
         FieldDisagreement,
     )
@@ -433,7 +433,9 @@ def _rule_guard(
         # The archive's one date is the original opinion's; a reporter cites
         # the amended print. Read the archive's other dates before believing
         # the disagreement. Two requests, on the few records that disagree.
-        reconciled = record.append(run_date_reconciliation(candidate, date, client=client))
+        reconciled = record.append(
+            run_date_reconciliation(candidate, date, client=client, fetched=record.opinions)
+        )
         date_agrees = reconciled.outcome is FieldCheckOutcome.COMPATIBLE
     else:
         reconciled = None
@@ -637,9 +639,19 @@ def _conclude(
                 date_filed=verdict.cluster.date_filed,
                 court_id=_retrieved_court(record, verdict.node_ids),
                 node_id=node.node_id,
+                opinion_ids=_opinions_read(record, verdict.node_ids),
             )
         )
     return node
+
+
+def _opinions_read(record: CitationRecord, node_ids: tuple[str, ...]) -> tuple[str, ...]:
+    """The opinions the reconciliation fetched for this candidate, the one that answered first."""
+    for node in record.trace.nodes:
+        if isinstance(node, DateReconciliationNode) and node.node_id in node_ids:
+            first = (node.opinion_id,) if node.opinion_id else ()
+            return (*first, *(o for o in node.opinions_read if o != node.opinion_id))
+    return ()
 
 
 def _names_at_locator(record: CitationRecord, verdict: Verdict) -> list[str]:
