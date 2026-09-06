@@ -28,7 +28,7 @@ import re
 import sys
 from pathlib import Path
 
-from mellea_lrc.preprocessing import preprocess_with_docling
+from mellea_lrc.preprocessing import DEFAULT_LAYOUT_RULES, LayoutRule, preprocess_with_docling
 
 # A surviving gutter, read off the text rather than the layout: four or more
 # consecutive ascending integers, each alone on its own line. Four is enough to
@@ -107,7 +107,7 @@ that: v1 to v1.1 is the converter alone, v1.1 to v2.0 is the margin rule alone.
 The annotations do not transfer to this either -- a converter changes offsets
 as readily as a margin rule does. Nothing here is published.
 
-Produced by `scripts/regenerate_bench_text.py --no-margin` on branch
+Produced by `scripts/regenerate_bench_text.py --layout-rules` on branch
 `preprocess/margin-line-numbers`.
 """
 
@@ -117,15 +117,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pdfs", type=Path, default=Path("data/corpus/documents_pdf"))
     parser.add_argument("--before", type=Path, default=None, help="a rendering to compare against")
-    parser.add_argument("--out", type=Path, help="default depends on --no-margin")
+    parser.add_argument("--out", type=Path, help="default depends on --layout-rules")
     parser.add_argument(
-        "--no-margin",
-        action="store_true",
-        help="leave the margin in, producing the v1.1 control: same converter, rule off",
+        "--layout-rules",
+        nargs="*",
+        choices=[rule.value for rule in LayoutRule],
+        default=None,
+        help="which page furniture to remove; pass with no names for the control rendering",
     )
     args = parser.parse_args()
 
-    drop_margins = not args.no_margin
+    rules = (
+        DEFAULT_LAYOUT_RULES
+        if args.layout_rules is None
+        else tuple(LayoutRule(name) for name in args.layout_rules)
+    )
+    drop_margins = LayoutRule.MARGIN_LINE_NUMBERS in rules
     if args.out is None:
         args.out = Path("data/runs/rendering-v2.0" if drop_margins else "data/corpus/renderings/v1.1")
 
@@ -142,7 +149,7 @@ def main() -> int:
     rendered: dict[str, dict[str, str | None]] = {}
     for index, source in enumerate(sources, start=1):
         print(f"[{index}/{len(sources)}] {source.name}", file=sys.stderr, flush=True)
-        document = preprocess_with_docling(source, drop_margin_line_numbers=drop_margins)
+        document = preprocess_with_docling(source, layout_rules=rules)
 
         destination = text_dir / f"{source.stem}.txt"
         destination.write_text(document.text, encoding="utf-8")
@@ -152,7 +159,9 @@ def main() -> int:
         rows.append(
             {
                 "document": source.stem,
-                "dropped": document.preprocessing_metadata.margin_line_numbers_dropped,
+                "dropped": dict(document.preprocessing_metadata.layout_removals).get(
+                    LayoutRule.MARGIN_LINE_NUMBERS
+                ),
                 "before": gutter_runs(body_of(before)) if before and before.exists() else None,
                 "after": gutter_runs(document.text),
             }
