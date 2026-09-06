@@ -190,7 +190,17 @@ side may be the abbreviated one, since the archive writes `Dept. of Social
 Servs.` as readily as a filing does, and a record side also offers its adjacent
 words run together, so `JPMorgan` covers `JP Morgan`. The date
 is compared at the precision the filing stated, by year for `(2007)` and by
-day for `(E.D.N.Y. Oct. 31, 2024)`. The court is compared by courts-db
+day for `(E.D.N.Y. Oct. 31, 2024)`. When it disagrees, the archive's other
+dates for the record are read before the disagreement is believed: the
+cluster's `other_dates`, and failing that the first opinion's header, for a
+dated event — decided, amended, filed, reissued — that states the filing's
+year. A lookup record's one date is the filing date of the opinion the
+archive holds, and a reporter citation to an opinion amended into the next
+year states the year of the print, so a correct citation disagrees with the
+record by design. A match is `compatible` and the node carries the phrase;
+argued and submitted dates do not count; nothing found leaves the mismatch
+standing with everything that was read on the node. This costs one or two
+requests, on the few records that disagree. The court is compared by courts-db
 identifier, which costs one docket fetch per candidate because the lookup
 endpoint returns no court. A filing that states no court is not compared
 against nothing: the reporter holds only some courts — `N.C. App.` holds North
