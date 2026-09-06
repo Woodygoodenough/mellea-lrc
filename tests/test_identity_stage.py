@@ -993,10 +993,7 @@ def test_the_judgement_may_choose_one_record_and_its_fields_are_then_compared(
     resolution = _resolution(record)
     assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
     assert resolution.reason is IdentityReason.FIELD_DISAGREEMENT
-    assert [(f.field, f.agreement.value) for f in resolution.fields] == [
-        ("case_name", "variant"),
-        ("date", "disagree"),
-    ]
+    assert [(f.field, f.agreement.value) for f in resolution.fields] == [("date", "disagree")]
     assert resolution.cluster_id == "c2"
     assert record.resolution is not None and record.resolution.cluster_id == "c2"
 
