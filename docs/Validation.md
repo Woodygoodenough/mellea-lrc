@@ -152,16 +152,33 @@ the right case under the wrong year keeps its year, gets the right one on
 identity scope ── non-root, or not a case → stop, inheriting or out of scope
 └── exact locator lookup
     ├── not found → DEFER_TO_SEARCH
-    ├── ambiguous → merge duplicate records, narrow a crowded page by the filing's case name
-    │   └── nothing separated → AMBIGUOUS_IDENTITY
-    └── per candidate: the rule guard
-        ├── every rule agrees or has nothing to compare → CONFIRMED_IDENTITY, no model call
-        └── any rule disagrees → one composite Mellea judgement
-            ├── same case, fields agree  → CONFIRMED_IDENTITY
-            ├── same case, a field wrong → WRONG_IDENTITY, reason field_disagreement
-            ├── different case           → WRONG_IDENTITY, reason different_case_at_locator
-            └── undeterminable           → DEFER_TO_SEARCH
+    └── every record at the locator: the rule guard
+        ├── some record agrees on every field → CONFIRMED_IDENTITY, the page disclosed
+        ├── none agrees, one record → the single-candidate judgement
+        │   ├── same case, fields agree  → CONFIRMED_IDENTITY
+        │   ├── same case, a field wrong → WRONG_IDENTITY, reason field_disagreement
+        │   ├── different case           → WRONG_IDENTITY, reason different_case_at_locator
+        │   └── undeterminable           → DEFER_TO_SEARCH
+        ├── none agrees, several records → one judgement over all of them
+        │   ├── chooses a record         → CONFIRMED_IDENTITY, or WRONG_IDENTITY by its fields
+        │   ├── every record is not it   → WRONG_IDENTITY, reason different_case_at_locator
+        │   └── undeterminable           → DEFER_TO_SEARCH
+        └── none agrees, more records than a judgement is shown → AMBIGUOUS_IDENTITY
 ```
+
+**Several records at one locator** is the ordinary case for a decision the
+archive holds twice, and the occasional case for a page of unpublished
+dispositions. Nothing decides which records are one decision by a heuristic.
+Every record gets the rule guard, any full agreement confirms, and the
+resolution says how many records sat at the page and which of them agreed,
+so two copies of one decision confirm with both listed. When no record
+agrees, the model is shown all of them at once: it reads the filing once,
+with evidence, answers for each record whether it is the filing's case, and
+chooses one or none. A requirement holds the choice to the answers: a chosen
+record must be one the model called the same case, and a refutation needs
+every record called not the filing's case. A page with more records than the
+judgement is shown at once (six) is ambiguous, and no court is fetched for
+it, since each costs a request.
 
 **The rule guard** is three comparisons that cost no model call, each reading
 the record's current citation. The case name is compared by containment, one
@@ -233,7 +250,7 @@ Four outcomes, each with a reason under it:
 | `confirmed_identity` | | the locator names one case and every field the filing states agrees |
 | `wrong_identity` | `field_disagreement` | the locator names the case, and a field the filing states disagrees; `fields` lists each with the filing's value and the record's |
 | `wrong_identity` | `different_case_at_locator` | the one case at the page is not the one the filing names; `record_case_name` says which it is |
-| `ambiguous_identity` | `crowded_page` | several distinct cases remain after merging duplicates, and the filing's name separates none |
+| `ambiguous_identity` | `crowded_page` | more records at the locator than a judgement is shown at once, none agreeing with the filing on every field |
 | `defer_to_search` | `not_found`, `lookup_failed`, `undeterminable`, `docket` | nothing the lookup route can decide; the search route's population |
 
 `wrong_identity` is deliberately wide: a filing citing the right case to the
@@ -243,11 +260,11 @@ the node keep them apart. A `field_disagreement` still resolves the record --
 the case was found -- so a later stage can decide whether to check its
 pinpoint.
 
-`different_case_at_locator` is deliberately hard to reach. It needs the page
-to hold exactly one case; on a crowded page the archive may hold only part of
-the page, so a candidate that is not the filing's case does not show the
-filing's case absent, and the root defers to search instead. That is the same
-rule as *Absence is not falsity*, applied one level down.
+`different_case_at_locator` needs every record the archive holds at the page
+to have been judged not the filing's case, by a judgement that saw them all.
+A page too crowded to judge is `ambiguous_identity` rather than a refutation,
+because the filing's case may be among the records nobody read. That is the
+same rule as *Absence is not falsity*, applied one level down.
 
 `serialize_identified_document` writes the whole thing — source citation,
 current reading, corrections, resolution and trace — and reads it back.
