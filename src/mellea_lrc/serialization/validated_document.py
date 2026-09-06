@@ -279,6 +279,7 @@ def _deserialize_node(value: object) -> ValidationNode:
             fields[field_name] = AggregatedFieldOutcome(fields[field_name])
     elif node_type is DocketNumberCourtNode:
         fields["courts"] = tuple(require_list(fields["courts"], name="node.courts"))
+        fields["levels"] = tuple(require_list(fields["levels"], name="node.levels"))
     elif node_type is CourtCheckNode:
         fields["implied_court_ids"] = tuple(
             require_list(fields.get("implied_court_ids", []), name="node.implied_court_ids")

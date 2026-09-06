@@ -211,6 +211,25 @@ jurisdiction list mapped onto courts-db identifiers, and it is a superset, so
 it can only catch a conflict, never supply a reading. Any other absent field
 on either side is `unavailable`, never a disagreement.
 
+The docket's court is the one field the record states in a single place, and
+it is sometimes wrong: `Beery v. Hitachi`, 157 F.R.D. 477, is filed under
+`cand` with the docket number `No. CV 93-4868 DT (Ex)`, the Central District
+of California's form. So every docket read gets a second witness, in
+`validation/identity/docket_number.py`: the number's format, printed by the
+deciding court and copied with the opinion. It reads the level a form fits
+(`18-CV-4418` is a district court's; a bare `13-2316` is a court of appeals'
+or a bankruptcy court's, which print the same form), a court where the
+convention is distinctive (the First Circuit's `P`, the Second Circuit's
+`-cv`, the Federal Circuit's four-digit year, the five-digit sequences of the
+Fifth, Ninth and Eleventh, C.D. Cal.'s lowercase-`x` magistrate token, S.D.
+Tex.'s division letter), and the judge's initials where the number carries
+them. State appellate numbers carry `CV` too, so a type token alone reads as
+nothing. The node records `match`, `mismatch` or `unavailable` between the
+number and the court field and decides nothing: it is there so the two
+witnesses can be measured against each other over a corpus. courts-db types
+39 federal district courts `appellate`, so the federal level is read from the
+court's name.
+
 **The composite judgement** runs only when a rule disagrees, and it sees the
 filing's own text rather than two strings, because a disagreement has three
 possible sources — the filing is wrong, the extractor misread it, or the two

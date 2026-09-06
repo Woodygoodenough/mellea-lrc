@@ -612,7 +612,7 @@ class DocketNumberCourtNode:
     outcome: FieldCheckOutcome
     docket_number: str | None
     retrieved_court_id: str | None
-    level: str | None
+    levels: tuple[str, ...]
     courts: tuple[str, ...]
     evidence: str
     judge_initials: str | None
