@@ -383,20 +383,28 @@ def test_the_opinion_header_is_read_when_the_cluster_holds_no_other_date(
     client = Client(
         {("300", "U.S.", "1"): (later,)},
         courts={"d": "scotus"},
-        details={"c-b": ("Argued October 14-15, 1948.", ("o2",))},
+        details={"c-b": ("Argued October 14-15, 1948.", ("o1", "o2"))},
         headers={
-            "o2": "<p>300 U.S. 1 (1948) ROE v. ACME CORP. Argued October 14-15, 1948. Decided December 20, 1948.</p>"
+            "o1": "<p>Mr. Justice delivered the opinion of the Court.</p>",
+            "o2": "<p>300 U.S. 1 (1948) ROE v. ACME CORP. Argued October 14-15, 1948. Decided December 20, 1948.</p>",
         },
     )
 
     result = _run(_document(text, root), client, session=object())
 
     assert calls == []
-    assert client.opinions == ["o2"]
-    reconciled = next(n for n in result.record("c1").trace.nodes if isinstance(n, DateReconciliationNode))
+    # The lead opinion carries no header; the combined one after it does.
+    assert client.opinions == ["o1", "o2"]
+    record = result.record("c1")
+    reconciled = next(n for n in record.trace.nodes if isinstance(n, DateReconciliationNode))
     assert reconciled.outcome is FieldCheckOutcome.COMPATIBLE
     assert reconciled.matched_phrase == "Decided December 20, 1948"
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.CONFIRMED_IDENTITY
+    assert reconciled.opinion_id == "o2" and reconciled.opinions_read == ("o1", "o2")
+    assert _resolution(record).outcome is IdentityOutcome.CONFIRMED_IDENTITY
+    # The opinion that answered leads the resolution, and its text stays on the record.
+    assert record.resolution is not None and record.resolution.opinion_ids == ("o2", "o1")
+    assert set(record.opinions) == {"o1", "o2"}
+    assert "Decided December 20, 1948" in record.opinions["o2"].html_with_citations
 
 
 def test_an_argument_date_does_not_make_a_year_compatible(monkeypatch: pytest.MonkeyPatch) -> None:
