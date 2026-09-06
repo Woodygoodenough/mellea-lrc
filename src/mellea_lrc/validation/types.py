@@ -878,7 +878,9 @@ class DateReconciliationNode:
     other_dates: str | None
     """The cluster's free-text dates, as fetched."""
     opinion_id: str | None
-    """The sub-opinion whose header was read, when one was."""
+    """The sub-opinion whose header stated the filing's year, when one did."""
+    opinions_read: tuple[str, ...]
+    """Every sub-opinion whose header was read, in order."""
     dated_phrases: tuple[str, ...]
     """Every dated event found, such as `Amended Feb. 5, 2014`."""
     matched_phrase: str | None
