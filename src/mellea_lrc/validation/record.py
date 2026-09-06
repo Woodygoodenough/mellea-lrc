@@ -37,6 +37,7 @@ from mellea_lrc.validation.types import CitationValidation
 
 if TYPE_CHECKING:
     from mellea_lrc.core.citations import CanonicalCitation
+    from mellea_lrc.courtlistener import CourtListenerOpinion
     from mellea_lrc.extraction.types import ExtractedCitation
     from mellea_lrc.validation.types import ValidationNode
 
@@ -74,6 +75,10 @@ class Resolution:
     court_id: str | None
     node_id: str
     """The trace node that established this resolution."""
+    opinion_ids: tuple[str, ...] = ()
+    """The cluster's opinions already fetched while resolving, the one that
+    answered first. A later stage that needs the opinion's text starts here
+    rather than resolving the cluster's opinions again."""
 
 
 @dataclass(slots=True)
@@ -86,6 +91,10 @@ class CitationRecord:
     resolution: Resolution | None = None
     corrections: tuple[Correction, ...] = ()
     trace: CitationValidation = field(init=False)
+    opinions: dict[str, CourtListenerOpinion] = field(init=False, default_factory=dict)
+    """Opinion text fetched while resolving, by opinion id. Not serialized:
+    a stage starting from an artifact refetches by the ids on the resolution,
+    which the proxy serves from cache."""
 
     def __post_init__(self) -> None:
         self.trace = CitationValidation(citation=self.source)

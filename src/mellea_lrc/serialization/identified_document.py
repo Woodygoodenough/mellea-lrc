@@ -107,6 +107,12 @@ def _deserialize_record(payload: Mapping[str, object], extracted: object) -> Cit
                 date_filed=_optional_string(fields.get("date_filed"), name="record.resolution.date_filed"),
                 court_id=_optional_string(fields.get("court_id"), name="record.resolution.court_id"),
                 node_id=_required_string(fields.get("node_id"), name="record.resolution.node_id"),
+                opinion_ids=tuple(
+                    _required_string(item, name="record.resolution.opinion_ids")
+                    for item in require_list(
+                        fields.get("opinion_ids", []), name="record.resolution.opinion_ids"
+                    )
+                ),
             )
         )
     record.corrections = tuple(
