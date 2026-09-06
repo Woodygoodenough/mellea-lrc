@@ -49,3 +49,19 @@ class CourtListenerOpinion:
     opinion_type: str
     html_with_citations: str
     ordering_key: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CourtListenerClusterDetail:
+    """One cluster fetched by identifier, with the dates a lookup record does not carry.
+
+    ``other_dates`` is CourtListener's free text of every date beside the
+    filing date -- `Argued and Submitted April 18, 2013., Amended Feb. 5,
+    2014.` -- which is where an amended opinion's year lives when the record's
+    ``date_filed`` is the original's.
+    """
+
+    cluster_id: str
+    date_filed: str | None
+    other_dates: str
+    sub_opinion_ids: tuple[str, ...] = ()

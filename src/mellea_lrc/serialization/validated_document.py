@@ -39,6 +39,7 @@ from mellea_lrc.validation.types import (
     CourtCheckNode,
     DateCheckNode,
     DatePrecision,
+    DateReconciliationNode,
     DocketCourtRetrievalNode,
     DocketCourtRetrievalOutcome,
     DocketIdentityNode,
@@ -121,6 +122,7 @@ _NODE_TYPES: dict[str, type[ValidationNode]] = {
         YearCheckNode,
         IdentityScopeNode,
         DateCheckNode,
+        DateReconciliationNode,
         CaseNameAgreementNode,
         MelleaIdentityJudgmentNode,
         MelleaCandidateJudgmentNode,
@@ -154,6 +156,7 @@ _OUTCOME_TYPES = {
     YearCheckNode: FieldCheckOutcome,
     IdentityScopeNode: IdentityScope,
     DateCheckNode: FieldCheckOutcome,
+    DateReconciliationNode: FieldCheckOutcome,
     CaseNameAgreementNode: CaseNameAgreement,
     MelleaIdentityJudgmentNode: IdentityVerdict,
     MelleaCandidateJudgmentNode: IdentityVerdict,
@@ -275,6 +278,8 @@ def _deserialize_node(value: object) -> ValidationNode:
         fields["implied_court_ids"] = tuple(
             require_list(fields.get("implied_court_ids", []), name="node.implied_court_ids")
         )
+    elif node_type is DateReconciliationNode:
+        fields["dated_phrases"] = tuple(require_list(fields["dated_phrases"], name="node.dated_phrases"))
     elif node_type is DateCheckNode:
         fields["precision"] = _optional_enum(DatePrecision, fields["precision"])
     elif node_type is MelleaIdentityJudgmentNode:

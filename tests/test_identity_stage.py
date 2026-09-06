@@ -19,8 +19,10 @@ from mellea_lrc.core.citations import (
 from mellea_lrc.core.spans import Span
 from mellea_lrc.courtlistener import (
     CourtListenerCitationLookup,
+    CourtListenerClusterDetail,
     CourtListenerDocket,
     CourtListenerError,
+    CourtListenerOpinion,
     CourtListenerOpinionCluster,
 )
 from mellea_lrc.extraction import ExtractedCitation, ExtractedDocument, ExtractionMetadata
@@ -45,8 +47,10 @@ from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
     CandidateSelectionNode,
-    FieldAgreement,
     CandidateSelectionOutcome,
+    DateReconciliationNode,
+    FieldAgreement,
+    FieldCheckOutcome,
     IdentityOutcome,
     IdentityReason,
     IdentityResolutionNode,
@@ -93,12 +97,20 @@ class Client:
         *,
         courts: dict[str, str] | None = None,
         failing: set[tuple[str, str, str]] | None = None,
+        details: dict[str, tuple[str, tuple[str, ...]]] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.table = table
         self.courts = courts or {}
         self.failing = failing or set()
+        self.details = details or {}
+        """Per cluster id: its other_dates text and its sub-opinion ids."""
+        self.headers = headers or {}
+        """Per opinion id: the HTML whose header is read."""
         self.lookups: list[tuple[str, str, str]] = []
         self.dockets: list[str] = []
+        self.clusters: list[str] = []
+        self.opinions: list[str] = []
 
     def lookup_citation(self, volume: str, reporter: str, page: str) -> CourtListenerCitationLookup:
         key = (volume, reporter, page)
@@ -116,8 +128,24 @@ class Client:
     def search(self, *args: object, **kwargs: object) -> object:
         raise AssertionError("the identity stage sends no search")
 
-    def get_opinion(self, *args: object, **kwargs: object) -> object:
-        raise AssertionError("the identity stage fetches no opinion")
+    def get_cluster(self, cluster_id: str) -> CourtListenerClusterDetail:
+        self.clusters.append(cluster_id)
+        other_dates, opinion_ids = self.details.get(cluster_id, ("", ()))
+        return CourtListenerClusterDetail(
+            cluster_id=cluster_id,
+            date_filed=None,
+            other_dates=other_dates,
+            sub_opinion_ids=tuple(opinion_ids),
+        )
+
+    def get_opinion(self, opinion_id: str) -> CourtListenerOpinion:
+        self.opinions.append(opinion_id)
+        return CourtListenerOpinion(
+            opinion_id=opinion_id,
+            cluster_id=None,
+            opinion_type="010combined",
+            html_with_citations=self.headers.get(opinion_id, ""),
+        )
 
 
 def _cite(
@@ -299,6 +327,125 @@ def test_an_absent_field_is_not_a_disagreement(monkeypatch: pytest.MonkeyPatch) 
 
     assert calls == []
     assert _resolution(result.record("c1")).outcome is IdentityOutcome.CONFIRMED_IDENTITY
+
+
+def test_a_year_the_archive_holds_beside_its_filing_date_is_compatible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _fake_model(monkeypatch, {})
+    text = "Roe v. Acme Corp., 700 F.3d 1 (4th Cir. 2014)."
+    citation = FullCaseCitation(
+        plaintiff="Roe",
+        defendant="Acme Corp.",
+        volume="700",
+        reporter=F3D,
+        page="1",
+        date=CitationDate(year="2014"),
+    )
+    root = _cite("c1", citation, text=text, locator="700 F.3d 1", authority_id="c1")
+    amended = CourtListenerOpinionCluster(
+        cluster_id="c-a", case_name="Roe v. Acme Corp.", date_filed="2013-12-27"
+    )
+    client = Client(
+        {("700", "F.3d", "1"): (amended,)},
+        details={"c-a": ("Argued and Submitted April 18, 2013., Amended Feb. 5, 2014.", ("o1",))},
+    )
+
+    result = _run(_document(text, root), client, session=object())
+
+    assert calls == []
+    assert client.clusters == ["c-a"] and client.opinions == []
+    record = result.record("c1")
+    reconciled = next(n for n in record.trace.nodes if isinstance(n, DateReconciliationNode))
+    assert reconciled.outcome is FieldCheckOutcome.COMPATIBLE
+    assert reconciled.matched_phrase == "Amended Feb. 5, 2014"
+    assert _resolution(record).outcome is IdentityOutcome.CONFIRMED_IDENTITY
+
+
+def test_the_opinion_header_is_read_when_the_cluster_holds_no_other_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _fake_model(monkeypatch, {})
+    text = "Roe v. Acme Corp., 300 U.S. 1 (1948)."
+    citation = FullCaseCitation(
+        plaintiff="Roe",
+        defendant="Acme Corp.",
+        volume="300",
+        reporter=US,
+        page="1",
+        date=CitationDate(year="1948"),
+        court="scotus",
+    )
+    root = _cite("c1", citation, text=text, locator="300 U.S. 1", authority_id="c1")
+    later = CourtListenerOpinionCluster(
+        cluster_id="c-b", case_name="Roe v. Acme Corp.", date_filed="1949-02-14", docket_id="d"
+    )
+    client = Client(
+        {("300", "U.S.", "1"): (later,)},
+        courts={"d": "scotus"},
+        details={"c-b": ("Argued October 14-15, 1948.", ("o2",))},
+        headers={
+            "o2": "<p>300 U.S. 1 (1948) ROE v. ACME CORP. Argued October 14-15, 1948. Decided December 20, 1948.</p>"
+        },
+    )
+
+    result = _run(_document(text, root), client, session=object())
+
+    assert calls == []
+    assert client.opinions == ["o2"]
+    reconciled = next(n for n in result.record("c1").trace.nodes if isinstance(n, DateReconciliationNode))
+    assert reconciled.outcome is FieldCheckOutcome.COMPATIBLE
+    assert reconciled.matched_phrase == "Decided December 20, 1948"
+    assert _resolution(result.record("c1")).outcome is IdentityOutcome.CONFIRMED_IDENTITY
+
+
+def test_an_argument_date_does_not_make_a_year_compatible(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_model(
+        monkeypatch,
+        {
+            "case_name_read": "Roe v. Acme Corp.",
+            "case_name_agreement": "agree",
+            "court_read": "scotus",
+            "court_evidence": None,
+            "court_basis": "implied_by_reporter",
+            "date_read": "1875",
+            "date_evidence": "1875",
+            "verdict": "same_case",
+            "reason": "Same case; the filing states the argument year.",
+        },
+    )
+    text = "Roe v. Acme Corp., 90 U.S. 1 (1875)."
+    citation = FullCaseCitation(
+        plaintiff="Roe",
+        defendant="Acme Corp.",
+        volume="90",
+        reporter=US,
+        page="1",
+        date=CitationDate(year="1875"),
+        court="scotus",
+    )
+    root = _cite("c1", citation, text=text, locator="90 U.S. 1", authority_id="c1")
+    old = CourtListenerOpinionCluster(
+        cluster_id="c-o", case_name="Roe v. Acme Corp.", date_filed="1876-04-24", docket_id="d"
+    )
+    client = Client(
+        {("90", "U.S.", "1"): (old,)},
+        courts={"d": "scotus"},
+        details={"c-o": ("Argued November 3, 1875.", ("o3",))},
+        headers={"o3": "<p>Mr. Chief Justice delivered the opinion of the court.</p>"},
+    )
+
+    result = _run(_document(text, root), client, session=object())
+
+    record = result.record("c1")
+    reconciled = next(n for n in record.trace.nodes if isinstance(n, DateReconciliationNode))
+    assert reconciled.outcome is FieldCheckOutcome.MISMATCH
+    assert reconciled.dated_phrases == ()
+    resolution = _resolution(record)
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert [(f.field, f.filing_value, f.record_value) for f in resolution.fields] == [
+        ("date", "1875", "1876-04-24")
+    ]
 
 
 def test_not_found_is_unresolved_not_refuted() -> None:

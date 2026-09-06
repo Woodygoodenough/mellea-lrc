@@ -858,6 +858,38 @@ class DateCheckNode:
 
 
 @dataclass(frozen=True, slots=True)
+class DateReconciliationNode:
+    """A date the filing states, checked against every date the archive holds for the record.
+
+    A lookup record carries one date, the filing date of the opinion the
+    archive holds, and a reporter citation to an opinion amended into the next
+    year states the year of the print. When the two disagree, the cluster's
+    other dates and the opinion's own header are fetched and read for a dated
+    event -- decided, amended, filed -- that states the filing's year. A match
+    is ``compatible`` with the phrase as evidence; nothing found is a
+    ``mismatch`` still, and says what was read.
+    """
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: FieldCheckOutcome
+    extracted_date: str | None
+    retrieved_date: str | None
+    other_dates: str | None
+    """The cluster's free-text dates, as fetched."""
+    opinion_id: str | None
+    """The sub-opinion whose header was read, when one was."""
+    dated_phrases: tuple[str, ...]
+    """Every dated event found, such as `Amended Feb. 5, 2014`."""
+    matched_phrase: str | None
+    """The phrase that states the filing's date, when one does."""
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class CaseNameAgreementNode:
     """Rule-based comparison of the written and recorded case names."""
 
@@ -1050,6 +1082,7 @@ ValidationNode: TypeAlias = (
     | YearCheckNode
     | IdentityScopeNode
     | DateCheckNode
+    | DateReconciliationNode
     | CaseNameAgreementNode
     | MelleaIdentityJudgmentNode
     | MelleaCandidateJudgmentNode

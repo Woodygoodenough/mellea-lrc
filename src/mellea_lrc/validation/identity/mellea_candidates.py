@@ -188,6 +188,7 @@ async def run_mellea_candidate_judgment(
     citations: Sequence[ExtractedCitation],
     candidates: Sequence[CandidateEvaluationNode],
     checks: Sequence[tuple[CaseNameAgreementNode, CourtCheckNode, DateCheckNode]],
+    compatible_years: Sequence[tuple[str, ...]] = (),
     session: MelleaSession | None = None,
 ) -> MelleaCandidateJudgmentNode:
     """Ask the model, over every record at the locator, which is the filing's case."""
@@ -221,8 +222,9 @@ async def run_mellea_candidate_judgment(
             locator=record.source.matched_text,
         )
         + f"\n- rules: case name {name.outcome.value}, court {court.outcome.value}, date {date.outcome.value}"
-        for index, (candidate, (name, court, date)) in enumerate(
-            zip(candidates, checks, strict=True), start=1
+        + (f"\n- other years the archive holds for this record: {', '.join(years)}" if years else "")
+        for index, (candidate, (name, court, date), years) in enumerate(
+            zip(candidates, checks, _padded(compatible_years, len(candidates)), strict=True), start=1
         )
     )
     count = len(candidates)
@@ -328,6 +330,10 @@ async def run_mellea_candidate_judgment(
         status_message="Mellea candidate judgement completed.",
         outcome_message=judgment.reason,
     )
+
+
+def _padded(years: Sequence[tuple[str, ...]], count: int) -> list[tuple[str, ...]]:
+    return [*years, *([()] * (count - len(years)))][:count]
 
 
 def _as_identity(judgment: CandidateJudgment) -> IdentityJudgment:

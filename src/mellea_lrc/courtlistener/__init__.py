@@ -11,6 +11,7 @@ from mellea_lrc.courtlistener.client import (
 )
 from mellea_lrc.courtlistener.docket_models import CourtListenerDocket, courtlistener_docket_url
 from mellea_lrc.courtlistener.opinion_models import (
+    CourtListenerClusterDetail,
     CourtListenerOpinion,
     CourtListenerOpinionCluster,
     CourtListenerOpinionClusterCitation,
@@ -21,6 +22,7 @@ from mellea_lrc.courtlistener.search_models import CourtListenerSearchResult
 __all__ = [
     "CourtListenerCitationLookup",
     "CourtListenerClient",
+    "CourtListenerClusterDetail",
     "CourtListenerConfig",
     "CourtListenerDocket",
     "CourtListenerError",

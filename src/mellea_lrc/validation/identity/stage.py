@@ -35,6 +35,7 @@ that could not decide.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -43,6 +44,7 @@ from mellea_lrc.courtlistener import CourtListenerClient
 from mellea_lrc.validation.candidate_evaluation import run_locator_candidate_evaluation
 from mellea_lrc.validation.citation_lookup import run_exact_locator_lookup
 from mellea_lrc.validation.court_retrieval import run_docket_court_retrieval
+from mellea_lrc.validation.identity.dates import run_date_reconciliation
 from mellea_lrc.validation.identity.docket import run_docket_identity
 from mellea_lrc.validation.identity.field_checks import (
     run_case_name_agreement,
@@ -84,11 +86,13 @@ if TYPE_CHECKING:
         CaseNameAgreementNode,
         CourtCheckNode,
         DateCheckNode,
+        DateReconciliationNode,
         ExactLocatorLookupNode,
         FieldDisagreement,
     )
 
 RULE = "validation.identity.stage"
+_YEAR = re.compile(r"\b(\d{4})\b")
 
 
 @dataclass(frozen=True, slots=True)
@@ -387,10 +391,20 @@ class _Guarded:
     date: DateCheckNode
     court: CourtCheckNode
     verdict: Verdict | None
+    reconciled: DateReconciliationNode | None = None
+    """The archive's other dates, read when the plain date comparison disagreed."""
 
     @property
     def node_ids(self) -> tuple[str, ...]:
-        return (self.candidate.node_id, self.case_name.node_id, self.date.node_id, self.court.node_id)
+        ids = (self.candidate.node_id, self.case_name.node_id, self.date.node_id, self.court.node_id)
+        return (*ids, self.reconciled.node_id) if self.reconciled is not None else ids
+
+    @property
+    def compatible_years(self) -> tuple[str, ...]:
+        """Years the archive holds for the record beside its filing date."""
+        if self.reconciled is None:
+            return ()
+        return tuple(sorted({m for p in self.reconciled.dated_phrases for m in _YEAR.findall(p)}))
 
 
 def _rule_guard(
@@ -415,6 +429,15 @@ def _rule_guard(
     )
     case_name = record.append(run_case_name_agreement(record.citation, candidate=candidate))
     date = record.append(run_date_check(record.citation, candidate=candidate))
+    if date.outcome is FieldCheckOutcome.MISMATCH and fetch_court:
+        # The archive's one date is the original opinion's; a reporter cites
+        # the amended print. Read the archive's other dates before believing
+        # the disagreement. Two requests, on the few records that disagree.
+        reconciled = record.append(run_date_reconciliation(candidate, date, client=client))
+        date_agrees = reconciled.outcome is FieldCheckOutcome.COMPATIBLE
+    else:
+        reconciled = None
+        date_agrees = date.outcome is not FieldCheckOutcome.MISMATCH
     if fetch_court:
         court_retrieval = record.append(
             run_docket_court_retrieval(record.trace, candidate=candidate, client=client)
@@ -425,13 +448,13 @@ def _rule_guard(
     rules_agree = (
         (case_name.outcome.agrees or case_name.outcome.value == "unavailable")
         and court.outcome is not FieldCheckOutcome.MISMATCH
-        and date.outcome is not FieldCheckOutcome.MISMATCH
+        and date_agrees
     )
-    guarded = _Guarded(cluster, candidate, case_name, date, court, None)
+    guarded = _Guarded(cluster, candidate, case_name, date, court, None, reconciled)
     if not rules_agree:
         return guarded
     verdict = Verdict(IdentityOutcome.CONFIRMED_IDENTITY, None, cluster, "rule", (), guarded.node_ids)
-    return _Guarded(cluster, candidate, case_name, date, court, verdict)
+    return _Guarded(cluster, candidate, case_name, date, court, verdict, reconciled)
 
 
 async def _model_judge(
@@ -508,6 +531,7 @@ async def _judge_candidates(
             citations=citations,
             candidates=[guard.candidate for guard in guarded],
             checks=[(guard.case_name, guard.court, guard.date) for guard in guarded],
+            compatible_years=[guard.compatible_years for guard in guarded],
             session=session,
         )
     )
@@ -516,7 +540,14 @@ async def _judge_candidates(
     if judgment.outcome is IdentityVerdict.SAME_CASE and judgment.chosen_index is not None:
         chosen = guarded[judgment.chosen_index - 1]
         answer = judgment.candidates[judgment.chosen_index - 1]
-        fields = chosen_disagreements(judgment, answer, chosen.case_name, chosen.court, chosen.date)
+        fields = chosen_disagreements(
+            judgment,
+            answer,
+            chosen.case_name,
+            chosen.court,
+            chosen.date,
+            compatible_years=chosen.compatible_years,
+        )
         if fields:
             return Verdict(
                 IdentityOutcome.WRONG_IDENTITY,

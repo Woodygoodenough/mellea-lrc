@@ -19,7 +19,7 @@ from mellea_lrc.courtlistener.search import normalize_search_payload
 if TYPE_CHECKING:
     from mellea_lrc.courtlistener.citation_lookup_models import CourtListenerCitationLookup
     from mellea_lrc.courtlistener.docket_models import CourtListenerDocket
-    from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinion
+    from mellea_lrc.courtlistener.opinion_models import CourtListenerClusterDetail, CourtListenerOpinion
     from mellea_lrc.courtlistener.search_models import CourtListenerSearchResult
 
 
@@ -179,6 +179,26 @@ class CourtListenerClient(CourtListenerServiceClient):
                 url=response.url,
                 upstream_detail=exc.errors(include_url=False),
             ) from exc
+
+    def get_cluster(self, cluster_id: str) -> CourtListenerClusterDetail:
+        """Retrieve one opinion cluster by its identifier, for the dates a lookup omits."""
+        response = self._send_resource("clusters", cluster_id)
+        payload = self._response_payload(response)
+        if not isinstance(payload, dict):
+            raise CourtListenerError(
+                "CourtListener returned an invalid cluster response",
+                failure_type="upstream_invalid_response",
+                upstream_status_code=response.status_code,
+                retryable=False,
+                url=response.url,
+            )
+        sub_opinions = payload.get("sub_opinions") or ()
+        return CourtListenerClusterDetail(
+            cluster_id=str(payload.get("id", cluster_id)),
+            date_filed=payload.get("date_filed") or None,
+            other_dates=str(payload.get("other_dates") or ""),
+            sub_opinion_ids=tuple(str(item).rstrip("/").rsplit("/", 1)[-1] for item in sub_opinions),
+        )
 
     def get_opinion(self, opinion_id: str) -> CourtListenerOpinion:
         """Retrieve one sub-opinion by its CourtListener identifier."""
