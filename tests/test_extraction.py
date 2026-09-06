@@ -10,10 +10,14 @@ from mellea_lrc.extraction import (
     ExtractedCitation,
     ExtractedDocument,
     ExtractionMetadata,
-    extract,
+    extract_citations,
     extract_from_plain_text,
 )
-from mellea_lrc.preprocessing import PreprocessedDocument, preprocess_plain_text_from_string
+from mellea_lrc.preprocessing import (
+    PreprocessedDocument,
+    preprocess,
+    preprocess_plain_text_from_string,
+)
 
 SAMPLE_TEXT = (
     "Under Norton v. Shelby County, 118 U.S. 425, 442 (1886), an unconstitutional "
@@ -31,20 +35,16 @@ def test_extract_from_plain_text_carries_the_preprocessing_through() -> None:
     assert result.citations
 
 
-def test_extract_reads_a_string_as_content() -> None:
-    assert extract(SAMPLE_TEXT).text == SAMPLE_TEXT
-
-
-def test_extract_reads_a_path_as_a_location(tmp_path: Path) -> None:
-    """A ``Path`` is opened; the same text as a ``str`` would be extracted from."""
+def test_extraction_takes_what_preprocessing_produced(tmp_path: Path) -> None:
+    """The stage's signature: the preceding stage's output in, citations out."""
     path = tmp_path / "filing.txt"
     path.write_text(SAMPLE_TEXT, encoding="utf-8")
 
-    from_disk = extract(path)
+    from_disk = extract_citations(preprocess(path))
 
     assert from_disk.text == SAMPLE_TEXT
     assert {item.citation.kind for item in from_disk.citations} == {
-        item.citation.kind for item in extract(SAMPLE_TEXT).citations
+        item.citation.kind for item in extract_from_plain_text(SAMPLE_TEXT).citations
     }
 
 
