@@ -35,6 +35,7 @@ from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
     IdentityResolutionNode,
+    MelleaCandidateJudgmentNode,
     MelleaIdentityJudgmentNode,
     ValidationNodeStatus,
 )
@@ -112,6 +113,7 @@ class Tally:
     outcomes: Counter[tuple[str, str | None]] = field(default_factory=Counter)
     decided_by_rule: int = 0
     model_calls: int = 0
+    candidate_calls: int = 0
     model_failures: int = 0
     corrections: Counter[str] = field(default_factory=Counter)
     merges: int = 0
@@ -128,9 +130,10 @@ class Tally:
                     self.decided_by_rule += node.decided_by == "rule"
                     for disagreement in node.fields:
                         self.disagreements[disagreement.field] += 1
-                elif isinstance(node, MelleaIdentityJudgmentNode):
+                elif isinstance(node, MelleaIdentityJudgmentNode | MelleaCandidateJudgmentNode):
                     self.model_calls += 1
                     self.model_failures += node.status is ValidationNodeStatus.FAILED
+                    self.candidate_calls += isinstance(node, MelleaCandidateJudgmentNode)
                 elif isinstance(node, AuthorityMergeNode):
                     self.merges += node.outcome is AuthorityMergeOutcome.MERGED_INTO
             for correction in record.corrections:
@@ -141,7 +144,7 @@ class Tally:
             f"{self.documents} documents, {self.citations} citations, {self.roots} roots identified",
             f"{client.requests} requests, {client.misses} not served from cache",
             f"{self.decided_by_rule} roots decided by rule, {self.model_calls} model calls "
-            f"({self.model_failures} failed)",
+            f"({self.candidate_calls} over several records, {self.model_failures} failed)",
             f"{self.merges} parallel citations merged into one authority",
             "outcomes:",
             *(

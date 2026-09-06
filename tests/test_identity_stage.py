@@ -27,6 +27,11 @@ from mellea_lrc.extraction import ExtractedCitation, ExtractedDocument, Extracti
 from mellea_lrc.preprocessing import preprocess_plain_text_from_string
 from mellea_lrc.serialization import deserialize_identified_document, serialize_identified_document
 from mellea_lrc.validation.identity import identify_document
+from mellea_lrc.validation.identity.mellea_candidates import (
+    CandidateJudgment,
+    CandidateVerdict,
+    choice_supported,
+)
 from mellea_lrc.validation.identity.mellea_judgment import (
     Grounding,
     IdentityJudgment,
@@ -47,6 +52,7 @@ from mellea_lrc.validation.types import (
     IdentityResolutionNode,
     IdentityScope,
     IdentityScopeNode,
+    MelleaCandidateJudgmentNode,
     MelleaIdentityJudgmentNode,
     ValidationNodeStatus,
 )
@@ -184,6 +190,31 @@ def _fake_model(monkeypatch: pytest.MonkeyPatch, answer: dict[str, object]) -> l
 
     monkeypatch.setattr("mellea_lrc.validation.identity.mellea_judgment.run_instruct_ivr", fake_instruct)
     return calls
+
+
+def _fake_candidates_model(monkeypatch: pytest.MonkeyPatch, answer: dict[str, object]) -> list[object]:
+    monkeypatch.setenv("MELLEA_LRC_LLM_MODEL", "test-model")
+    monkeypatch.setenv("MELLEA_LRC_LLM_API_BASE", "https://example.test/v1")
+    monkeypatch.setenv("MELLEA_LRC_LLM_API_KEY", "test-key")
+    calls: list[object] = []
+
+    async def fake_instruct(_session: object, spec: object, **_kwargs: object) -> SimpleNamespace:
+        calls.append(spec)
+        return SimpleNamespace(success=True, result=SimpleNamespace(value=json.dumps(answer)))
+
+    monkeypatch.setattr("mellea_lrc.validation.identity.mellea_candidates.run_instruct_ivr", fake_instruct)
+    return calls
+
+
+def _no_reading() -> dict[str, object]:
+    return {
+        "case_name_read": None,
+        "court_read": None,
+        "court_evidence": None,
+        "court_basis": "none",
+        "date_read": None,
+        "date_evidence": None,
+    }
 
 
 # --- scope ---------------------------------------------------------------------
@@ -713,133 +744,132 @@ def test_a_failed_judgment_keeps_the_readings_whose_evidence_passed(monkeypatch:
     assert _resolution(record).outcome is IdentityOutcome.DEFER_TO_SEARCH
 
 
-# --- a crowded page ---------------------------------------------------------------
+# --- several records at the locator ---------------------------------------------
+
+SO3D = Reporter(
+    as_written="So. 3d", short_name="So. 3d", name="Southern Reporter", cite_type="state_regional"
+)
+F2D = Reporter(as_written="F.2d", short_name="F.2d", name="Federal Reporter", cite_type="federal")
 
 
-def test_duplicates_merge_and_a_crowded_page_narrows_by_name() -> None:
+def _page(*names: str, year: int = 2010) -> tuple[CourtListenerOpinionCluster, ...]:
+    return tuple(
+        CourtListenerOpinionCluster(cluster_id=f"c{i}", case_name=name, date_filed=f"{year}-0{i}-01")
+        for i, name in enumerate(names, 1)
+    )
+
+
+def test_one_record_agreeing_by_rule_confirms_and_the_page_is_disclosed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    single = _fake_model(monkeypatch, {})
+    several = _fake_candidates_model(monkeypatch, {})
     text = "Sprague v. Gen. Motors Corp., 688 F.2d 816 (2d Cir. 1982)."
-    f2d = Reporter(as_written="F.2d", short_name="F.2d", name="Federal Reporter", cite_type="federal")
     citation = FullCaseCitation(
-        plaintiff="Sprague", defendant="Gen. Motors Corp.", volume="688", reporter=f2d, page="816"
+        plaintiff="Sprague", defendant="Gen. Motors Corp.", volume="688", reporter=F2D, page="816"
     )
     root = _cite("c1", citation, text=text, locator="688 F.2d 816", authority_id="c1")
-    names = ("Kulwiec, in re", "Langone v. Leach", "Malvasio v. Marshall", "Martin v. Smalls")
-    page = (
-        *(
-            CourtListenerOpinionCluster(cluster_id=f"c{i}", case_name=name, date_filed=f"1982-0{i}-01")
-            for i, name in enumerate(names, 1)
-        ),
-        CourtListenerOpinionCluster(cluster_id="c1-dup", case_name="Kulwiec, In Re", date_filed="1982-01-01"),
-        CourtListenerOpinionCluster(
-            cluster_id="c5", case_name="Sprague v. General Motors Corp.", date_filed="1982-05-01"
-        ),
+    page = _page(
+        "Kulwiec, in re",
+        "Langone v. Leach",
+        "Malvasio v. Marshall",
+        "Sprague v. General Motors Corp.",
+        year=1982,
     )
-    client = Client({("688", "F.2d", "816"): page})
 
-    result = _run(_document(text, root), client)
+    result = _run(_document(text, root), Client({("688", "F.2d", "816"): page}), session=object())
 
-    record = result.record("c1")
-    selection = next(n for n in record.trace.nodes if isinstance(n, CandidateSelectionNode))
-    assert selection.outcome is CandidateSelectionOutcome.NARROWED_BY_CASE_NAME
-    assert selection.distinct_case_count == 5
-    assert selection.selected_indices == (5,)
-    assert _resolution(record).outcome is IdentityOutcome.CONFIRMED_IDENTITY
-    assert record.resolution is not None
-    assert record.resolution.cluster_id == "c5"
+    assert single == [] and several == []
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.CONFIRMED_IDENTITY
+    assert resolution.decided_by == "rule"
+    assert resolution.records_at_locator == 4
+    assert resolution.cluster_id == "c4"
+    assert "One of 4 records" in (resolution.outcome_message or "")
 
 
-def test_the_rules_run_on_every_candidate_before_any_model_call(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = _fake_model(monkeypatch, {})
-    text = "Lewis v. Clarke, 137 S. Ct. 1285 (2017)."
+def test_a_decision_the_archive_holds_twice_confirms_with_both_disclosed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    several = _fake_candidates_model(monkeypatch, {})
+    text = "Ashcroft v. Iqbal, 556 U.S. 662 (2009)."
     citation = FullCaseCitation(
-        plaintiff="Lewis",
-        defendant="Clarke",
-        volume="137",
-        reporter=SCT,
-        page="1285",
-        date=CitationDate(year="2017"),
+        plaintiff="Ashcroft",
+        defendant="Iqbal",
+        volume="556",
+        reporter=US,
+        page="662",
+        date=CitationDate(year="2009"),
     )
-    root = _cite("c1", citation, text=text, locator="137 S. Ct. 1285", authority_id="c1")
-    page = (
-        CourtListenerOpinionCluster(
-            cluster_id="c-w", case_name="Williams v. Kelley", date_filed="2017-04-25"
-        ),
-        CourtListenerOpinionCluster(cluster_id="c-l", case_name="Lewis v. Clarke", date_filed="2017-04-25"),
+    root = _cite("c1", citation, text=text, locator="556 U.S. 662", authority_id="c1")
+    twice = (
+        CourtListenerOpinionCluster(cluster_id="c-a", case_name="Ashcroft v. Iqbal", date_filed="2009-05-18"),
+        CourtListenerOpinionCluster(cluster_id="c-b", case_name="Ashcroft v. Iqbal", date_filed="2009-05-18"),
     )
-    result = _run(_document(text, root), Client({("137", "S. Ct.", "1285"): page}), session=object())
+    result = _run(_document(text, root), Client({("556", "U.S.", "662"): twice}), session=object())
 
-    assert calls == []
-    record = result.record("c1")
-    assert _resolution(record).outcome is IdentityOutcome.CONFIRMED_IDENTITY
-    assert record.resolution is not None
-    assert record.resolution.cluster_id == "c-l"
+    assert several == []
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.CONFIRMED_IDENTITY
+    assert resolution.agreeing_cluster_ids == ("c-a", "c-b")
+    assert "one decision the archive holds more than once" in (resolution.outcome_message or "")
 
 
-def test_a_crowded_page_that_matches_nothing_is_ambiguous_not_refuted() -> None:
+def test_a_page_with_more_records_than_a_judgement_is_shown_is_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    several = _fake_candidates_model(monkeypatch, {})
     text = "Conley v. Gibson, 44 So. 3d 587 (Fla. Dist. Ct. App. 2010)."
-    so3d = Reporter(
-        as_written="So. 3d", short_name="So. 3d", name="Southern Reporter", cite_type="state_regional"
-    )
     citation = FullCaseCitation(
-        plaintiff="Conley", defendant="Gibson", volume="44", reporter=so3d, page="587"
+        plaintiff="Conley", defendant="Gibson", volume="44", reporter=SO3D, page="587"
     )
     root = _cite("c1", citation, text=text, locator="44 So. 3d 587", authority_id="c1")
-    page = tuple(
-        CourtListenerOpinionCluster(cluster_id=f"c{i}", case_name=name, date_filed=f"2010-0{i}-01")
-        for i, name in enumerate(
-            ("Galeana v. Galeana", "Galura v. State", "Gest v. State", "Gillins v. State"), 1
-        )
+    page = _page(
+        "Galeana v. Galeana",
+        "Galura v. State",
+        "Gest v. State",
+        "Gillins v. State",
+        "Grady v. State",
+        "Griner v. State",
+        "Haynes v. State",
     )
-    result = _run(_document(text, root), Client({("44", "So. 3d", "587"): page}))
+    client = Client({("44", "So. 3d", "587"): page})
 
-    assert _resolution(result.record("c1")).outcome is IdentityOutcome.AMBIGUOUS_IDENTITY
+    result = _run(_document(text, root), client, session=object())
 
-
-def test_a_page_holding_one_case_twice_still_refutes(monkeypatch: pytest.MonkeyPatch) -> None:
-    _fake_model(
-        monkeypatch,
-        {
-            "case_name_read": "JPMorgan Chase Bank, N.A. v. Szajna",
-            "case_name_agreement": "disagree",
-            "court_read": None,
-            "court_evidence": None,
-            "court_basis": "none",
-            "date_read": "2013",
-            "date_evidence": "2013",
-            "verdict": "different_case",
-            "reason": "The page holds Bunting v. Haynes.",
-        },
-    )
-    text = "JPMorgan Chase Bank, N.A. v. Szajna, 104 A.D.3d 715 (2d Dept. 2013)."
-    ad3d = Reporter(as_written="A.D.3d", short_name="A.D.3d", editions=("A.D.3d",), cite_type="state")
-    citation = FullCaseCitation(
-        plaintiff="JPMorgan Chase Bank, N.A.", defendant="Szajna", volume="104", reporter=ad3d, page="715"
-    )
-    root = _cite("c1", citation, text=text, locator="104 A.D.3d 715", authority_id="c1")
-    page = (
-        CourtListenerOpinionCluster(cluster_id="c-a", case_name="Bunting v. Haynes", date_filed="2013-03-13"),
-        CourtListenerOpinionCluster(cluster_id="c-b", case_name="Bunting v. Haynes", date_filed="2013-03-13"),
-    )
-    result = _run(_document(text, root), Client({("104", "A.D.3d", "715"): page}), session=object())
-
+    assert several == []
+    assert client.dockets == []  # no court fetched on a page this crowded
     resolution = _resolution(result.record("c1"))
-    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
-    assert resolution.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR
+    assert resolution.outcome is IdentityOutcome.AMBIGUOUS_IDENTITY
+    assert resolution.reason is IdentityReason.CROWDED_PAGE
+    assert resolution.records_at_locator == 7
 
 
-def test_a_page_whose_every_case_was_judged_different_refutes(monkeypatch: pytest.MonkeyPatch) -> None:
-    _fake_model(
+def test_when_no_record_agrees_one_judgement_sees_them_all_and_may_refute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _fake_candidates_model(
         monkeypatch,
         {
+            **_no_reading(),
             "case_name_read": "Boss v. N.Y. Life Ins. Co.",
-            "case_name_agreement": "disagree",
-            "court_read": None,
-            "court_evidence": None,
-            "court_basis": "none",
-            "date_read": None,
-            "date_evidence": None,
+            "records": [
+                {
+                    "index": 1,
+                    "case_name_agreement": "disagree",
+                    "same_case": "no",
+                    "reason": "Different parties.",
+                },
+                {
+                    "index": 2,
+                    "case_name_agreement": "disagree",
+                    "same_case": "no",
+                    "reason": "Different parties.",
+                },
+            ],
+            "chosen_index": None,
             "verdict": "different_case",
-            "reason": "Not this one.",
+            "reason": "Neither record is the filing's case.",
         },
     )
     text = "Boss v. N.Y. Life Ins. Co., 298 N.Y. 917."
@@ -858,57 +888,111 @@ def test_a_page_whose_every_case_was_judged_different_refutes(monkeypatch: pytes
     )
     result = _run(_document(text, root), Client({("298", "N.Y.", "917"): page}), session=object())
 
-    resolution = _resolution(result.record("c1"))
+    assert len(calls) == 1
+    spec = calls[0]
+    assert "record 1:" in spec.user_variables["records"] and "record 2:" in spec.user_variables["records"]
+    assert spec.user_variables["count"] == "2"
+    record = result.record("c1")
+    judgment = next(n for n in record.trace.nodes if isinstance(n, MelleaCandidateJudgmentNode))
+    assert [a.same_case for a in judgment.candidates] == ["no", "no"]
+    resolution = _resolution(record)
     assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
     assert resolution.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR
-    assert "2 cases" in (resolution.outcome_message or "")
+    assert "2 records" in (resolution.outcome_message or "")
+    assert record.resolution is None
 
 
-def test_a_page_narrowed_by_name_leaves_cases_unread_so_a_mismatch_defers(
+def test_the_judgement_may_choose_one_record_and_its_fields_are_then_compared(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _fake_model(
+    _fake_candidates_model(
         monkeypatch,
         {
-            "case_name_read": "Galura v. Ronnie",
-            "case_name_agreement": "disagree",
-            "court_read": None,
-            "court_evidence": None,
-            "court_basis": "none",
-            "date_read": "2011",
-            "date_evidence": "2011",
-            "verdict": "different_case",
-            "reason": "Not this one.",
+            **_no_reading(),
+            "case_name_read": "Lacey v. Maricopa County",
+            "date_read": "2012",
+            "date_evidence": "2012",
+            "records": [
+                {
+                    "index": 1,
+                    "case_name_agreement": "disagree",
+                    "same_case": "no",
+                    "reason": "Different case.",
+                },
+                {
+                    "index": 2,
+                    "case_name_agreement": "variant",
+                    "same_case": "yes",
+                    "reason": "Same case under the sheriff's caption.",
+                },
+            ],
+            "chosen_index": 2,
+            "verdict": "same_case",
+            "reason": "Record 2 is the en banc decision.",
         },
     )
-    text = "Galura v. Ronnie, 44 So. 3d 587 (Fla. Dist. Ct. App. 2011)."
-    so3d = Reporter(
-        as_written="So. 3d", short_name="So. 3d", name="Southern Reporter", cite_type="state_regional"
-    )
+    text = "Lacey v. Maricopa County, 693 F.3d 896 (9th Cir. 2012)."
     citation = FullCaseCitation(
-        plaintiff="Galura",
-        defendant="Ronnie",
-        volume="44",
-        reporter=so3d,
-        page="587",
-        date=CitationDate(year="2011"),
+        plaintiff="Lacey",
+        defendant="Maricopa County",
+        volume="693",
+        reporter=F3D,
+        page="896",
+        date=CitationDate(year="2012"),
     )
-    root = _cite("c1", citation, text=text, locator="44 So. 3d 587", authority_id="c1")
-    names = ("Galeana v. Galeana", "Galura v. Ronnie", "Gest v. State", "Gillins v. State", "Grady v. State")
-    page = tuple(
-        CourtListenerOpinionCluster(cluster_id=f"c{i}", case_name=name, date_filed=f"2010-0{i}-01")
-        for i, name in enumerate(names, 1)
+    root = _cite("c1", citation, text=text, locator="693 F.3d 896", authority_id="c1")
+    page = (
+        CourtListenerOpinionCluster(cluster_id="c1", case_name="Smith v. Jones", date_filed="2012-08-29"),
+        CourtListenerOpinionCluster(
+            cluster_id="c2", case_name="Michael Lacey v. Joseph Arpaio", date_filed="2011-06-09"
+        ),
     )
-    result = _run(_document(text, root), Client({("44", "So. 3d", "587"): page}), session=object())
+    result = _run(_document(text, root), Client({("693", "F.3d", "896"): page}), session=object())
 
-    # Five cases at the page, the filing's name picked one, the year sent it
-    # to the model, and the model called it a different case: four cases were
-    # never read, so the filing's case is not shown absent.
-    selection = next(n for n in result.record("c1").trace.nodes if isinstance(n, CandidateSelectionNode))
-    assert selection.outcome is CandidateSelectionOutcome.NARROWED_BY_CASE_NAME
-    resolution = _resolution(result.record("c1"))
-    assert resolution.outcome is IdentityOutcome.DEFER_TO_SEARCH
-    assert resolution.reason is IdentityReason.UNDETERMINABLE
+    record = result.record("c1")
+    resolution = _resolution(record)
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert resolution.reason is IdentityReason.FIELD_DISAGREEMENT
+    assert [(f.field, f.agreement.value) for f in resolution.fields] == [
+        ("case_name", "variant"),
+        ("date", "disagree"),
+    ]
+    assert resolution.cluster_id == "c2"
+    assert record.resolution is not None and record.resolution.cluster_id == "c2"
+
+
+@pytest.mark.parametrize(
+    ("records", "chosen", "verdict", "reason"),
+    [
+        ([("agree", "yes"), ("disagree", "no")], 1, "same_case", None),
+        ([("agree", "yes"), ("disagree", "no")], 2, "same_case", "must be a record whose"),
+        ([("agree", "yes"), ("disagree", "no")], 1, "different_case", "chosen record means"),
+        ([("agree", "yes"), ("disagree", "no")], None, "same_case", "needs a chosen_index"),
+        ([("disagree", "no"), ("disagree", "no")], None, "different_case", None),
+        ([("disagree", "no"), ("undeterminable", "undeterminable")], None, "different_case", "every record"),
+        ([("disagree", "no"), ("disagree", "no")], None, "undeterminable", "must be different_case"),
+        ([("disagree", "no"), ("undeterminable", "undeterminable")], None, "undeterminable", None),
+        ([("disagree", "no")], None, "different_case", "every index"),
+    ],
+)
+def test_the_choice_must_follow_from_the_per_record_answers(
+    records: list[tuple[str, str]], chosen: int | None, verdict: str, reason: str | None
+) -> None:
+    judgment = CandidateJudgment(
+        **_no_reading(),
+        records=[
+            CandidateVerdict(index=i, case_name_agreement=name, same_case=same, reason="")
+            for i, (name, same) in enumerate(records, 1)
+        ],
+        chosen_index=chosen,
+        verdict=verdict,
+        reason="",
+    )
+    problem = choice_supported(judgment, count=2)
+    if reason is None:
+        assert problem is None
+    else:
+        assert problem is not None and reason in problem
 
 
 # --- parallel citations ---------------------------------------------------------

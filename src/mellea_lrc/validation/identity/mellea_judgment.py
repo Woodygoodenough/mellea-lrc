@@ -57,10 +57,12 @@ from mellea_lrc.validation.identity.field_checks import iso_date
 from mellea_lrc.validation.identity.reporter_courts import describe, implied_courts
 from mellea_lrc.validation.identity.windows import windows_for
 from mellea_lrc.validation.types import (
+    CandidateAnswer,
     FieldAgreement,
     FieldCheckOutcome,
     FieldDisagreement,
     IdentityVerdict,
+    MelleaCandidateJudgmentNode,
     MelleaIdentityJudgmentNode,
     ValidationNodeStatus,
 )
@@ -356,17 +358,17 @@ async def run_mellea_identity_judgment(
         record_date=candidate.date_filed,
         implied=implied_courts(reporter),
     )
-    extracted = _describe(
+    extracted = describe_fields(
         case_name=written_case_name(citation.plaintiff, citation.defendant)
         if isinstance(citation, FullCaseCitation)
         else None,
-        court=_court_label(citation.court) if isinstance(citation, FullCaseCitation) else None,
+        court=court_label(citation.court) if isinstance(citation, FullCaseCitation) else None,
         date=iso_date(citation.date) if isinstance(citation, FullCaseCitation) else None,
         locator=record.source.matched_text,
     )
-    record_text = _describe(
+    record_text = describe_fields(
         case_name=candidate.case_name,
-        court=_court_label(court.retrieved_court_id),
+        court=court_label(court.retrieved_court_id),
         date=candidate.date_filed,
         locator=record.source.matched_text,
     )
@@ -384,16 +386,22 @@ async def run_mellea_identity_judgment(
         spec = InstructIvrSpec(
             description=INSTRUCTION,
             grounding_context={
-                "context": _context(record, document_text),
+                "context": context_window(record, document_text),
                 "name_window": grounding.name_window,
                 "parenthetical_window": grounding.parenthetical_window,
             },
             user_variables={"extracted": extracted, "record": record_text, "rules": rules},
             output_format=IdentityJudgment,
             requirements=[
-                req("Return a valid identity-judgment object.", validation_fn=_valid_schema),
-                req("Every reading must be grounded in its window.", validation_fn=_grounded(grounding)),
-                req("The verdict must follow from the agreements.", validation_fn=_consistent(grounding)),
+                req("Return a valid identity-judgment object.", validation_fn=valid_schema),
+                req(
+                    "Every reading must be grounded in its window.",
+                    validation_fn=grounded_requirement(grounding),
+                ),
+                req(
+                    "The verdict must follow from the agreements.",
+                    validation_fn=consistent_requirement(grounding),
+                ),
             ],
         )
         result = await run_instruct_ivr(
@@ -402,7 +410,7 @@ async def run_mellea_identity_judgment(
             strategy=MultiTurnStrategy(loop_budget=MAX_REPAIR_TURNS),
             model_options=config.mellea_call_options(max_tokens=MAX_TOKENS),
         )
-        last = _last_output(result)
+        last = last_output(result)
         judgment = _parse(last) if last is not None else None
     except Exception as exc:
         return _failed(
@@ -419,7 +427,7 @@ async def run_mellea_identity_judgment(
         )
     failures = readings_grounded(judgment, grounding)
     grounded = tuple(name for name in GROUNDING_CHECKS if name not in failures)
-    kept = _keep_grounded(judgment, grounded)
+    kept = _keepgrounded_requirement(judgment, grounded)
     if not result.success:
         # The judgement failed, and the readings whose evidence passed are
         # still worth having: they are written onto the record like any other,
@@ -474,7 +482,9 @@ async def run_mellea_identity_judgment(
     )
 
 
-def apply_readings(record: CitationRecord, judgment: MelleaIdentityJudgmentNode) -> None:
+def apply_readings(
+    record: CitationRecord, judgment: MelleaIdentityJudgmentNode | MelleaCandidateJudgmentNode
+) -> None:
     """Write what the model read from the filing onto the record, where it differs.
 
     Only grounded readings are on the node, whether the judgement succeeded or
@@ -509,6 +519,38 @@ def apply_readings(record: CitationRecord, judgment: MelleaIdentityJudgmentNode)
             reason=f"{evidence}; {reason}",
             node_id=judgment.node_id,
         )
+
+
+def chosen_disagreements(
+    judgment: MelleaCandidateJudgmentNode,
+    answer: CandidateAnswer,
+    case_name: CaseNameAgreementNode,
+    court: CourtCheckNode,
+    date: DateCheckNode,
+) -> tuple[FieldDisagreement, ...]:
+    """Each field of the filing that disagrees with the record the judgement chose.
+
+    The case name is the model's answer for that record; the court and date are
+    computed from the shared readings against that record, as in the
+    single-candidate judgement.
+    """
+    implied = frozenset(court.implied_court_ids)
+    court_answer = court_agreement(judgment.court_read, court.retrieved_court_id, implied)
+    date_answer = date_agreement(judgment.date_read, date.retrieved_date)
+    answers = {
+        "case_name": (
+            answer.case_name_agreement,
+            judgment.case_name_read or case_name.written_case_name,
+            case_name.recorded_case_name,
+        ),
+        "court": (court_answer, judgment.court_read or court.extracted_court_id, court.retrieved_court_id),
+        "date": (date_answer, judgment.date_read or date.extracted_date, date.retrieved_date),
+    }
+    return tuple(
+        FieldDisagreement(field=name, filing_value=filing, record_value=recorded, agreement=agreement)
+        for name, (agreement, filing, recorded) in answers.items()
+        if agreement in (FieldAgreement.DISAGREE, FieldAgreement.VARIANT)
+    )
 
 
 def field_disagreements(
@@ -563,7 +605,7 @@ def field_disagreements(
 # --- helpers ---------------------------------------------------------------------
 
 
-def _keep_grounded(judgment: IdentityJudgment, grounded: tuple[str, ...]) -> IdentityJudgment:
+def _keepgrounded_requirement(judgment: IdentityJudgment, grounded: tuple[str, ...]) -> IdentityJudgment:
     """The judgement with every ungrounded reading nulled."""
     fields: dict[str, object] = judgment.model_dump()
     if "case_name" not in grounded:
@@ -582,7 +624,7 @@ def _implied_court(reporter: Reporter | None) -> str | None:
     return None
 
 
-def _context(record: CitationRecord, document_text: str) -> str:
+def context_window(record: CitationRecord, document_text: str) -> str:
     span = record.source.full_span
     start = max(0, span.start - CONTEXT_CHARS)
     end = min(len(document_text), span.end + CONTEXT_CHARS)
@@ -595,7 +637,7 @@ def _context(record: CitationRecord, document_text: str) -> str:
     )
 
 
-def _describe(*, case_name: str | None, court: str | None, date: str | None, locator: str) -> str:
+def describe_fields(*, case_name: str | None, court: str | None, date: str | None, locator: str) -> str:
     return "\n".join(
         (
             f"- locator: {locator}",
@@ -627,7 +669,7 @@ def _court_name(court_id: str | None) -> str:
     return name
 
 
-def _court_label(court_id: str | None) -> str | None:
+def court_label(court_id: str | None) -> str | None:
     """`ca4 (Court of Appeals for the Fourth Circuit, cited as 4th Cir.)`, for the prompt."""
     if court_id is None:
         return None
@@ -652,7 +694,7 @@ def _parse(value: object) -> IdentityJudgment:
         raise ValueError(msg) from exc
 
 
-def _last_output(result: object) -> object | None:
+def last_output(result: object) -> object | None:
     generations = getattr(result, "sample_generations", None) or []
     if generations:
         return getattr(generations[-1], "value", None)
@@ -660,7 +702,7 @@ def _last_output(result: object) -> object | None:
     return getattr(chosen, "value", None) if chosen is not None else None
 
 
-def _valid_schema(ctx: Context) -> ValidationResult:
+def valid_schema(ctx: Context) -> ValidationResult:
     try:
         _parse(ctx.last_output().value)
     except ValueError as exc:
@@ -668,7 +710,7 @@ def _valid_schema(ctx: Context) -> ValidationResult:
     return ValidationResult(result=True)
 
 
-def _grounded(grounding: Grounding):
+def grounded_requirement(grounding: Grounding):
     def validation_fn(ctx: Context) -> ValidationResult:
         try:
             judgment = _parse(ctx.last_output().value)
@@ -681,7 +723,7 @@ def _grounded(grounding: Grounding):
     return validation_fn
 
 
-def _consistent(grounding: Grounding):
+def consistent_requirement(grounding: Grounding):
     def validation_fn(ctx: Context) -> ValidationResult:
         try:
             judgment = _parse(ctx.last_output().value)

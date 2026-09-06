@@ -8,12 +8,13 @@ A filing citing one case ten times costs one lookup, and the nine return
 visits are pinpoint claims for a later stage. If extraction attributed one of
 them wrongly, that is found where the pinpoint fails, not here.
 
-Per root the stage is a fixed sequence: look the locator up, merge the records
-that are one decision held twice, narrow a crowded page by the case name the
-filing wrote, and then, for each remaining candidate, run the rule guard. When
-every rule agrees or has nothing to compare, the identity is established
-without a model. When any rule disagrees, one composite model call reads the
-filing's context and judges every field at once.
+Per root the stage is a fixed sequence: look the locator up, then run the
+rule guard on every record the archive returned. A record whose every
+comparable field agrees with the filing confirms the identity without a
+model, and any other records at the page are disclosed. When no record
+agrees, a page holding one record gets the single-candidate judgement, which
+reads the filing's context and judges every field at once, and a page holding
+several gets one judgement over all of them together.
 
 What the stage writes back:
 
@@ -40,18 +41,18 @@ from typing import TYPE_CHECKING
 from mellea_lrc.core.citations import DocketCitation, FullCaseCitation
 from mellea_lrc.courtlistener import CourtListenerClient
 from mellea_lrc.validation.candidate_evaluation import run_locator_candidate_evaluation
-from mellea_lrc.validation.candidate_selection import CANDIDATE_SELECTION_LIMIT
 from mellea_lrc.validation.citation_lookup import run_exact_locator_lookup
 from mellea_lrc.validation.court_retrieval import run_docket_court_retrieval
-from mellea_lrc.validation.duplicate_clusters import matching_case_names, merge_duplicates
 from mellea_lrc.validation.identity.docket import run_docket_identity
 from mellea_lrc.validation.identity.field_checks import (
     run_case_name_agreement,
     run_court_comparison,
     run_date_check,
 )
+from mellea_lrc.validation.identity.mellea_candidates import MAX_CANDIDATES, run_mellea_candidate_judgment
 from mellea_lrc.validation.identity.mellea_judgment import (
     apply_readings,
+    chosen_disagreements,
     field_disagreements,
     run_mellea_identity_judgment,
 )
@@ -59,8 +60,7 @@ from mellea_lrc.validation.record import CitationRecord, Resolution
 from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
-    CandidateSelectionNode,
-    CandidateSelectionOutcome,
+    CandidateEvaluationNode,
     FieldCheckOutcome,
     IdentityOutcome,
     IdentityReason,
@@ -81,7 +81,6 @@ if TYPE_CHECKING:
     from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
     from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument
     from mellea_lrc.validation.types import (
-        CandidateEvaluationNode,
         CaseNameAgreementNode,
         CourtCheckNode,
         DateCheckNode,
@@ -224,7 +223,13 @@ async def identify_root(
     client: CourtListenerServiceClient,
     session: MelleaSession | None,
 ) -> IdentityResolutionNode:
-    """Establish, refute, or leave unresolved the identity of one reporter root."""
+    """Establish, refute, or leave unresolved the identity of one reporter root.
+
+    Every record the archive returns at the locator gets the rule guard. Any
+    record whose every comparable field agrees confirms the identity, and the
+    others are disclosed. When none agrees, one record is judged on its own
+    and several are judged together, by a model that sees them all.
+    """
     scope = _scope_node(record)
     lookup = record.append(run_exact_locator_lookup(record.trace, client=client))
     if lookup.outcome is LocatorLookupOutcome.NOT_FOUND:
@@ -247,44 +252,45 @@ async def identify_root(
                 message=lookup.outcome_message or "The locator could not be looked up.",
             )
         )
-    candidates, selection = _select_candidates(record, lookup)
-    if selection is not None:
-        record.append(selection)
-    if not candidates:
+    clusters = (lookup.cluster,) if lookup.cluster is not None else lookup.candidate_clusters
+    too_many = len(clusters) > MAX_CANDIDATES
+    guarded = [
+        _rule_guard(
+            record,
+            cluster=cluster,
+            candidate_index=index,
+            depends_on=(lookup.node_id,),
+            client=client,
+            fetch_court=not too_many,
+        )
+        for index, cluster in enumerate(clusters, start=1)
+    ]
+    agreeing = [guard for guard in guarded if guard.verdict is not None]
+    if agreeing:
+        return _conclude(agreeing[0].verdict, record, records_at_locator=len(clusters), agreeing=agreeing)
+    if len(guarded) == 1:
+        verdict = await _model_judge(
+            record, guarded[0], document_text=document_text, citations=citations, session=session
+        )
+        return _conclude(verdict, record, records_at_locator=1, agreeing=())
+    if too_many:
         return record.append(
             _resolution(
                 record,
                 IdentityOutcome.AMBIGUOUS_IDENTITY,
                 reason=IdentityReason.CROWDED_PAGE,
-                depends_on=(scope.node_id, selection.node_id if selection else lookup.node_id),
+                depends_on=(scope.node_id, *(node_id for guard in guarded for node_id in guard.node_ids)),
                 message=(
-                    f"{selection.distinct_case_count if selection else '?'} distinct cases remain at the locator "
-                    "after merging duplicates, and the case name the filing wrote separates none."
+                    f"{len(clusters)} records at the locator, none agreeing with the filing on every field, "
+                    f"and more than the {MAX_CANDIDATES} a judgement is shown at once."
                 ),
+                records_at_locator=len(clusters),
             )
         )
-    parent = selection.node_id if selection is not None else lookup.node_id
-    # The rule guard runs on every candidate before any model is consulted: on
-    # a page of several cases the filing's case is usually one the rules can
-    # settle, and a model call on the wrong candidate first is a call wasted.
-    guarded = [
-        _rule_guard(record, cluster=cluster, candidate_index=index, depends_on=(parent,), client=client)
-        for index, cluster in enumerate(candidates, start=1)
-    ]
-    verdicts: list[Verdict] = [guard.verdict for guard in guarded if guard.verdict is not None]
-    if not verdicts:
-        for guard in guarded:
-            verdict = await _model_judge(
-                record, guard, document_text=document_text, citations=citations, session=session
-            )
-            verdicts.append(verdict)
-            if verdict.resolved:
-                break
-    # A refutation needs every case the archive holds at the page to have been
-    # examined. A found page and a page whose distinct cases all fit within the
-    # limit qualify; a page narrowed by the filing's name left others unread.
-    every_case_examined = selection is None or selection.outcome is CandidateSelectionOutcome.ALL_SELECTED
-    return _conclude(record, verdicts, every_case_examined=every_case_examined)
+    verdict = await _judge_candidates(
+        record, guarded, document_text=document_text, citations=citations, session=session
+    )
+    return _conclude(verdict, record, records_at_locator=len(clusters), agreeing=())
 
 
 def merge_colocated_roots(records: Sequence[CitationRecord]) -> None:
@@ -351,79 +357,6 @@ def merge_colocated_roots(records: Sequence[CitationRecord]) -> None:
                 )
 
 
-def _select_candidates(
-    record: CitationRecord, lookup: ExactLocatorLookupNode
-) -> tuple[tuple[CourtListenerOpinionCluster, ...], CandidateSelectionNode | None]:
-    """One record per distinct case at the locator, narrowed by name when crowded."""
-    if lookup.outcome is LocatorLookupOutcome.FOUND:
-        assert lookup.cluster is not None
-        return (lookup.cluster,), None
-    clusters = lookup.candidate_clusters
-    groups = merge_duplicates(clusters)
-    firsts = tuple(clusters.index(group[0]) for group in groups)
-    node_id = f"{record.citation_id}:locator_candidate_selection"
-    if len(groups) <= CANDIDATE_SELECTION_LIMIT:
-        selection = CandidateSelectionNode(
-            node_id=node_id,
-            status=ValidationNodeStatus.SUCCEEDED,
-            outcome=CandidateSelectionOutcome.ALL_SELECTED,
-            total_candidate_count=len(clusters),
-            selected_candidate_count=len(groups),
-            selection_limit=CANDIDATE_SELECTION_LIMIT,
-            selected_indices=firsts,
-            distinct_case_count=len(groups),
-            depends_on=(lookup.node_id,),
-            status_message="Candidate selection completed.",
-            outcome_message=(
-                f"{len(clusters)} records at the locator are {len(groups)} distinct cases after merging, "
-                f"within the limit of {CANDIDATE_SELECTION_LIMIT}."
-            ),
-        )
-        return tuple(clusters[i] for i in firsts), selection
-    citation = record.citation
-    plaintiff = citation.plaintiff if isinstance(citation, FullCaseCitation) else None
-    defendant = citation.defendant if isinstance(citation, FullCaseCitation) else None
-    matches = matching_case_names(
-        tuple(clusters[i] for i in firsts), plaintiff=plaintiff, defendant=defendant
-    )
-    kept = tuple(firsts[i] for i in matches)
-    if kept and len(kept) <= CANDIDATE_SELECTION_LIMIT:
-        selection = CandidateSelectionNode(
-            node_id=node_id,
-            status=ValidationNodeStatus.SUCCEEDED,
-            outcome=CandidateSelectionOutcome.NARROWED_BY_CASE_NAME,
-            total_candidate_count=len(clusters),
-            selected_candidate_count=len(kept),
-            selection_limit=CANDIDATE_SELECTION_LIMIT,
-            selected_indices=kept,
-            distinct_case_count=len(groups),
-            depends_on=(lookup.node_id,),
-            status_message="Candidate selection completed.",
-            outcome_message=(
-                f"{len(groups)} distinct cases at the locator exceed the limit of "
-                f"{CANDIDATE_SELECTION_LIMIT}, and the case name the filing wrote matches {len(kept)}."
-            ),
-        )
-        return tuple(clusters[i] for i in kept), selection
-    selection = CandidateSelectionNode(
-        node_id=node_id,
-        status=ValidationNodeStatus.SUCCEEDED,
-        outcome=CandidateSelectionOutcome.DEFERRED_OVER_LIMIT,
-        total_candidate_count=len(clusters),
-        selected_candidate_count=0,
-        selection_limit=CANDIDATE_SELECTION_LIMIT,
-        selected_indices=(),
-        distinct_case_count=len(groups),
-        depends_on=(lookup.node_id,),
-        status_message="Candidate selection completed.",
-        outcome_message=(
-            f"{len(groups)} distinct cases at the locator exceed the limit of "
-            f"{CANDIDATE_SELECTION_LIMIT}, and the case name the filing wrote matches none of them."
-        ),
-    )
-    return (), selection
-
-
 @dataclass(frozen=True, slots=True)
 class Verdict:
     """What one candidate came to: the outcome and its reason, and what it rests on."""
@@ -467,8 +400,14 @@ def _rule_guard(
     candidate_index: int,
     depends_on: tuple[str, ...],
     client: CourtListenerServiceClient,
+    fetch_court: bool = True,
 ) -> _Guarded:
-    """Run the three rule comparisons on one candidate. No model is consulted."""
+    """Run the three rule comparisons on one candidate. No model is consulted.
+
+    ``fetch_court`` is off on a page with more records than a judgement would
+    be shown, since each court costs a request; the comparison then rests on
+    the reporter's family alone.
+    """
     candidate = record.append(
         run_locator_candidate_evaluation(
             record.trace, cluster=cluster, candidate_index=candidate_index, depends_on=depends_on
@@ -476,10 +415,13 @@ def _rule_guard(
     )
     case_name = record.append(run_case_name_agreement(record.citation, candidate=candidate))
     date = record.append(run_date_check(record.citation, candidate=candidate))
-    court_retrieval = record.append(
-        run_docket_court_retrieval(record.trace, candidate=candidate, client=client)
-    )
-    court = record.append(run_court_comparison(record.citation, evidence=court_retrieval))
+    if fetch_court:
+        court_retrieval = record.append(
+            run_docket_court_retrieval(record.trace, candidate=candidate, client=client)
+        )
+        court = record.append(run_court_comparison(record.citation, evidence=court_retrieval))
+    else:
+        court = record.append(run_court_comparison(record.citation, evidence=candidate))
     rules_agree = (
         (case_name.outcome.agrees or case_name.outcome.value == "unavailable")
         and court.outcome is not FieldCheckOutcome.MISMATCH
@@ -550,44 +492,95 @@ async def _model_judge(
     )
 
 
-def _conclude(
+async def _judge_candidates(
     record: CitationRecord,
-    verdicts: Sequence[Verdict],
+    guarded: Sequence[_Guarded],
     *,
-    every_case_examined: bool,
+    document_text: str,
+    citations: Sequence[ExtractedCitation],
+    session: MelleaSession | None,
+) -> Verdict:
+    """Ask the model, over every record at the locator, which is the filing's case."""
+    judgment = record.append(
+        await run_mellea_candidate_judgment(
+            record,
+            document_text=document_text,
+            citations=citations,
+            candidates=[guard.candidate for guard in guarded],
+            checks=[(guard.case_name, guard.court, guard.date) for guard in guarded],
+            session=session,
+        )
+    )
+    apply_readings(record, judgment)
+    node_ids = (*(node_id for guard in guarded for node_id in guard.node_ids), judgment.node_id)
+    if judgment.outcome is IdentityVerdict.SAME_CASE and judgment.chosen_index is not None:
+        chosen = guarded[judgment.chosen_index - 1]
+        answer = judgment.candidates[judgment.chosen_index - 1]
+        fields = chosen_disagreements(judgment, answer, chosen.case_name, chosen.court, chosen.date)
+        if fields:
+            return Verdict(
+                IdentityOutcome.WRONG_IDENTITY,
+                IdentityReason.FIELD_DISAGREEMENT,
+                chosen.cluster,
+                judgment.node_id,
+                fields,
+                node_ids,
+            )
+        return Verdict(
+            IdentityOutcome.CONFIRMED_IDENTITY, None, chosen.cluster, judgment.node_id, (), node_ids
+        )
+    if judgment.outcome is IdentityVerdict.DIFFERENT_CASE:
+        return Verdict(
+            IdentityOutcome.WRONG_IDENTITY,
+            IdentityReason.DIFFERENT_CASE_AT_LOCATOR,
+            guarded[0].cluster,
+            judgment.node_id,
+            (),
+            node_ids,
+        )
+    return Verdict(
+        IdentityOutcome.DEFER_TO_SEARCH,
+        IdentityReason.UNDETERMINABLE,
+        guarded[0].cluster,
+        judgment.node_id,
+        (),
+        node_ids,
+    )
+
+
+def _conclude(
+    verdict: Verdict,
+    record: CitationRecord,
+    *,
+    records_at_locator: int,
+    agreeing: Sequence[_Guarded],
 ) -> IdentityResolutionNode:
-    """Pick the strongest candidate verdict and write the resolution it implies."""
-
-    def rank(verdict: Verdict) -> int:
-        if verdict.outcome is IdentityOutcome.CONFIRMED_IDENTITY:
-            return 0
-        if verdict.reason is IdentityReason.FIELD_DISAGREEMENT:
-            return 1
-        if verdict.outcome is IdentityOutcome.DEFER_TO_SEARCH:
-            return 2
-        return 3
-
-    best = min(verdicts, key=rank)
-    outcome, reason = best.outcome, best.reason
-    all_different = all(v.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR for v in verdicts)
-    if reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR and not (every_case_examined and all_different):
-        # A page narrowed by the filing's name left cases unread, and a page
-        # where one candidate could not be judged is not settled either; on
-        # neither does a candidate that is not the filing's case show the
-        # filing's case absent. That is the standing rule for absence.
-        outcome, reason = IdentityOutcome.DEFER_TO_SEARCH, IdentityReason.UNDETERMINABLE
+    """Write the resolution one verdict implies, disclosing what else sat at the page."""
+    outcome, reason = verdict.outcome, verdict.reason
     scope = _scope_node(record)
+    others = records_at_locator - 1
     if outcome is IdentityOutcome.CONFIRMED_IDENTITY:
         message = "The locator names one case and every field the filing states agrees with it."
+        if len(agreeing) > 1:
+            message = (
+                f"{len(agreeing)} of {records_at_locator} records at the locator agree with the filing on every "
+                "field; they are one decision the archive holds more than once."
+            )
+        elif others:
+            message = (
+                f"One of {records_at_locator} records at the locator agrees with the filing on every field."
+                if verdict.decided_by == "rule"
+                else f"The judgement chose one of {records_at_locator} records at the locator as the filing's case."
+            )
     elif reason is IdentityReason.FIELD_DISAGREEMENT:
-        names = ", ".join(field.field for field in best.fields)
-        message = f"The locator names the case, but the filing's {names} disagree{'s' if len(best.fields) == 1 else ''} with the record."
+        names = ", ".join(field.field for field in verdict.fields)
+        message = f"The locator names the case, but the filing's {names} disagree{'s' if len(verdict.fields) == 1 else ''} with the record."
     elif reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR:
-        names = [v.cluster.case_name or "unnamed" for v in verdicts]
+        listed = _names_at_locator(record, verdict)
         message = (
-            f"The locator names a different case: {names[0]}."
-            if len(names) == 1
-            else f"The locator names {len(names)} cases, none the filing's: {'; '.join(names)}."
+            f"The locator names a different case: {listed[0]}."
+            if len(listed) == 1
+            else f"The locator names {len(listed)} records, none the filing's case: {'; '.join(listed)}."
         )
     else:
         message = "Nothing at the locator could be shown to be the filing's case, or not to be."
@@ -595,25 +588,37 @@ def _conclude(
         record,
         outcome,
         reason=reason,
-        cluster_id=best.cluster.cluster_id,
-        record_case_name=best.cluster.case_name,
-        decided_by=best.decided_by,
-        fields=best.fields,
-        depends_on=(scope.node_id, *best.node_ids),
+        cluster_id=verdict.cluster.cluster_id,
+        record_case_name=verdict.cluster.case_name,
+        decided_by=verdict.decided_by,
+        fields=verdict.fields,
+        depends_on=(scope.node_id, *verdict.node_ids),
         message=message,
+        records_at_locator=records_at_locator,
+        agreeing_cluster_ids=tuple(g.cluster.cluster_id or "" for g in agreeing) if len(agreeing) > 1 else (),
     )
     record.append(node)
     if node.resolved:
         record.resolve(
             Resolution(
-                cluster_id=best.cluster.cluster_id,
-                case_name=best.cluster.case_name,
-                date_filed=best.cluster.date_filed,
-                court_id=_retrieved_court(record, best.node_ids),
+                cluster_id=verdict.cluster.cluster_id,
+                case_name=verdict.cluster.case_name,
+                date_filed=verdict.cluster.date_filed,
+                court_id=_retrieved_court(record, verdict.node_ids),
                 node_id=node.node_id,
             )
         )
     return node
+
+
+def _names_at_locator(record: CitationRecord, verdict: Verdict) -> list[str]:
+    """The case names of every record the verdict rests on, in candidate order."""
+    names = [
+        node.case_name or "unnamed"
+        for node in record.trace.nodes
+        if isinstance(node, CandidateEvaluationNode) and node.node_id in verdict.node_ids
+    ]
+    return names or [verdict.cluster.case_name or "unnamed"]
 
 
 def _retrieved_court(record: CitationRecord, node_ids: tuple[str, ...]) -> str | None:
@@ -634,6 +639,8 @@ def _resolution(
     record_case_name: str | None = None,
     decided_by: str = "rule",
     fields: tuple[FieldDisagreement, ...] = (),
+    records_at_locator: int = 1,
+    agreeing_cluster_ids: tuple[str, ...] = (),
 ) -> IdentityResolutionNode:
     return IdentityResolutionNode(
         node_id=f"{record.citation_id}:identity_resolution",
@@ -647,6 +654,8 @@ def _resolution(
         depends_on=depends_on,
         status_message="Identity resolution completed.",
         outcome_message=message,
+        records_at_locator=records_at_locator,
+        agreeing_cluster_ids=agreeing_cluster_ids,
     )
 
 
