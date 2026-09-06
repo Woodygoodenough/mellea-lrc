@@ -447,7 +447,7 @@ def test_a_misspelt_party_is_the_same_case_with_a_defect(monkeypatch: pytest.Mon
         monkeypatch,
         {
             "case_name_read": "Rufo v. Inmates of Suffock County Jail",
-            "case_name_agreement": "variant",
+            "case_name_agreement": "misspelt",
             "court_read": "scotus",
             "court_evidence": None,
             "court_basis": "implied_by_reporter",
@@ -481,9 +481,46 @@ def test_a_misspelt_party_is_the_same_case_with_a_defect(monkeypatch: pytest.Mon
     resolution = _resolution(result.record("c1"))
     assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
     assert resolution.reason is IdentityReason.FIELD_DISAGREEMENT
-    assert [(f.field, f.agreement.value) for f in resolution.fields] == [("case_name", "variant")]
+    assert [(f.field, f.agreement.value) for f in resolution.fields] == [("case_name", "misspelt")]
     assert result.record("c1").resolution is not None
     assert result.record("c1").corrections == ()
+
+
+def test_an_equivalent_caption_is_a_variant_and_not_a_defect(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_model(
+        monkeypatch,
+        {
+            "case_name_read": "Roe ex rel. Roe v. Acme Corp.",
+            "case_name_agreement": "variant",
+            "court_read": None,
+            "court_evidence": None,
+            "court_basis": "none",
+            "date_read": "2001",
+            "date_evidence": "2001",
+            "verdict": "same_case",
+            "reason": "A relator caption for the same case.",
+        },
+    )
+    text = "Roe ex rel. Roe v. Acme Corp., 300 F.3d 1 (4th Cir. 2001)."
+    citation = FullCaseCitation(
+        plaintiff="Roe ex rel. Roe",
+        defendant="Acme Corp.",
+        volume="300",
+        reporter=F3D,
+        page="1",
+        date=CitationDate(year="2001"),
+    )
+    root = _cite("c1", citation, text=text, locator="300 F.3d 1", authority_id="c1")
+    record = CourtListenerOpinionCluster(
+        cluster_id="c-r", case_name="Doe v. Acme Corporation", date_filed="2001-05-05"
+    )
+    result = _run(_document(text, root), Client({("300", "F.3d", "1"): (record,)}), session=object())
+
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.CONFIRMED_IDENTITY
+    assert resolution.fields == ()
+    judgment = next(n for n in result.record("c1").trace.nodes if isinstance(n, MelleaIdentityJudgmentNode))
+    assert judgment.case_name_agreement is FieldAgreement.VARIANT
 
 
 def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -525,8 +562,11 @@ def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.Monk
         (("undeterminable", "disagree", "agree"), "different_case", "no case name"),
         (("undeterminable", "disagree", "agree"), "undeterminable", None),
         (("variant", "agree", "agree"), "same_case", None),
-        (("variant", "agree", "agree"), "different_case", "at least one field to disagree"),
-        (("variant", "agree", "agree"), "undeterminable", "undeterminable field"),
+        (("variant", "agree", "agree"), "different_case", "Every field agrees"),
+        (("variant", "agree", "agree"), "undeterminable", "Every field agrees"),
+        (("misspelt", "agree", "agree"), "same_case", None),
+        (("misspelt", "agree", "agree"), "undeterminable", "undeterminable field"),
+        (("misspelt", "disagree", "agree"), "different_case", "same case"),
         (("agree", "disagree", "agree"), "same_case", None),
         (("agree", "undeterminable", "agree"), "same_case", None),
         (("disagree", "agree", "agree"), "different_case", None),
@@ -716,7 +756,7 @@ def test_a_failed_judgment_keeps_the_readings_whose_evidence_passed(monkeypatch:
     root = _cite(
         "c1",
         _twombly(
-            plaintiff="Under Norton",
+            plaintiff="Under Nortan",
             defendant="Shelby County",
             volume="118",
             page="425",
@@ -966,6 +1006,7 @@ def test_the_judgement_may_choose_one_record_and_its_fields_are_then_compared(
     [
         ([("agree", "yes"), ("disagree", "no")], 1, "same_case", None),
         ([("agree", "yes"), ("disagree", "no")], 2, "same_case", "must be a record whose"),
+        ([("misspelt", "yes"), ("disagree", "no")], 1, "same_case", None),
         ([("agree", "yes"), ("disagree", "no")], 1, "different_case", "chosen record means"),
         ([("agree", "yes"), ("disagree", "no")], None, "same_case", "needs a chosen_index"),
         ([("disagree", "no"), ("disagree", "no")], None, "different_case", None),

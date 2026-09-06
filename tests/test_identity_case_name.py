@@ -114,7 +114,15 @@ from mellea_lrc.validation.types import (
             "Alaska v. Native Village of Venetie Tribal Government",
             CaseNameAgreement.CONTAINED,
         ),
-        # A misspelling is left to the judgement, which can call it a variant.
+        # Either side may be the fuller one: the archive truncates a caption too.
+        (
+            "Planned Parenthood Minn., N.D., S.D.",
+            "Rounds",
+            "Planned Parenthood, etc. v. Mike Rounds",
+            CaseNameAgreement.CONTAINED,
+        ),
+        ("Brown", "Board of Education", "Brown v. Board", CaseNameAgreement.CONTAINED),
+        # A misspelling is left to the judgement, which says whether it is one.
         (
             "Rufo",
             "Inmates of Suffock County Jail",
