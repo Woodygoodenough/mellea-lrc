@@ -14,8 +14,8 @@ things are read, each a request:
 1. the cluster itself, whose ``other_dates`` is free text of every date beside
    the filing date -- `Argued and Submitted April 18, 2013., Amended Feb. 5,
    2014.`
-2. failing that, the header of the cluster's first opinion, where a court
-   prints `Decided December 20, 1948` or `Filed September 28, 2021`
+2. failing that, the headers of the cluster's opinions, read in turn, where a
+   court prints `Decided December 20, 1948` or `Filed September 28, 2021`
 
 A dated event that states the filing's year -- decided, amended, filed,
 reissued, modified -- makes the date ``compatible``, and the node carries the
@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 
 HEADER_CHARS = 3000
 """How far into an opinion's text the dated header is looked for."""
+MAX_OPINIONS = 4
+"""How many of a cluster's opinions are read for a header, each a request."""
 
 _EVENT = re.compile(
     r"\b(?:Decided|Filed|Amended|Reissued|Modified|Re-?filed|Opinion filed|As amended|"
@@ -87,10 +89,13 @@ def run_date_reconciliation(
     phrases = list(dated_events(cluster.other_dates))
     matched = _states_year(phrases, year)
     opinion_id: str | None = None
-    if matched is None and cluster.sub_opinion_ids:
-        opinion_id = cluster.sub_opinion_ids[0]
+    opinions_read: list[str] = []
+    # The cluster lists its opinions in no useful order: the lead opinion,
+    # which starts at the judge's name, may come before the combined one that
+    # carries the court's header. Each is read until one states the year.
+    for candidate_opinion in cluster.sub_opinion_ids[:MAX_OPINIONS] if matched is None else ():
         try:
-            opinion = client.get_opinion(opinion_id)
+            opinion = client.get_opinion(candidate_opinion)
         except CourtListenerError as exc:
             return _node(
                 node_id,
@@ -98,15 +103,21 @@ def run_date_reconciliation(
                 ValidationNodeStatus.FAILED,
                 FieldCheckOutcome.MISMATCH,
                 other_dates=cluster.other_dates,
-                opinion_id=opinion_id,
+                opinion_id=None,
+                opinions_read=tuple(opinions_read),
                 dated_phrases=tuple(phrases),
-                status_message="Date reconciliation failed while fetching the opinion.",
-                outcome_message="The plain comparison stands; the opinion's header could not be read.",
+                status_message="Date reconciliation failed while fetching an opinion.",
+                outcome_message="The plain comparison stands; an opinion's header could not be read.",
                 error=exc.message,
             )
+        opinions_read.append(candidate_opinion)
         header = " ".join(_TAG.sub(" ", opinion.html_with_citations).split())[:HEADER_CHARS]
-        phrases.extend(dated_events(header))
-        matched = _states_year(phrases, year)
+        found = dated_events(header)
+        phrases.extend(found)
+        matched = _states_year(list(found), year)
+        if matched is not None:
+            opinion_id = candidate_opinion
+            break
     if matched is not None:
         return _node(
             node_id,
@@ -115,10 +126,14 @@ def run_date_reconciliation(
             FieldCheckOutcome.COMPATIBLE,
             other_dates=cluster.other_dates,
             opinion_id=opinion_id,
+            opinions_read=tuple(opinions_read),
             dated_phrases=tuple(phrases),
             matched_phrase=matched,
             status_message="Date reconciliation completed.",
-            outcome_message=f"The archive dates the record {date.retrieved_date}, and also holds '{matched}', which states the filing's year.",
+            outcome_message=(
+                f"The archive dates the record {date.retrieved_date}, and also holds '{matched}', "
+                "which states the filing's year."
+            ),
         )
     return _node(
         node_id,
@@ -126,7 +141,8 @@ def run_date_reconciliation(
         ValidationNodeStatus.SUCCEEDED,
         FieldCheckOutcome.MISMATCH,
         other_dates=cluster.other_dates,
-        opinion_id=opinion_id,
+        opinion_id=None,
+        opinions_read=tuple(opinions_read),
         dated_phrases=tuple(phrases),
         status_message="Date reconciliation completed.",
         outcome_message=(
@@ -152,6 +168,7 @@ def _node(
     *,
     other_dates: str | None = None,
     opinion_id: str | None = None,
+    opinions_read: tuple[str, ...] = (),
     dated_phrases: tuple[str, ...] = (),
     matched_phrase: str | None = None,
     status_message: str,
@@ -166,6 +183,7 @@ def _node(
         retrieved_date=date.retrieved_date,
         other_dates=other_dates,
         opinion_id=opinion_id,
+        opinions_read=opinions_read,
         dated_phrases=dated_phrases,
         matched_phrase=matched_phrase,
         depends_on=(date.node_id,),
