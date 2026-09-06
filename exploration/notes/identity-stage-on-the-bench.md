@@ -19,12 +19,12 @@ allowance; the model was `openai/gpt-5.6-luna`.
 
 | outcome | reason | roots |
 |---|---|---:|
-| confirmed identity | | 267 |
-| wrong identity | a different case at the locator | 20 |
-| wrong identity | a field the filing states disagrees | 16 |
+| confirmed identity | | 268 |
+| wrong identity | a different case at the locator | 23 |
+| wrong identity | a field the filing states disagrees | 15 |
 | ambiguous identity | crowded page | 1 |
 | defer to search | nothing at the locator | 83 |
-| defer to search | undeterminable | 4 |
+| defer to search | undeterminable | 1 |
 | defer to search | docket citation | 6 |
 
 Of the 897 citations, 397 are roots and the other 500 inherit: 12 of those
@@ -32,9 +32,9 @@ inherit through a parallel citation the lookup folded into its neighbour, and
 the rest through the citation tree extraction built. **One lookup per
 authority is the whole cost.**
 
-The 93 deferred to search are 49 Westlaw numbers, 3 LEXIS numbers, 8
-specialty reporters and 23 printed reporters the archive holds nothing for, 4
-roots a judgement could not settle, and 6 docket citations. Two runs of the
+The 90 deferred to search are 49 Westlaw numbers, 3 LEXIS numbers, 8
+specialty reporters and 23 printed reporters the archive holds nothing for, 1
+root a judgement could not settle, and 6 docket citations. Two runs of the
 same code differ by one or two roots in the confirmed and field-disagreement
 rows, which is the model's variance on the calls the rules leave it. That is open
 search's population on this corpus, and it is dominated by vendor numbers, as
@@ -42,15 +42,15 @@ it was on LePhantomCite.
 
 ## 2. What the wrong identities are
 
-Twenty are a locator whose record names a different case from the one the
+Twenty-three are a locator whose record names a different case from the one the
 filing describes -- `Cadle Co. v. Ayala` cited at a page that holds `Ramirez v.
-City of New York`. Nineteen are plainly that. The twentieth, `Lacey v. Maricopa
+City of New York`. Twenty-two are plainly that. The other, `Lacey v. Maricopa
 County` at 693 F.3d 896, is the same case under the archive's caption `Michael
 Lacey v. Joseph Arpaio`, and nothing in the record says so; it is the one
 false wrong-identity left, and a docket fetch for the caption is what would settle
 it.
 
-The other 16 are the same case with a field the filing misstates: a court, a
+The other 15 are the same case with a field the filing misstates: a court, a
 year, or a party misspelt or dropped. Both kinds are
 `wrong_identity`; the reason and the fields under the node keep them apart,
 and the second kind still resolves the record, since the case was found.
@@ -120,35 +120,28 @@ extracted citation stays beside each, unchanged.
 
 ## 5. Against the bench's own labels
 
-The bench's 79 annotations are anchored to v1 text, so they were matched to
-the stage's output by document and locator rather than by offset. 25 are
-`misrepresented_authority`: the case exists and does not say what it is cited
-for. Identity confirms 19 of them and does not see the other 6, which is
-right -- that defect is the pinpoint stage's. The 54 `unverifiable_authority`
-annotations are the ones identity should catch:
+`data/validation-v2.0/annotations.json` labels 49 authorities `WRONG_IDENTITY`
+and 19 `WRONG_PINCITE`, by the same classification rule the stage applies.
+Matched by document and locator span:
 
-| what identity concluded | count |
+| what identity concluded, over the 49 | count |
 |---|---:|
-| wrong identity, a different case at the locator | 19 |
-| defer to search, nothing at the locator, mostly Westlaw numbers | 27 |
-| wrong identity, the filing names the wrong court | 5 |
-| confirmed identity | 1 |
-| defer to search, cited by docket number | 1 |
-| no locator for extraction to read (`Kusulas v. GE/CO`) | 1 |
+| wrong identity, a different case at the locator | 21 |
+| wrong identity, the filing misstates the court | 5 |
+| defer to search, the archive holds nothing at the locator | 21 |
+| no authority to check: a docket number, or a name with no locator | 2 |
 
-**No bench-labelled false citation is passed as clean but one**, and that one
-is misclassified by the bench rather than missed by the stage. `In re
-Soundview Elite Ltd., 503 B.R. 571 (Bankr. S.D.N.Y. 2014)` exists at that
-locator on that date, and the court's correction points to a different
-Soundview opinion, 543 B.R. 78 (2016), for the proposition. The rule is that a
-locator identifying one case whose fields agree with the filing is a sound
-identity, and whatever is wrong is in what it is cited for: a
-misrepresentation, for the pinpoint stage, however plainly the proposition
-belongs to another case. The five court-defect cases are `Hernandez v. Mario's
-Auto Sales` and its kind: the case exists, the filing names the wrong court,
-and the stage reports a wrong identity with the court as the disagreeing field. The audit
-of every label the rule reads differently is untracked in the dataset
-directory, `data/false-citation-bench/audit-identity-vs-misrepresentation.md`.
+**Where the archive holds the page, every one of the 49 is caught**, and none
+is confirmed. The 21 deferred are 16 Westlaw or LEXIS numbers and 5 printed
+locators at which no opinion starts in the archive; the sanctioning courts
+found them through Westlaw. Two labelled entries needed the refutation rule
+corrected to be reached: a page the archive holds twice, and a page holding
+two cases both judged different. The rule is now that a refutation needs
+every case the archive holds at the page to have been examined and judged a
+different case, and a page narrowed by the filing's own name still defers.
 
-The 27 deferred to search are not caught either. They are the open-search population,
-and the bench's label says what a search would find: nothing.
+The stage also reports 12 wrong identities the labels do not carry: ten
+defects the sanctioning courts did not mention, a parallel citation of a
+labelled entry, and one false alarm, `Lacey v. Maricopa County`, which the
+archive captions by the sheriff's name. The per-entry reading is untracked in
+the dataset directory, `data/validation-v2.0/audit-identity-stage-vs-labels.md`.
