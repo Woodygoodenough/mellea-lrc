@@ -153,8 +153,12 @@ class FieldAgreement(str, Enum):
     DISAGREE = "disagree"
     UNDETERMINABLE = "undeterminable"
     VARIANT = "variant"
-    """The same case, named defectively: a misspelt or garbled party, a party
-    dropped. Case name only. Counts as agreement for identity and as a defect."""
+    """The same case under an equivalent caption: a relator form, a party under
+    another role, a caption one side truncated. Case name only. Counts as
+    agreement and is disclosed; it is not a defect of the filing."""
+    MISSPELT = "misspelt"
+    """The same case with a party the filing spells wrongly. Case name only.
+    Counts as agreement for identity and as a defect of the filing."""
     COMPATIBLE = "compatible"
     """The filing states no value, and what the reporter implies does not
     conflict with the record. Court only. Counts as agreement."""
@@ -200,7 +204,7 @@ class FieldDisagreement:
     filing_value: str | None
     record_value: str | None
     agreement: FieldAgreement
-    """``disagree`` or ``variant``, as the judgement or the rule answered."""
+    """``disagree`` or ``misspelt``, as the judgement or the rule answered."""
 
 
 class AuthorityMergeOutcome(str, Enum):

@@ -61,7 +61,7 @@ __all__ = [
 # reporter puts around a party.
 _GENERIC = re.compile(
     r"\b(inc|llc|llp|ltd|co|corp|corporation|company|the|of|and|et|al|state|"
-    r"commonwealth|dept|department|in|re|matter|ex|rel)\b"
+    r"commonwealth|dept|department|in|re|matter|ex|rel|etc)\b"
 )
 _APOSTROPHE = re.compile(r"['\u2019]")
 _PUNCTUATION = re.compile(r"[^a-z0-9 ]+")

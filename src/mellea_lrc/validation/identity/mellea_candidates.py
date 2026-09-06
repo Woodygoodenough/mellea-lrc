@@ -17,7 +17,7 @@ in the same windows as the single-candidate judgement, and the model answers
 per record, then chooses one or none.
 
 The choice is held to the answers. A chosen record must be one whose name the
-model called the same case or a variant of it; a verdict that the filing's
+model called the same case, a variant of it or a misspelling; a verdict that the filing's
 case is not at the page needs every record judged not the filing's case; and
 anything short of both is undeterminable, which defers to search.
 """
@@ -100,12 +100,16 @@ must come from. Report `case_name_read` as the filing wrote it, or null;
 a Supreme Court reporter, or null with `court_basis` `none`; `date_read` as
 `YYYY` or `YYYY-MM-DD` with `date_evidence` the exact string.
 
-Then, for each record in `records`, answer `case_name_agreement` -- `agree`
+Then, for each record in `records`, answer `case_name_agreement`: `agree`
 when the filing's name and the record's name the same case allowing the
-abbreviations a citation uses by convention, `variant` when it is evidently
-the same case written defectively, `disagree` when a party on either side is
-a different party, `undeterminable` when one side states no name -- and
-`same_case`: `yes`, `no`, or `undeterminable`. Give a one-sentence `reason`
+abbreviations a citation uses by convention; `variant` when the two are
+equivalent captions of one case -- a qui tam relator form against the
+government's own name, a party under another role, a caption one side
+truncated or malformed in transcription -- which is the same case correctly
+cited; `misspelt` when the same party is spelled wrongly in the filing, which
+is the same case and a defect; `disagree` when a party on either side is a
+different party; `undeterminable` when one side states no name. Then
+`same_case`: `yes`, `no`, or `undeterminable`, and a one-sentence `reason`
 per record. Two records may be one decision the archive holds twice; say so,
 and answer both the same way.
 
@@ -130,7 +134,7 @@ class CandidateVerdict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     index: int
-    case_name_agreement: Literal["agree", "disagree", "undeterminable", "variant"]
+    case_name_agreement: Literal["agree", "disagree", "undeterminable", "variant", "misspelt"]
     same_case: Literal["yes", "no", "undeterminable"]
     reason: str
 
@@ -160,10 +164,10 @@ def choice_supported(judgment: CandidateJudgment, *, count: int) -> str | None:
     by_index = {record.index: record for record in judgment.records}
     if judgment.chosen_index is not None:
         chosen = by_index[judgment.chosen_index]
-        if chosen.case_name_agreement not in ("agree", "variant") or chosen.same_case != "yes":
+        if chosen.case_name_agreement not in ("agree", "variant", "misspelt") or chosen.same_case != "yes":
             return (
-                f"chosen_index {judgment.chosen_index} must be a record whose case_name_agreement is agree "
-                "or variant and whose same_case is yes."
+                f"chosen_index {judgment.chosen_index} must be a record whose case_name_agreement is agree, "
+                "variant or misspelt and whose same_case is yes."
             )
         if judgment.verdict != "same_case":
             return "A chosen record means the verdict is same_case."

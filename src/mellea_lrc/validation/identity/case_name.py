@@ -6,12 +6,14 @@ writes `Reyes v. Pac. Bell` for `Victor Reyes v. Pacific Bell`, or `Golden` for
 defects. Sending each of them to a model to be told so costs a call per
 citation for an answer a rule can give.
 
-The rule is containment, one side at a time. A case name has up to two sides,
-and every distinctive word the filing wrote on a side must appear in the
-corresponding side of the record, allowing the abbreviations a citation
-conventionally uses. Sides may swap, since a cross-appeal reverses them. What
-the filing did not write is not held against it: `Golden` is contained in
-`Bobby Ray Golden` because the filing's one word is there.
+The rule is containment, one side at a time, in either direction. A case
+name has up to two sides, and a side agrees when every distinctive word one
+party wrote appears in the other's, allowing the abbreviations a citation
+conventionally uses. Usually the filing is the shorter side and the archive
+the fuller; sometimes the archive truncated a caption and the filing wrote it
+whole. Sides may swap, since a cross-appeal reverses them. What one side did
+not write is not held against it: `Golden` is contained in `Bobby Ray Golden`
+because the filing's one word is there.
 
 Two things this deliberately does not do. It does not decide from an absence:
 a filing that wrote no name, or a record that carries none, is `UNAVAILABLE`
@@ -111,7 +113,11 @@ def _sides_contained(
         return False
 
     def covers(side: tuple[frozenset[str], str], words: frozenset[str]) -> bool:
-        return _side_covers(side[0], side[1], words, acronyms)
+        # Either side may be the fuller one: the filing abbreviates, and the
+        # archive truncates a caption or drops a party's role.
+        return _side_covers(side[0], side[1], words, acronyms) or _side_covers(
+            words, "", side[0], frozenset()
+        )
 
     if len(written) == 1:
         return any(covers(side, written[0]) for side in recorded)

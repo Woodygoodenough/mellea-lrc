@@ -10,8 +10,8 @@ The model is a reader that must show its evidence. Each field it reads comes
 with the string it read it from, and a deterministic requirement checks that
 string against the window the field has to come from: the text before the
 locator for the case name, the parenthetical after it for the court and the
-date. The check is fuzzy, because the model writes `Suffolk` where the filing
-wrote `Suffock` and is not to be punished for reading well; it needs one place
+date. The check is fuzzy, because the model corrects a letter the filing got
+wrong and is not to be punished for reading well; it needs one place
 in the window the string could have come from. A court read from a stated
 parenthetical must resolve to the identifier the model gave through courts-db,
 and a court the model infers from the reporter is allowed only where the
@@ -111,8 +111,8 @@ Two windows bound what you may read:
 
 For the court, report `court_read` as a courts-db identifier and say how you
 know. If the parenthetical names the court, `court_basis` is `stated` and
-`court_evidence` is the exact string that names it, such as `9th Cir.` or
-`E.D.N.Y.` or `Fla. Dist. Ct. App.`. If the parenthetical names no court but
+`court_evidence` is the exact string that names it, such as `4th Cir.` or
+`D. Mass.` or `Ohio Ct. App.`. If the parenthetical names no court but
 the reporter implies one -- `U.S.`, `S. Ct.` and `L. Ed.` are the Supreme
 Court, `scotus` -- `court_basis` is `implied_by_reporter` and
 `court_evidence` is null. A regional or federal reporter such as `F.3d` or
@@ -122,18 +122,25 @@ the reporter holds is then checked without you.
 
 For the date, report `date_read` as `YYYY` when the filing states a year and
 `YYYY-MM-DD` when it states a day, and `date_evidence` as the exact string you
-read it from, such as `2007` or `Oct. 31, 2024`.
+read it from, such as `2003` or `Mar. 3, 2021`.
 
-Then the one judgement that is yours: `case_name_agreement`. `agree` when the
-filing's name and the record's name the same case, allowing the abbreviations
-a citation uses by convention -- `Pac.` for Pacific, `Corp.` for Corporation,
-an agency by its acronym (`FDIC`, `EEOC`), first names and `et al.` dropped,
-`United States` written `U.S.`, sides reversed on appeal, a record carrying
-more words than the filing wrote or fewer.
-`variant` when it is evidently the same case written defectively: a misspelt
-party, a party dropped or garbled, a caption that does not match. `disagree`
-when a party on either side is a different party. `undeterminable` when the
-filing or the record states no name.
+Then the one judgement that is yours: `case_name_agreement`.
+- `agree` when the filing's name and the record's name the same case,
+  allowing the abbreviations a citation uses by convention -- `Ins.` for
+  Insurance, `Corp.` for Corporation, an agency by its acronym (`SEC`,
+  `NLRB`), first names and `et al.` dropped, `United States` written `U.S.`,
+  sides reversed on appeal, one side carrying more words than the other.
+- `variant` when the two are equivalent captions of one case rather than one
+  being an abbreviation of the other: a qui tam relator form against the
+  government's own name, a party listed under another role (`ex rel.`,
+  `by and through`), a caption one side truncated to `etc.` or malformed in
+  transcription. A variant is the same case correctly cited; report it, and
+  it is not a defect.
+- `misspelt` when the same party is spelled wrongly in the filing: a letter
+  dropped, doubled or swapped in a name that is otherwise the record's. This
+  is the same case and a defect of the filing.
+- `disagree` when a party on either side is a different party.
+- `undeterminable` when the filing or the record states no name.
 
 `verdict` is `same_case`, `different_case` or `undeterminable`, and it must
 follow from the agreements. The court and date agreements are computed from
@@ -163,7 +170,7 @@ class IdentityJudgment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_name_read: str | None
-    case_name_agreement: Literal["agree", "disagree", "undeterminable", "variant"]
+    case_name_agreement: Literal["agree", "disagree", "undeterminable", "variant", "misspelt"]
     court_read: str | None
     court_evidence: str | None
     court_basis: Literal["stated", "implied_by_reporter", "none"]
@@ -305,7 +312,7 @@ def verdict_supported(judgment: IdentityJudgment, grounding: Grounding) -> str |
     name = judgment.case_name_agreement
     court = court_agreement(judgment.court_read, grounding.record_court_id, grounding.implied).value
     answers = (
-        name,
+        "agree" if name == "variant" else name,
         "agree" if court == "compatible" else court,
         date_agreement(judgment.date_read, grounding.record_date).value,
     )
@@ -313,7 +320,7 @@ def verdict_supported(judgment: IdentityJudgment, grounding: Grounding) -> str |
         return "Every field agrees, so the verdict must be same_case."
     if judgment.verdict == "different_case" and "disagree" not in answers:
         return "A different_case verdict needs at least one field to disagree."
-    if judgment.verdict == "different_case" and name in ("agree", "variant"):
+    if judgment.verdict == "different_case" and name in ("agree", "variant", "misspelt"):
         return (
             "The case name agrees, so this is the same case; a disagreeing court or date "
             "is a defect of the filing, and the verdict must be same_case."
@@ -327,6 +334,8 @@ def verdict_supported(judgment: IdentityJudgment, grounding: Grounding) -> str |
         return "A disagreeing case name rules out same_case."
     if judgment.verdict == "undeterminable" and "undeterminable" not in answers:
         return "An undeterminable verdict needs at least one undeterminable field."
+    if name == "misspelt" and judgment.verdict != "same_case":
+        return "A misspelt party is the same case; the verdict must be same_case."
     return None
 
 
@@ -549,7 +558,7 @@ def chosen_disagreements(
     return tuple(
         FieldDisagreement(field=name, filing_value=filing, record_value=recorded, agreement=agreement)
         for name, (agreement, filing, recorded) in answers.items()
-        if agreement in (FieldAgreement.DISAGREE, FieldAgreement.VARIANT)
+        if agreement in (FieldAgreement.DISAGREE, FieldAgreement.MISSPELT)
     )
 
 
@@ -598,7 +607,7 @@ def field_disagreements(
             field=name, filing_value=values[name][0], record_value=values[name][1], agreement=answer
         )
         for name, answer in answers.items()
-        if answer in (FieldAgreement.DISAGREE, FieldAgreement.VARIANT)
+        if answer in (FieldAgreement.DISAGREE, FieldAgreement.MISSPELT)
     )
 
 
