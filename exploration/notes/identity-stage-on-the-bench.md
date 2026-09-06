@@ -13,16 +13,16 @@ allowance; the model was `openai/gpt-5.6-luna`.
 |---|---:|
 | citations | 897 |
 | roots, one lookup each | 397 |
-| roots decided by rule alone | 353 |
-| model calls | 47 |
+| roots decided by rule alone | 354 |
+| model calls | 43, of which 7 over several records at once |
 | parallel citations merged into one authority | 8 |
 
 | outcome | reason | roots |
 |---|---|---:|
-| confirmed identity | | 268 |
+| confirmed identity | | 266 |
 | wrong identity | a different case at the locator | 23 |
-| wrong identity | a field the filing states disagrees | 15 |
-| ambiguous identity | crowded page | 1 |
+| wrong identity | a field the filing states disagrees | 17 |
+| ambiguous identity | crowded page, more records than a judgement is shown | 1 |
 | defer to search | nothing at the locator | 83 |
 | defer to search | undeterminable | 1 |
 | defer to search | docket citation | 6 |
@@ -50,7 +50,7 @@ Lacey v. Joseph Arpaio`, and nothing in the record says so; it is the one
 false wrong-identity left, and a docket fetch for the caption is what would settle
 it.
 
-The other 15 are the same case with a field the filing misstates: a court, a
+The other 17 are the same case with a field the filing misstates: a court, a
 year, or a party misspelt or dropped. Both kinds are
 `wrong_identity`; the reason and the fields under the node keep them apart,
 and the second kind still resolves the record, since the case was found.
@@ -86,10 +86,24 @@ went from 35 to 20, and every one left names a different case at the page.
 Two more came from reading traces. On a page of two cases, the model was asked
 about the first before the rules had looked at the second, which matched
 exactly; the rules now run on every candidate first, and a model is asked only
-when none settled. And the merge that treats one date as one decision folded
+when none settled. And the merge that treated one date as one decision folded
 `Lewis v. Clarke` into `Williams v. Kelley` on a Supreme Court orders page,
-which holds many cases with one date; records sharing a date now stay apart
-when both are named and share no word.
+which holds many cases with one date.
+
+That merge is now gone from the stage, with the narrowing by case name that
+sat beside it. Both decided which records were one case by a heuristic that a
+reader could not check the way a field comparison can. What replaced them:
+every record at the locator gets the rule guard, any record agreeing on every
+field confirms with the page disclosed, and when none agrees one judgement is
+shown all the records together and answers for each. Over the 52 roots on this
+bench with more than one record at the page, 36 are one decision the archive
+holds twice and confirm by rule with both copies listed, 8 confirm by rule on
+one record among several, 7 went to the judgement -- which chose `Lewis v.
+Clarke` off its orders page, chose the malformed `Ex El.` caption for `United
+States ex rel. Newsham`, and refuted `JPMorgan Chase Bank v. Szajna` and `Boss
+v. N.Y. Life` against every record at their pages -- and 1 holds more records
+than a judgement is shown at once and is ambiguous. Model calls fell from 47
+to 43, because a decision held twice needs no merge to confirm.
 
 ## 4. What the judgement reads, and with what evidence
 
@@ -134,11 +148,10 @@ Matched by document and locator span:
 **Where the archive holds the page, every one of the 49 is caught**, and none
 is confirmed. The 21 deferred are 16 Westlaw or LEXIS numbers and 5 printed
 locators at which no opinion starts in the archive; the sanctioning courts
-found them through Westlaw. Two labelled entries needed the refutation rule
-corrected to be reached: a page the archive holds twice, and a page holding
-two cases both judged different. The rule is now that a refutation needs
-every case the archive holds at the page to have been examined and judged a
-different case, and a page narrowed by the filing's own name still defers.
+found them through Westlaw. Two of the 21 refuted sit at pages holding more
+than one record -- a decision held twice, and two cases decided on one day --
+and are reached by the judgement over every record at the page, which
+answered for each and chose none.
 
 The stage also reports 12 wrong identities the labels do not carry: ten
 defects the sanctioning courts did not mention, a parallel citation of a
