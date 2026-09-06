@@ -125,8 +125,9 @@ read it from, such as `2007` or `Oct. 31, 2024`.
 Then the one judgement that is yours: `case_name_agreement`. `agree` when the
 filing's name and the record's name the same case, allowing the abbreviations
 a citation uses by convention -- `Pac.` for Pacific, `Corp.` for Corporation,
-first names and `et al.` dropped, `United States` written `U.S.`, sides
-reversed on appeal, a record carrying more words than the filing wrote.
+an agency by its acronym (`FDIC`, `EEOC`), first names and `et al.` dropped,
+`United States` written `U.S.`, sides reversed on appeal, a record carrying
+more words than the filing wrote or fewer.
 `variant` when it is evidently the same case written defectively: a misspelt
 party, a party dropped or garbled, a caption that does not match. `disagree`
 when a party on either side is a different party. `undeterminable` when the
