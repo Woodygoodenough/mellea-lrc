@@ -17,6 +17,7 @@ from mellea_lrc.preprocessing import (
     is_docling_supported_format,
     preprocess,
     preprocess_plain_text_from_string,
+    looks_like_a_stamp,
     preprocess_with_docling,
 )
 
@@ -143,3 +144,19 @@ def test_preprocessed_document_rejects_empty_text() -> None:
             text="",
             preprocessing_metadata=PreprocessingMetadata(),
         )
+
+
+def test_a_filing_stamp_is_recognised_whatever_court_printed_it() -> None:
+    """The gate is loose on purpose: no one court's wording is required."""
+    assert looks_like_a_stamp("Case 2:25-cv-01295-GMS     Document 1     Filed 04/18/25     Page 6 of 32")
+    assert looks_like_a_stamp(
+        "Case No. 1:24-cv-00814-PAB-SBP   Document 77   filed 10/27/25   USDC Colorado   pg 1 of 9"
+    )
+    assert looks_like_a_stamp("Case: 1:24-cv-00074-SA-DAS Doc #: 79-1 Filed: 12/19/25 1 of 3 PageID #: 513")
+
+
+def test_prose_is_not_a_filing_stamp() -> None:
+    """A sentence that mentions a case and a page is still a sentence."""
+    assert not looks_like_a_stamp("In that case the court reached page 12 of the opinion before saying so.")
+    assert not looks_like_a_stamp("See Ashcroft v. Iqbal, 556 U.S. 662, 678 (2009).")
+    assert not looks_like_a_stamp("")

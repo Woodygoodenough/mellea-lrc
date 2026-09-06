@@ -18,9 +18,10 @@ class LayoutRule(str, Enum):
     """A thing printed on the page that is not part of the document's text.
 
     Each names furniture a court or a word processor added around the writing:
-    the numbered margin of pleading paper, a running head. Every one of them
-    changes the text and therefore every offset after it, so which ran is
-    recorded beside the text rather than assumed.
+    the numbered margin of pleading paper, a running head, the stamp an ECF
+    system prints when a document is filed. Every one of them changes the text
+    and therefore every offset after it, so which ran is recorded beside the
+    text rather than assumed.
     """
 
     MARGIN_LINE_NUMBERS = "margin_line_numbers"
@@ -29,14 +30,18 @@ class LayoutRule(str, Enum):
     REPEATED_FURNITURE = "repeated_furniture"
     """Running heads and feet the converter labelled inconsistently."""
 
+    DOCKET_STAMP = "docket_stamp"
+    """The filing stamp a court prints across the top of every page."""
+
 
 DEFAULT_LAYOUT_RULES: tuple[LayoutRule, ...] = (
     LayoutRule.MARGIN_LINE_NUMBERS,
     LayoutRule.REPEATED_FURNITURE,
+    LayoutRule.DOCKET_STAMP,
 )
-"""Both of them. None of this is the document's text, and a rendering that keeps
+"""All of them. None of this is the document's text, and a rendering that keeps
 it is wrong about the document -- a margin number landing inside a citation, a
-running head splitting one. Pass a shorter list to keep some of it."""
+page stamp read as part of a date. Pass a shorter list to keep some of it."""
 
 
 @dataclass(frozen=True, slots=True)
