@@ -4,7 +4,11 @@ The input is what ``scripts/extract_bench.py`` on the extraction branch writes:
 a directory with a ``manifest.json`` and one extracted-document artifact per
 filing. Each is loaded as a real ``ExtractedDocument`` -- spans, citation
 objects, authority and co-location ids -- and identified. The output is one
-identified-document artifact per filing beside a summary of outcomes.
+identified-document artifact per filing beside a summary of outcomes and a
+manifest naming the code commit, the source run's commit, the model and the
+time, so a run kept under version control says what produced it. The output
+directory is not cleared: the datasets repository tracks it, and each run is
+a commit there.
 
 Two budgets keep the run from spending what it should not. The CourtListener
 proxy reports whether a response came from its cache, and the run stops once
@@ -22,9 +26,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
+import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -200,8 +207,37 @@ def run(run_dir: Path, out_dir: Path, *, miss_budget: int, limit: int | None, on
     if stopped:
         report += f"\n\nstopped early: {stopped}"
     (out_dir / "summary.txt").write_text(report + "\n", encoding="utf-8")
+    (out_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "artifact_type": "identity_run",
+                "source": str(run_dir),
+                "source_commit": manifest.get("commit"),
+                "commit": _commit(),
+                "run_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "model": os.environ.get("MELLEA_LRC_LLM_MODEL"),
+                "documents": tally.documents,
+                "roots": tally.roots,
+                "model_calls": tally.model_calls,
+                "requests": client.requests,
+                "uncached": client.misses,
+                "outcomes": {f"{o}/{r or ''}": n for (o, r), n in sorted(tally.outcomes.items())},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     print(report)
     return 1 if stopped else 0
+
+
+def _commit() -> str | None:
+    try:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return result.stdout.strip()
 
 
 def main(argv: list[str] | None = None) -> int:
