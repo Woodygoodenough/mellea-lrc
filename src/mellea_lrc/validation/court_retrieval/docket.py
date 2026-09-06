@@ -52,6 +52,7 @@ def run_docket_court_retrieval(
             candidate,
             ValidationNodeStatus.SUCCEEDED,
             DocketCourtRetrievalOutcome.UNAVAILABLE,
+            docket_number=docket.docket_number,
             status_message="Docket court retrieval completed.",
             outcome_message="The retrieved docket does not provide a court identifier.",
         )
@@ -61,6 +62,7 @@ def run_docket_court_retrieval(
         ValidationNodeStatus.SUCCEEDED,
         DocketCourtRetrievalOutcome.FOUND,
         court_id=docket.court_id,
+        docket_number=docket.docket_number,
         status_message="Docket court retrieval completed.",
         outcome_message="Retrieved a court identifier from the citation docket.",
     )
@@ -73,6 +75,7 @@ def _node(
     outcome: DocketCourtRetrievalOutcome,
     *,
     court_id: str | None = None,
+    docket_number: str | None = None,
     status_message: str | None = None,
     outcome_message: str | None = None,
     error: str | None = None,
@@ -83,6 +86,7 @@ def _node(
         outcome=outcome,
         docket_id=candidate.docket_id,
         court_id=court_id,
+        docket_number=docket_number,
         depends_on=(candidate.node_id,),
         status_message=status_message,
         outcome_message=outcome_message,

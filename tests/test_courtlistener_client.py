@@ -131,6 +131,25 @@ class CourtListenerClientTests(unittest.TestCase):
         self.assertEqual(session.calls[0]["method"], "GET")
         self.assertEqual(session.calls[0]["url"], "https://www.courtlistener.com/api/rest/v4/dockets/123/")
 
+    def test_get_docket_keeps_the_number_as_the_court_printed_it(self) -> None:
+        """The docket number's format is evidence of the court, so it travels with the court id."""
+        session = FakeSession(
+            [
+                FakeResponse(
+                    {
+                        "id": 66312334,
+                        "court_id": "cand",
+                        "docket_number": "No. CV 93-4868 DT (Ex)",
+                    }
+                )
+            ]
+        )
+
+        result = client(session).get_docket("66312334")
+
+        self.assertEqual(result.court_id, "cand")
+        self.assertEqual(result.docket_number, "No. CV 93-4868 DT (Ex)")
+
     def test_get_cluster_returns_its_other_dates_and_sub_opinions(self) -> None:
         """The cluster endpoint carries the dates a lookup record does not."""
         session = FakeSession(

@@ -44,6 +44,7 @@ from mellea_lrc.validation.types import (
     DocketCourtRetrievalOutcome,
     DocketIdentityNode,
     DocketIdentityOutcome,
+    DocketNumberCourtNode,
     EvidenceQuoteMatchMethod,
     ExactCaseNameCheckNode,
     ExactLocatorLookupNode,
@@ -110,6 +111,7 @@ _NODE_TYPES: dict[str, type[ValidationNode]] = {
         CandidateEvaluationNode,
         MelleaReextractedCaseNameCheckNode,
         DocketCourtRetrievalNode,
+        DocketNumberCourtNode,
         ReporterPageRetrievalNode,
         MelleaCitingPropositionExtractionNode,
         MelleaPinpointCheckNode,
@@ -144,6 +146,7 @@ _OUTCOME_TYPES = {
     CandidateEvaluationNode: CandidateEvaluationOutcome,
     MelleaReextractedCaseNameCheckNode: MelleaCaseNameCheckOutcome,
     DocketCourtRetrievalNode: DocketCourtRetrievalOutcome,
+    DocketNumberCourtNode: FieldCheckOutcome,
     ReporterPageRetrievalNode: ReporterPageRetrievalOutcome,
     MelleaCitingPropositionExtractionNode: MelleaCitingPropositionExtractionOutcome,
     MelleaPinpointCheckNode: MelleaPinpointCheckOutcome,
@@ -274,6 +277,8 @@ def _deserialize_node(value: object) -> ValidationNode:
     ):
         for field_name in ("case_name_outcome", "year_outcome", "court_outcome"):
             fields[field_name] = AggregatedFieldOutcome(fields[field_name])
+    elif node_type is DocketNumberCourtNode:
+        fields["courts"] = tuple(require_list(fields["courts"], name="node.courts"))
     elif node_type is CourtCheckNode:
         fields["implied_court_ids"] = tuple(
             require_list(fields.get("implied_court_ids", []), name="node.implied_court_ids")

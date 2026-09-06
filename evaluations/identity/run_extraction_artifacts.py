@@ -41,6 +41,10 @@ from mellea_lrc.validation.identity import identify_document
 from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
+    CourtCheckNode,
+    DocketCourtRetrievalNode,
+    DocketCourtRetrievalOutcome,
+    DocketNumberCourtNode,
     IdentityResolutionNode,
     MelleaCandidateJudgmentNode,
     MelleaIdentityJudgmentNode,
@@ -132,6 +136,11 @@ class Tally:
     corrections: Counter[str] = field(default_factory=Counter)
     merges: int = 0
     disagreements: Counter[str] = field(default_factory=Counter)
+    dockets: int = 0
+    docket_numbers: Counter[str] = field(default_factory=Counter)
+    """What the docket number's format said against the docket's court, by outcome."""
+    court_witnesses: Counter[tuple[str, str]] = field(default_factory=Counter)
+    """(court check, docket number check) pairs, per docket read, so the two witnesses can be compared."""
 
     def add(self, identified: IdentifiedDocument) -> None:
         self.documents += 1
@@ -150,6 +159,20 @@ class Tally:
                     self.candidate_calls += isinstance(node, MelleaCandidateJudgmentNode)
                 elif isinstance(node, AuthorityMergeNode):
                     self.merges += node.outcome is AuthorityMergeOutcome.MERGED_INTO
+                elif isinstance(node, DocketCourtRetrievalNode):
+                    self.dockets += node.outcome is DocketCourtRetrievalOutcome.FOUND
+                elif isinstance(node, DocketNumberCourtNode):
+                    self.docket_numbers[node.outcome.value if node.docket_number else "no number"] += 1
+                    court = next(
+                        (
+                            other
+                            for other in record.trace.nodes
+                            if isinstance(other, CourtCheckNode) and other.depends_on == node.depends_on
+                        ),
+                        None,
+                    )
+                    if court is not None:
+                        self.court_witnesses[(court.outcome.value, node.outcome.value)] += 1
             for correction in record.corrections:
                 self.corrections[correction.field] += 1
 
@@ -168,6 +191,14 @@ class Tally:
                 )
             ),
         ]
+        if self.dockets:
+            lines += [f"docket numbers, on the {self.dockets} dockets read, against the docket's court:"]
+            lines += [f"  {name:26} {count:4}" for name, count in self.docket_numbers.most_common()]
+            lines += ["court check x docket number check, per docket:"]
+            lines += [
+                f"  filing {court:12} number {number:12} {count:4}"
+                for (court, number), count in sorted(self.court_witnesses.items())
+            ]
         if self.disagreements:
             lines += ["fields the filing states that disagree with the record:"]
             lines += [f"  {name:26} {count:4}" for name, count in self.disagreements.most_common()]

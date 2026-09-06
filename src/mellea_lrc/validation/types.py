@@ -577,6 +577,8 @@ class DocketCourtRetrievalNode:
     status_message: str | None = None
     outcome_message: str | None = None
     error: str | None = None
+    docket_number: str | None = None
+    """The docket's number as printed, kept so its format can be read against the court."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -593,6 +595,30 @@ class CourtCheckNode:
     outcome_message: str | None = None
     implied_court_ids: tuple[str, ...] = ()
     """The courts the reporter can hold, when the filing states none and they were consulted."""
+
+
+@dataclass(frozen=True, slots=True)
+class DocketNumberCourtNode:
+    """What the docket number's format says about the court, against the docket's court field.
+
+    A second witness to the same fact as :class:`CourtCheckNode`'s record
+    side. ``MATCH`` and ``MISMATCH`` are between the number and the field,
+    not between the filing and the record; ``UNAVAILABLE`` is a number whose
+    format this check cannot read.
+    """
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: FieldCheckOutcome
+    docket_number: str | None
+    retrieved_court_id: str | None
+    level: str | None
+    courts: tuple[str, ...]
+    evidence: str
+    judge_initials: str | None
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1074,6 +1100,7 @@ ValidationNode: TypeAlias = (
     | CandidateEvaluationNode
     | MelleaReextractedCaseNameCheckNode
     | DocketCourtRetrievalNode
+    | DocketNumberCourtNode
     | ReporterPageRetrievalNode
     | MelleaCitingPropositionExtractionNode
     | MelleaPinpointCheckNode

@@ -18,3 +18,5 @@ class CourtListenerDocket:
     docket_id: str
     court_id: str | None = None
     case_name: str | None = None
+    docket_number: str | None = None
+    """The number as the court printed it, `18-CV-4418 (ALC)`; its format is evidence of the court."""

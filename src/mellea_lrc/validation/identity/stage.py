@@ -46,6 +46,7 @@ from mellea_lrc.validation.citation_lookup import run_exact_locator_lookup
 from mellea_lrc.validation.court_retrieval import run_docket_court_retrieval
 from mellea_lrc.validation.identity.dates import exploration_of, run_date_reconciliation
 from mellea_lrc.validation.identity.docket import run_docket_identity
+from mellea_lrc.validation.identity.docket_number import run_docket_number_check
 from mellea_lrc.validation.identity.field_checks import (
     run_case_name_agreement,
     run_court_comparison,
@@ -64,6 +65,7 @@ from mellea_lrc.validation.types import (
     AuthorityMergeOutcome,
     CandidateEvaluationNode,
     DateReconciliationNode,
+    DocketNumberCourtNode,
     FieldCheckOutcome,
     IdentityOutcome,
     IdentityReason,
@@ -416,11 +418,17 @@ class _Guarded:
     verdict: Verdict | None
     reconciled: DateReconciliationNode | None = None
     """The archive's other dates, read when the plain date comparison disagreed."""
+    docket_number: DocketNumberCourtNode | None = None
+    """What the docket number's format says about the court, when a docket was read."""
 
     @property
     def node_ids(self) -> tuple[str, ...]:
         ids = (self.candidate.node_id, self.case_name.node_id, self.date.node_id, self.court.node_id)
-        return (*ids, self.reconciled.node_id) if self.reconciled is not None else ids
+        if self.reconciled is not None:
+            ids = (*ids, self.reconciled.node_id)
+        if self.docket_number is not None:
+            ids = (*ids, self.docket_number.node_id)
+        return ids
 
     @property
     def compatible_years(self) -> tuple[str, ...]:
@@ -463,11 +471,16 @@ def _rule_guard(
     else:
         reconciled = None
         date_agrees = date.outcome is not FieldCheckOutcome.MISMATCH
+    docket_number = None
     if fetch_court:
         court_retrieval = record.append(
             run_docket_court_retrieval(record.trace, candidate=candidate, client=client)
         )
         court = record.append(run_court_comparison(record.citation, evidence=court_retrieval))
+        # The docket's court field has a second witness on the same docket:
+        # the number's format. Read on every docket, so the two can be
+        # measured against each other; it decides nothing yet.
+        docket_number = record.append(run_docket_number_check(court_retrieval))
     else:
         court = record.append(run_court_comparison(record.citation, evidence=candidate))
     rules_agree = (
@@ -475,11 +488,11 @@ def _rule_guard(
         and court.outcome is not FieldCheckOutcome.MISMATCH
         and date_agrees
     )
-    guarded = _Guarded(cluster, candidate, case_name, date, court, None, reconciled)
+    guarded = _Guarded(cluster, candidate, case_name, date, court, None, reconciled, docket_number)
     if not rules_agree:
         return guarded
     verdict = Verdict(IdentityOutcome.CONFIRMED_IDENTITY, None, cluster, "rule", (), guarded.node_ids)
-    return _Guarded(cluster, candidate, case_name, date, court, verdict, reconciled)
+    return _Guarded(cluster, candidate, case_name, date, court, verdict, reconciled, docket_number)
 
 
 async def _model_judge(
