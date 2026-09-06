@@ -131,6 +131,31 @@ class CourtListenerClientTests(unittest.TestCase):
         self.assertEqual(session.calls[0]["method"], "GET")
         self.assertEqual(session.calls[0]["url"], "https://www.courtlistener.com/api/rest/v4/dockets/123/")
 
+    def test_get_cluster_returns_its_other_dates_and_sub_opinions(self) -> None:
+        """The cluster endpoint carries the dates a lookup record does not."""
+        session = FakeSession(
+            [
+                FakeResponse(
+                    {
+                        "id": 8441807,
+                        "date_filed": "2013-12-27",
+                        "other_dates": "Argued and Submitted April 18, 2013., Amended Feb. 5, 2014.",
+                        "sub_opinions": ["https://www.courtlistener.com/api/rest/v4/opinions/8412972/"],
+                    }
+                )
+            ]
+        )
+
+        result = client(session).get_cluster("8441807")
+
+        self.assertEqual(result.cluster_id, "8441807")
+        self.assertEqual(result.date_filed, "2013-12-27")
+        self.assertEqual(result.other_dates, "Argued and Submitted April 18, 2013., Amended Feb. 5, 2014.")
+        self.assertEqual(result.sub_opinion_ids, ("8412972",))
+        self.assertEqual(
+            session.calls[0]["url"], "https://www.courtlistener.com/api/rest/v4/clusters/8441807/"
+        )
+
     def test_ambiguous_lookup_preserves_each_candidate(self) -> None:
         """A 300 response retains every candidate returned for the locator."""
         result = client(
