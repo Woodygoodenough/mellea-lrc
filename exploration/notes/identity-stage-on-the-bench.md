@@ -13,15 +13,15 @@ allowance; the model was `openai/gpt-5.6-luna`.
 |---|---:|
 | citations | 897 |
 | roots, one lookup each | 397 |
-| roots decided by rule alone | 354 |
-| model calls | 43, of which 7 over several records at once |
+| roots decided by rule alone | 358 |
+| model calls | 39, of which 6 over several records at once |
 | parallel citations merged into one authority | 8 |
 
 | outcome | reason | roots |
 |---|---|---:|
-| confirmed identity | | 266 |
+| confirmed identity | | 270 |
 | wrong identity | a different case at the locator | 23 |
-| wrong identity | a field the filing states disagrees | 17 |
+| wrong identity | a field the filing states disagrees | 13 |
 | ambiguous identity | crowded page, more records than a judgement is shown | 1 |
 | defer to search | nothing at the locator | 83 |
 | defer to search | undeterminable | 1 |
@@ -50,7 +50,7 @@ Lacey v. Joseph Arpaio`, and nothing in the record says so; it is the one
 false wrong-identity left, and a docket fetch for the caption is what would settle
 it.
 
-The other 17 are the same case with a field the filing misstates: a court, a
+The other 13 are the same case with a field the filing misstates: a court, a
 year, or a party misspelt or dropped. Both kinds are
 `wrong_identity`; the reason and the fields under the node keep them apart,
 and the second kind still resolves the record, since the case was found.
@@ -120,17 +120,26 @@ parenthetical states none.
 A court the filing does not state is not compared against nothing. The
 reporter holds only some courts, and the record's court is checked against
 that family: 44 roots on this bench state no court, and every one's record is
-from a court its reporter holds. The check found no conflict here; what it
-found was the one gap in the mapping, the Northern Mariana Islands district
-that courts-db names `nmid`, which is now looked up by place.
+from a court its reporter holds.
 
-Thirteen corrections to the filing's reading followed, each attributed to the
-model and pointing at the judgement node and its evidence: nine plaintiffs,
-three defendants and one court. `Under Norton` became `Norton`, `Justice`
-became `Sikhs for Justice`, `Rudy-Glanzer` became `Doe ex rel. Rudy-Glanzer`,
-each a name extraction cut short and the model read whole from the name
-window. The one court, `dcd`, was read from `D.D.C.` in the parenthetical. The
-extracted citation stays beside each, unchanged.
+A date the record disagrees with is read further before the disagreement is
+believed. The record's one date is the filing date of the opinion the archive
+holds, and a reporter citation to an opinion amended into the next year
+states the year of the print, so the cluster's other dates and then its
+opinions' headers are read for a dated event that states the filing's year.
+Five roots on this bench disagreed by a year. Two are settled that way and
+confirmed, one from the cluster's `Amended Feb. 5, 2014` and one from a
+combined opinion's `Decided December 20, 1948`, found after three opinions
+without a header. Two stay disagreements: one is the filing's error, and one
+is an amendment the archive does not hold at all. The opinions read stay with
+the record, the one that answered first, so the pinpoint stage starts from
+them.
+
+A party name the archive writes differently is not always the filing's
+defect. A `variant` is an equivalent caption -- a relator form, a caption the
+archive truncated -- and is the same case correctly cited; `misspelt` is the
+filing spelling a party wrongly, and is the defect. Two of four on this bench
+moved from wrong identity to confirmed on that distinction.
 
 ## 5. Against the bench's own labels
 
@@ -153,8 +162,11 @@ than one record -- a decision held twice, and two cases decided on one day --
 and are reached by the judgement over every record at the page, which
 answered for each and chose none.
 
-The stage also reports 12 wrong identities the labels do not carry: ten
-defects the sanctioning courts did not mention, a parallel citation of a
-labelled entry, and one false alarm, `Lacey v. Maricopa County`, which the
-archive captions by the sheriff's name. The per-entry reading is untracked in
+The stage also reports 10 wrong identities the labels do not carry: four
+courts the filing misstates that the sanctioning courts did not mention, a
+year the filing misstates, a party the filing misspells, a party the archive
+misspells that the record cannot adjudicate, an amended opinion the archive
+does not hold, a parallel citation of a labelled entry, and one false alarm,
+`Lacey v. Maricopa County`, which the archive captions by the sheriff's
+name. The per-entry reading is untracked in
 the dataset directory, `data/validation-v2.0/audit-identity-stage-vs-labels.md`.
