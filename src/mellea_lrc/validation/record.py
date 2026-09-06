@@ -66,6 +66,40 @@ class Correction:
 
 
 @dataclass(frozen=True, slots=True)
+class DateExploration:
+    """Everything read about a record's dates while resolving, kept for a later step.
+
+    Written programmatically, whether or not the date reconciled: the date the
+    filing stated and at what precision, the record's filing date, the
+    cluster's free-text other dates, the dated phrases found in each opinion
+    header read, and the phrase that matched when one did. A wrong identity
+    whose only disagreeing field is the date is a strong sign the case is real
+    and the dates differ for a reason -- an amendment the archive does not
+    hold, a term-year convention, a rehearing -- and that reason has to be
+    found from what was read, not from the verdict alone.
+
+    TODO(date-analysis): the step that reads this history is not written. It
+    would take the records ``IdentifiedDocument.date_only_disagreements``
+    returns and decide, per record, what the disagreement is: the archive's
+    coverage, a convention, or the filing's error. Nothing here decides that;
+    this is the evidence it will need, kept in the shape it was found.
+    """
+
+    stated: str
+    """The date the filing states, ``YYYY`` or ``YYYY-MM-DD``."""
+    stated_precision: str
+    """``year`` or ``day``."""
+    record_date_filed: str | None
+    other_dates: str | None
+    """The cluster's free-text dates, verbatim, when fetched."""
+    phrases_by_opinion: tuple[tuple[str, tuple[str, ...]], ...]
+    """For each opinion header read, in order: its id and the dated events found in it."""
+    matched_phrase: str | None
+    matched_opinion_id: str | None
+    """The opinion whose header stated the filing's year, or None when the cluster did or nothing did."""
+
+
+@dataclass(frozen=True, slots=True)
 class Resolution:
     """What the archive holds at the identity the filing cited."""
 
@@ -79,6 +113,8 @@ class Resolution:
     """The cluster's opinions already fetched while resolving, the one that
     answered first. A later stage that needs the opinion's text starts here
     rather than resolving the cluster's opinions again."""
+    dates: DateExploration | None = None
+    """What was read about the record's dates, when the plain comparison disagreed."""
 
 
 @dataclass(slots=True)

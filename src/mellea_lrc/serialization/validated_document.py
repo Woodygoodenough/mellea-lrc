@@ -281,6 +281,10 @@ def _deserialize_node(value: object) -> ValidationNode:
     elif node_type is DateReconciliationNode:
         fields["dated_phrases"] = tuple(require_list(fields["dated_phrases"], name="node.dated_phrases"))
         fields["opinions_read"] = tuple(require_list(fields["opinions_read"], name="node.opinions_read"))
+        fields["phrases_by_opinion"] = tuple(
+            (str(pair[0]), tuple(str(p) for p in pair[1]))
+            for pair in require_list(fields["phrases_by_opinion"], name="node.phrases_by_opinion")
+        )
     elif node_type is DateCheckNode:
         fields["precision"] = _optional_enum(DatePrecision, fields["precision"])
     elif node_type is MelleaIdentityJudgmentNode:

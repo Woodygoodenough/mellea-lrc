@@ -454,6 +454,11 @@ def test_an_argument_date_does_not_make_a_year_compatible(monkeypatch: pytest.Mo
     assert [(f.field, f.filing_value, f.record_value) for f in resolution.fields] == [
         ("date", "1875", "1876-04-24")
     ]
+    # A wrong identity on the date alone is the population for the date analysis, with its history.
+    assert result.date_only_disagreements() == (record,)
+    assert record.resolution is not None and record.resolution.dates is not None
+    assert record.resolution.dates.matched_phrase is None
+    assert record.resolution.dates.phrases_by_opinion == (("o3", ()),)
 
 
 def test_not_found_is_unresolved_not_refuted() -> None:

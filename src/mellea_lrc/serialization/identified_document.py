@@ -22,7 +22,7 @@ from mellea_lrc.serialization.extracted_document import (
 )
 from mellea_lrc.serialization.validated_document import _deserialize_node
 from mellea_lrc.validation.identity.stage import IdentifiedDocument
-from mellea_lrc.validation.record import CitationRecord, Correction, Resolution
+from mellea_lrc.validation.record import CitationRecord, Correction, DateExploration, Resolution
 
 _ARTIFACT_TYPE = "identified_document"
 
@@ -113,6 +113,7 @@ def _deserialize_record(payload: Mapping[str, object], extracted: object) -> Cit
                         fields.get("opinion_ids", []), name="record.resolution.opinion_ids"
                     )
                 ),
+                dates=_deserialize_dates(fields.get("dates")),
             )
         )
     record.corrections = tuple(
@@ -130,3 +131,24 @@ def _deserialize_record(payload: Mapping[str, object], extracted: object) -> Cit
         )
     )
     return record
+
+
+def _deserialize_dates(value: object) -> DateExploration | None:
+    if value is None:
+        return None
+    fields = require_mapping(value, name="record.resolution.dates")
+    name = "record.resolution.dates"
+    return DateExploration(
+        stated=_required_string(fields.get("stated"), name=f"{name}.stated"),
+        stated_precision=_required_string(fields.get("stated_precision"), name=f"{name}.stated_precision"),
+        record_date_filed=_optional_string(fields.get("record_date_filed"), name=f"{name}.record_date_filed"),
+        other_dates=_optional_string(fields.get("other_dates"), name=f"{name}.other_dates"),
+        phrases_by_opinion=tuple(
+            (str(pair[0]), tuple(str(p) for p in pair[1]))
+            for pair in require_list(fields.get("phrases_by_opinion", []), name=f"{name}.phrases_by_opinion")
+        ),
+        matched_phrase=_optional_string(fields.get("matched_phrase"), name=f"{name}.matched_phrase"),
+        matched_opinion_id=_optional_string(
+            fields.get("matched_opinion_id"), name=f"{name}.matched_opinion_id"
+        ),
+    )
