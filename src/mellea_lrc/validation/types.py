@@ -420,6 +420,8 @@ class PinpointOutcome(str, Enum):
     """The page carries a passage on the filing's subject; both are shown side by side."""
     PASSAGE_ADJACENT = "passage_adjacent"
     """The passage is on the page before or after; a turn away, not a different page."""
+    PASSAGE_ELSEWHERE = "passage_elsewhere"
+    """The filing's own words for the content are in the opinion, on another page, which is named."""
     PASSAGE_ABSENT = "passage_absent"
     """Nothing on the cited page or beside it concerns the filing's subject."""
     PASSAGE_IN_OPINION = "passage_in_opinion"

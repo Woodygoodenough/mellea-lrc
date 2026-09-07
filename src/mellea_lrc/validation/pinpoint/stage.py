@@ -167,7 +167,11 @@ async def pinpoint_document(
                 session=session,
             )
         )
-        record.append(_conclude(record, scope, page_node, page, quotes, reading, window))
+        record.append(
+            _conclude(
+                record, scope, page_node, page, quotes, reading, window, searchable_opinions, first_page
+            )
+        )
     return identified
 
 
@@ -607,6 +611,37 @@ def _vocabulary_on_page(attribution: str | None, page: RetrievedPage) -> float |
     return round(found / len(words), 2)
 
 
+MIN_ELSEWHERE_WORDS = 8
+"""An attribution at least this long that the opinion carries verbatim on another page names that page."""
+
+
+def _attribution_elsewhere(
+    attribution: str | None,
+    page: RetrievedPage,
+    opinions: dict[str, PaginatedOpinion],
+    first_page: str | None,
+) -> tuple[str, str] | None:
+    """Where the filing's own words for the content sit in the opinion, when it is not the cited page.
+
+    A filing that copies a sentence without quotation marks and pins it to
+    the wrong page is caught here: the sentence is searched like a quotation.
+    """
+    if not attribution or page.labels == ():
+        return None
+    needle = searchable(attribution)
+    if len(needle.split()) < MIN_ELSEWHERE_WORDS:
+        return None
+    for opinion in sorted(opinions.values(), key=lambda op: (opinion_order(op.opinion_type), op.opinion_id)):
+        if not (matches := fuzzy.find_all(needle, opinion.text, min_score=QUOTE_MIN_SCORE)):
+            continue
+        index = marker_index_for((opinion,), first_page, page.labels)
+        label = opinion.label_at(matches[0].start, index) if index else None
+        if label is not None and label not in page.labels:
+            return opinion.opinion_id, label
+        return None
+    return None
+
+
 def _conclude(
     record: CitationRecord,
     scope: PinpointScopeNode,
@@ -615,6 +650,8 @@ def _conclude(
     quotes: QuoteCheckNode,
     reading: MelleaPinpointReadingNode,
     window: CitingWindow,
+    opinions: dict[str, PaginatedOpinion],
+    first_page: str | None,
 ) -> PinpointResolutionNode:
     node_id = f"{record.citation_id}:pinpoint_resolution"
     depends = (scope.node_id, page_node.node_id, quotes.node_id, reading.node_id)
@@ -688,6 +725,12 @@ def _conclude(
             f"The {'opinion' if whole else ('page beside the cited one' if adjacent else 'page')} carries a passage on the subject"
             f" ({reading.outcome.value}, {reading.voice or 'voice unread'})."
         )
+    elif (elsewhere := _attribution_elsewhere(reading.attribution, page, opinions, first_page)) is not None:
+        # The filing's own sentence is the opinion's, on another page: a wrong
+        # page for the right case, which the reading could not see.
+        decided_by = reading.node_id
+        outcome, false = PinpointOutcome.PASSAGE_ELSEWHERE, True
+        message = f"The filing's words for the content are in the opinion on page {elsewhere[1]}, not on the cited page."
     else:
         decided_by = reading.node_id
         if vocabulary is not None and vocabulary >= VOCABULARY_GUARD:

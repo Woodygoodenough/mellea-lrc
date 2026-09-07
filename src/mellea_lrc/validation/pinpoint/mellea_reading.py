@@ -285,7 +285,17 @@ async def run_mellea_pinpoint_reading(
             model_options=config.mellea_call_options(max_tokens=MAX_TOKENS),
         )
         last = _last_output(result)
-        reading = _parse(last) if last is not None else None
+        try:
+            reading = _parse(last) if last is not None else None
+        except ValueError as exc:
+            tail = str(last)[-160:] if last is not None else ""
+            return _failed(
+                node_id,
+                depends_on,
+                model_name,
+                window,
+                f"{exc} | output {len(str(last or ''))} chars, ends: {tail!r}",
+            )
     except Exception as exc:
         return _failed(node_id, depends_on, model_name, window, f"{type(exc).__name__}: {exc}")
     if reading is None:

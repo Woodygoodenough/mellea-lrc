@@ -320,3 +320,20 @@ def test_an_opinion_without_page_markers_stands_in_for_the_page(monkeypatch) -> 
     assert resolutions["root"].text_scope == "opinion"
     assert resolutions["id1"].outcome is PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION
     assert resolutions["id1"].false_pin_cite is True
+
+
+def test_the_filings_own_sentence_on_another_page_is_a_wrong_page(monkeypatch) -> None:
+    # The filing copies page 572's sentence without quotation marks and pins it to 545.
+    text = TEXT.replace(
+        "A quite different point about class certification is made there too.",
+        "Page five seventy-two holds the distinctive closing words of the majority opinion.",
+    )
+    none = {
+        **NONE,
+        "attribution": "Page five seventy-two holds the distinctive closing words of the majority opinion.",
+    }
+    identified, _ = _run(monkeypatch, [SAME, SAME, none], text)
+    root = _resolutions(identified)["id1"]
+    assert root.outcome is PinpointOutcome.PASSAGE_ELSEWHERE
+    assert root.false_pin_cite is True
+    assert "page 572" in (root.outcome_message or "")

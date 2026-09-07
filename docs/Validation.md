@@ -236,6 +236,7 @@ page text, the opinion and page it is on, and the voice.
 | `quote_in_opinion` | in the opinion, whose text carries no page markers, so the page cannot be told | |
 | `passage_on_page` | the page carries a passage on the filing's subject; both shown | |
 | `passage_adjacent` | the passage is a turn away, on the page before or after | |
+| `passage_elsewhere` | the filing's own sentence, copied without quotation marks, is in the opinion on another page, which is named | yes |
 | `passage_absent` | nothing on the cited page or beside it concerns the subject | yes |
 | `passage_in_opinion` | the opinion, read whole for want of page markers, carries a passage on the subject | |
 | `passage_absent_from_opinion` | nothing in the whole opinion concerns the subject | yes |
