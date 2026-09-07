@@ -190,6 +190,7 @@ SAME = {
     "voice": "court",
     "page_subjects": "The page states the plausibility standard.",
     "reason": "Both say the same thing.",
+    "missing": None,
 }
 NONE = {
     "attribution": "A quite different point about class certification is made there too.",
@@ -201,6 +202,7 @@ NONE = {
     "voice": None,
     "page_subjects": "The page discusses the facts of the antitrust claim.",
     "reason": "Nothing on the page concerns class certification.",
+    "missing": None,
 }
 
 
