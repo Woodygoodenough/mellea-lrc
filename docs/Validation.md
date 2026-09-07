@@ -180,7 +180,11 @@ page under several clusters that agree on the case, and the one identity
 settled on need not be the one whose text is paginated: every agreeing cluster
 is tried. Every opinion of the cluster is read and paginated, the court's
 first, and the page comes with the tail of the page before and the head of
-the page after, because a sentence pinned to 678 often begins on 677. Which
+the page after, because a sentence pinned to 678 often begins on 677. An
+opinion the archive holds with no page markers at all -- its own scrape of a
+recent decision -- cannot be cut, and the whole of it stands in for the page
+(up to sixty thousand characters), which changes what an absence means: not
+"not on this page" but "not in this opinion". Which
 opinion the page came from travels with it: words on the cited page in a
 dissent are a different fact from the same words in the opinion of the court.
 
@@ -189,7 +193,9 @@ filing writes in the sentence the citation belongs to, in the citation's own
 parenthetical, or after the citation in the same sentence, is lifted with its
 span -- double or single marks, an apostrophe told from a quotation mark by
 what stands on either side -- and searched by the program: on the page, on
-the pages beside it, then through every opinion of the cluster. `[n]eglect`
+the pages beside it, then through every opinion of every cluster that
+agrees on the case, since the archive holds a case twice as often as not and
+the words may be in the copy the page was not cut from. `[n]eglect`
 is searched as `neglect`; a quotation written with ellipses is searched
 fragment by fragment. A quotation shorter than four words is searched exactly,
 never fuzzily. The finding is `on_page`, `adjacent`, `elsewhere` with the
@@ -225,10 +231,14 @@ page text, the opinion and page it is on, and the voice.
 |---|---|---|
 | `quote_on_page` | the filing's quoted words are on the cited page | |
 | `quote_elsewhere` | in the opinion, on another page, which is named | yes |
-| `quote_absent` | in none of the cluster's opinions | yes |
+| `quote_absent` | in none of the cluster's opinions, and the page carries no passage with the same content | yes |
+| `quote_altered` | not the opinion's words as written, but the cited page carries the same content: a misquotation, shown side by side (`misquoted`) | |
+| `quote_in_opinion` | in the opinion, whose text carries no page markers, so the page cannot be told | |
 | `passage_on_page` | the page carries a passage on the filing's subject; both shown | |
 | `passage_adjacent` | the passage is a turn away, on the page before or after | |
 | `passage_absent` | nothing on the cited page or beside it concerns the subject | yes |
+| `passage_in_opinion` | the opinion, read whole for want of page markers, carries a passage on the subject | |
+| `passage_absent_from_opinion` | nothing in the whole opinion concerns the subject | yes |
 | `not_testable` | no page-level claim of the citation's own: `see generally`, a `citing` parenthetical, a bare string share | |
 | `undetermined` | the reading did not pass its guards, or the evidence points both ways | |
 | `not_retrieved` | out of scope, or no page could be cut | |
