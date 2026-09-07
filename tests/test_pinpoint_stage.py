@@ -467,3 +467,12 @@ def test_a_partial_attribution_is_a_misquote_when_the_missing_words_are_in_no_op
     node = _resolutions(identified)["id0"]
     assert node.outcome is PinpointOutcome.PASSAGE_PARTIAL
     assert node.defect_kinds == ("misquote",)
+
+
+def test_a_generic_two_word_fragment_absent_from_the_opinion_decides_nothing(monkeypatch) -> None:
+    from mellea_lrc.validation.pinpoint.stage import _distinctive
+
+    assert _distinctive("by law,") is False
+    assert _distinctive("sole purpose") is True
+    assert _distinctive("Cash for Kids") is True
+    assert _distinctive("of the") is False

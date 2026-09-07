@@ -580,7 +580,10 @@ def _quote_check(
         f
         for f in findings
         if not f.shared
-        and (len(f.text.split()) >= MIN_DEFECT_QUOTE_WORDS or f.outcome is QuoteFindingOutcome.ABSENT)
+        and (
+            len(f.text.split()) >= MIN_DEFECT_QUOTE_WORDS
+            or (f.outcome is QuoteFindingOutcome.ABSENT and _distinctive(f.text))
+        )
     ]
     order = [
         QuoteFindingOutcome.ABSENT,
@@ -633,6 +636,21 @@ def _find(needle: str, haystack: str, floor: float):
     return ()
 
 
+def _distinctive(quotation: str) -> bool:
+    """Whether a short quotation is worth an absence: `by law,` is not, `Cash for Kids` and `sole purpose` are.
+
+    Three words, or two of which one is a distinctive word; a trailing comma
+    or colon means the marks were misread and the fragment is not the quote.
+    """
+    text = " ".join(quotation.split())
+    if text.endswith((",", ":", ";")):
+        return False
+    words = text.split()
+    if len(words) >= 3:
+        return True
+    return len(words) == 2 and any(w.lower() not in _STOP for w in _WORD.findall(text))
+
+
 def _label_in_page(page: RetrievedPage, offset: int) -> str:
     """Which page of a range an offset in the cut text falls on, by the `[*label]` turns."""
     label = page.labels[0]
@@ -668,6 +686,9 @@ def _vocabulary_on_page(attribution: str | None, page: RetrievedPage) -> float |
     return round(found / len(words), 2)
 
 
+MIN_CONTRADICTION_WORDS = 6
+"""A contradiction needs a whole claim on the filing's side; a fragment such as `the Sixth service
+proper.` from a broken window contradicts nothing."""
 MIN_ELSEWHERE_WORDS = 8
 """An attribution at least this long that the opinion carries verbatim on another page names that page."""
 
@@ -812,7 +833,11 @@ def _conclude(
         decided_by = reading.node_id
         outcome = PinpointOutcome.NOT_TESTABLE
         message = "The citation makes no page-level claim of its own here."
-    elif reading.outcome is PinpointRelation.CONTRADICTS and reading.passage_span is not None:
+    elif (
+        reading.outcome is PinpointRelation.CONTRADICTS
+        and reading.passage_span is not None
+        and len((reading.attribution or "").split()) >= MIN_CONTRADICTION_WORDS
+    ):
         decided_by = reading.node_id
         outcome, kinds = PinpointOutcome.PASSAGE_CONTRADICTS, ("misquote",)
         message = f"{where.capitalize()} states the opposite of the filing's words ({reading.voice or 'voice unread'}): {reading.passage!r}."
