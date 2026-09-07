@@ -439,7 +439,7 @@ def test_nothing_on_the_page_is_irrelevant_only_when_the_whole_opinion_has_nothi
         **SAME,
         "attribution": "A quite different point about class certification is made there too.",
         "passage": "Page five seventy-two holds the distinctive closing words of the majority opinion.",
-        "relation": "related_subject",
+        "relation": "same_content",
     }
     identified, _ = _run(monkeypatch, [SAME, SAME, NONE, found])
     node = _resolutions(identified)["id1"]
@@ -478,3 +478,30 @@ def test_a_generic_two_word_fragment_absent_from_the_opinion_decides_nothing(mon
     assert _distinctive("sole purpose") is True
     assert _distinctive("Cash for Kids") is True
     assert _distinctive("of the") is False
+
+
+def test_a_related_passage_elsewhere_is_shown_not_called(monkeypatch) -> None:
+    found = {
+        **SAME,
+        "attribution": "A quite different point about class certification is made there too.",
+        "passage": "Page five seventy-two holds the distinctive closing words of the majority opinion.",
+        "relation": "related_subject",
+    }
+    identified, _ = _run(monkeypatch, [SAME, SAME, NONE, found])
+    node = _resolutions(identified)["id1"]
+    assert node.outcome is PinpointOutcome.UNDETERMINED
+    assert "page 572" in (node.outcome_message or "")
+
+
+def test_argument_about_the_case_at_hand_is_not_a_misquote() -> None:
+    from mellea_lrc.validation.pinpoint.stage import _is_proposition
+
+    assert _is_proposition(
+        "Constructive trust and unjust enrichment are unavailable where an express contract governs."
+    )
+    assert not _is_proposition(
+        "Because Defendant has not shown a concrete basis for freezing discovery, it has not carried its burden."
+    )
+    assert not _is_proposition(
+        "Actual notice, evidenced by the judges' ties to co-defendants (ECF No. 57), negates prejudice."
+    )

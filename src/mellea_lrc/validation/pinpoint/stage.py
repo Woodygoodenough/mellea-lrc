@@ -687,6 +687,32 @@ def _vocabulary_on_page(attribution: str | None, page: RetrievedPage) -> float |
 
 
 MIN_CONTRADICTION_WORDS = 6
+MAX_CLAIM_WORDS = 40
+"""A contradiction or a partial attribution is judged on a proposition, not on a paragraph of argument."""
+MAX_MISSING_WORDS = 3
+"""A partial attribution is a misquote when what the page never states is a term -- `constructive
+trust` -- not an elaboration of the filer's own."""
+_ARGUMENT = re.compile(
+    r"\b(?:plaintiffs?|defendants?|here|this court|this case|the court should|ecf|dkt|docket no|exhibit|"
+    r"mr\.|ms\.|mrs\.|counsel for|movant|respondent|petitioner)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_proposition(attribution: str | None) -> bool:
+    """Whether the filing's words state a proposition rather than argue the case at hand.
+
+    `Constructive trust and unjust enrichment are unavailable where an express
+    contract governs` is a proposition; `Because Defendant has not shown a
+    concrete basis for freezing discovery, it has not carried its burden` is
+    argument, and what argument adds beyond the page is not a misquotation.
+    """
+    if not attribution:
+        return False
+    words = attribution.split()
+    return len(words) <= MAX_CLAIM_WORDS and not _ARGUMENT.search(attribution)
+
+
 """A contradiction needs a whole claim on the filing's side; a fragment such as `the Sixth service
 proper.` from a broken window contradicts nothing."""
 MIN_ELSEWHERE_WORDS = 8
@@ -837,13 +863,18 @@ def _conclude(
         reading.outcome is PinpointRelation.CONTRADICTS
         and reading.passage_span is not None
         and len((reading.attribution or "").split()) >= MIN_CONTRADICTION_WORDS
+        and _is_proposition(reading.attribution)
     ):
         decided_by = reading.node_id
         outcome, kinds = PinpointOutcome.PASSAGE_CONTRADICTS, ("misquote",)
         message = f"{where.capitalize()} states the opposite of the filing's words ({reading.voice or 'voice unread'}): {reading.passage!r}."
     elif reading.outcome is PinpointRelation.PARTIAL and reading.passage_span is not None:
         decided_by = reading.node_id
-        if _missing_absent(reading.missing, opinions):
+        if (
+            _missing_absent(reading.missing, opinions)
+            and len((reading.missing or "").split()) <= MAX_MISSING_WORDS
+            and _is_proposition(reading.attribution)
+        ):
             outcome, kinds = PinpointOutcome.PASSAGE_PARTIAL, ("misquote",)
             message = (
                 f"{where.capitalize()} states part of what the filing attributes to it, and {reading.missing!r} "
@@ -895,11 +926,23 @@ def _conclude(
         else:
             decided_by = opinion_reading.node_id
             found_label = _label_of_opinion_span(page, opinions, first_page, opinion_reading)
-            if found_label is not None and found_label not in page.labels:
+            # Only the same content elsewhere makes a wrong page; a passage on
+            # the subject that says something else is shown, not called.
+            if (
+                found_label is not None
+                and found_label not in page.labels
+                and opinion_reading.outcome is PinpointRelation.SAME_CONTENT
+            ):
                 outcome, kinds = PinpointOutcome.PASSAGE_ELSEWHERE, ("wrong_page",)
                 message = (
                     f"Nothing on the cited page concerns the subject; the opinion carries a passage on it on page "
                     f"{found_label} ({opinion_reading.outcome.value}): {opinion_reading.passage!r}."
+                )
+            elif found_label is not None and found_label not in page.labels:
+                outcome = PinpointOutcome.UNDETERMINED
+                message = (
+                    f"Nothing on the cited page concerns the subject; the opinion discusses it on page {found_label} "
+                    f"in other terms ({opinion_reading.outcome.value}): {opinion_reading.passage!r}."
                 )
             else:
                 outcome = PinpointOutcome.UNDETERMINED
