@@ -73,6 +73,9 @@ class Quotation:
     """Where the quoted words are, in document coordinates, marks excluded."""
     in_parenthetical: bool
     """Inside the target's own parenthetical, which ties them to the target alone."""
+    alternative: bool = False
+    """A second reading of where a single-quoted quotation closes -- `'... to 'extraordinary' harm ...'`
+    can close at either mark -- whose absence proves nothing on its own."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,8 +240,30 @@ def quotations_near(
             taken.append(span)
             in_paren = paren is not None and paren.start <= span.start and span.end <= paren.end
             found.append(Quotation(inner, span, in_paren))
+            if (
+                pattern is _SINGLE_QUOTE
+                and (longer := _extended_close(text, match.end(), sentence_end)) is not None
+            ):
+                # The mark closed before a lowercase word: it may be a nested
+                # quotation's, and the quotation may run on to the next mark.
+                long_span = Span(span.start, longer)
+                long_text = text[long_span.start : long_span.end]
+                if len(long_text) <= 1500:
+                    found.append(Quotation(long_text, long_span, in_paren, alternative=True))
     found.sort(key=lambda q: q.span.start)
     return tuple(found)
+
+
+_LOWER_AFTER = re.compile(r"^\s+[a-z]")
+_CLOSE = re.compile(r"['\N{RIGHT SINGLE QUOTATION MARK}](?![A-Za-z0-9])(?!\s+[a-z])")
+
+
+def _extended_close(text: str, close_end: int, limit: int) -> int | None:
+    """Where a single-quoted quotation would close if the mark just found was a nested one."""
+    if not _LOWER_AFTER.match(text[close_end : close_end + 3]):
+        return None
+    match = _CLOSE.search(text, close_end, limit)
+    return match.start() if match else None
 
 
 def _parenthetical_span(target: ExtractedCitation, text: str) -> Span | None:

@@ -157,3 +157,26 @@ def test_a_quotation_after_the_citation_in_the_same_sentence_belongs_to_it() -> 
     assert [q.text for q in window.quotations] == [
         "we disapprove the overly rigid application of the standard."
     ]
+
+
+def test_a_nested_single_quotation_yields_the_longer_reading_as_an_alternative() -> None:
+    text = (
+        "Earlier point. See Doe v. Megless, 654 F.3d 404, 408 (3d Cir. 2011) ('[I]f a plaintiff fears that "
+        "revealing his or her name will subject him or her to 'extraordinary' harm, courts should balance "
+        "that against the public interest.')."
+    )
+    citation, text = _one(
+        text,
+        "Doe v. Megless, 654 F.3d 404, 408 (3d Cir. 2011) ('[I]f a plaintiff fears that revealing his or her "
+        "name will subject him or her to 'extraordinary' harm, courts should balance that against the public interest.')",
+        "654 F.3d 404",
+        "404",
+    )
+    window = citing_window(citation, (citation,), text)
+    texts = [(q.text, q.alternative) for q in window.quotations]
+    assert texts[0] == (
+        "[I]f a plaintiff fears that revealing his or her name will subject him or her to 'extraordinary",
+        False,
+    )
+    assert texts[1][1] is True
+    assert texts[1][0].endswith("against the public interest.")

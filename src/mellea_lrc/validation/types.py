@@ -362,6 +362,8 @@ class PageRetrievalOutcome(str, Enum):
     """Whether the cited reporter page could be cut from the archive's opinions."""
 
     FOUND = "found"
+    WHOLE_OPINION = "whole_opinion"
+    """The opinions carry no page markers at all, so the whole opinion stands in for the page."""
     NO_REPORTER = "no_reporter"
     """The cluster does not list the filing's reporter among its citations."""
     NO_PAGE = "no_page"
@@ -377,7 +379,9 @@ class QuoteFindingOutcome(str, Enum):
     ADJACENT = "adjacent"
     """On the page before or after the cited one, within the neighbour text shown."""
     ELSEWHERE = "elsewhere"
-    """In the opinion, on another page."""
+    """In the opinion, on another page, which is named."""
+    FOUND_UNPAGED = "found_unpaged"
+    """In an opinion whose text carries no page markers, so the page cannot be told."""
     ABSENT = "absent"
     """Nowhere in any of the cluster's opinions."""
 
@@ -407,12 +411,21 @@ class PinpointOutcome(str, Enum):
     """The filing's quoted words are in the opinion, on a page other than the cited one."""
     QUOTE_ABSENT = "quote_absent"
     """The filing's quoted words are in none of the cluster's opinions."""
+    QUOTE_ALTERED = "quote_altered"
+    """The quoted words are not the opinion's as written, but the cited page carries the same content:
+    a misquotation, disclosed side by side, not a wrong page."""
+    QUOTE_IN_OPINION = "quote_in_opinion"
+    """The quoted words are in the opinion; its text carries no page markers, so the page cannot be checked."""
     PASSAGE_ON_PAGE = "passage_on_page"
     """The page carries a passage on the filing's subject; both are shown side by side."""
     PASSAGE_ADJACENT = "passage_adjacent"
     """The passage is on the page before or after; a turn away, not a different page."""
     PASSAGE_ABSENT = "passage_absent"
     """Nothing on the cited page or beside it concerns the filing's subject."""
+    PASSAGE_IN_OPINION = "passage_in_opinion"
+    """The opinion carries a passage on the subject; its text carries no page markers."""
+    PASSAGE_ABSENT_FROM_OPINION = "passage_absent_from_opinion"
+    """Nothing in the whole opinion concerns the filing's subject."""
     NOT_TESTABLE = "not_testable"
     """The citation makes no page-level claim of its own: `see generally`, a `citing` parenthetical, a bare string share."""
     UNDETERMINED = "undetermined"
@@ -1295,6 +1308,10 @@ class PinpointResolutionNode:
     depends_on: tuple[str, ...]
     status_message: str | None = None
     outcome_message: str | None = None
+    misquoted: bool = False
+    """The words the filing puts in quotation marks are not in the opinion as written."""
+    text_scope: str = "page"
+    """`page` when a reporter page was cut; `opinion` when the whole opinion stood in for it."""
 
 
 ValidationNode: TypeAlias = (

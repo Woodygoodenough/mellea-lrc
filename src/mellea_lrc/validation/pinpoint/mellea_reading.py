@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 
 _log = logging.getLogger(__name__)
 
-MAX_TOKENS = 3000
+MAX_TOKENS = 8000
 MAX_REPAIR_TURNS = 3
 MIN_QUOTE_SCORE = 0.88
 
@@ -98,8 +98,9 @@ generally", "compare", or "none").
 Rules for quoting: every `attribution` and `passage` is located by a program
 in the text you were shown, so copy exactly -- do not paraphrase, shorten,
 normalise, or bridge two places with an ellipsis. Keep each quotation
-contiguous. If the passage runs across the page turn, quote the part on the
-side you name.
+contiguous and under eighty words; quote the sentence that carries the
+content, not the paragraph. If the passage runs across the page turn, quote
+the part on the side you name.
 
 Say what you found in `reason`, in two or three plain sentences that a reader
 can check against the two texts. Do not evaluate whether the citation is
@@ -150,6 +151,8 @@ class Located:
     attribution: fuzzy.Match | None
     passage: fuzzy.Match | None
     problems: tuple[str, ...]
+    passage_location: str | None = None
+    """Where the passage was actually found, which may differ from where the model said."""
 
 
 def locate(reading: PinpointReading, window: CitingWindow, page: RetrievedPage) -> Located:
@@ -234,6 +237,7 @@ def describe_quotes(quotes) -> str:
             "on_page": f"found on the cited page (p. {quote.label})",
             "adjacent": f"found on the neighbouring page (p. {quote.label})",
             "elsewhere": f"found in the opinion on p. {quote.label}, not the cited page",
+            "found_unpaged": "found in an opinion of the case whose text carries no page markers",
             "absent": "not found in any opinion of the case",
         }[quote.outcome.value]
         lines.append(f'- "{quote.text}" -- {where}')
@@ -310,7 +314,7 @@ async def run_mellea_pinpoint_reading(
         attribution_scope=reading.attribution_scope,
         signal=reading.signal,
         passage=located.passage.text if located.passage else reading.passage,
-        passage_location=reading.passage_location,
+        passage_location=located.passage_location or reading.passage_location,
         passage_span=passage_span,
         voice=reading.voice,
         page_subjects=reading.page_subjects,

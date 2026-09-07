@@ -66,7 +66,8 @@ TWOMBLY = CourtListenerOpinionCluster(
 
 
 class Client:
-    def __init__(self) -> None:
+    def __init__(self, html: str = PAGE_HTML) -> None:
+        self.html = html
         self.opinions_fetched: list[str] = []
 
     def lookup_citation(self, volume: str, reporter: str, page: str) -> CourtListenerCitationLookup:
@@ -85,7 +86,7 @@ class Client:
         if opinion_id != "o1":
             raise CourtListenerError("no such opinion", failure_type="test")
         return CourtListenerOpinion(
-            opinion_id="o1", cluster_id="c1", opinion_type="010combined", html_with_citations=PAGE_HTML
+            opinion_id="o1", cluster_id="c1", opinion_type="010combined", html_with_citations=self.html
         )
 
     def search(self, *args: object, **kwargs: object) -> object:
@@ -159,8 +160,13 @@ def _fake_reading(monkeypatch: pytest.MonkeyPatch, answers: list[dict[str, objec
     return calls
 
 
-def _run(monkeypatch: pytest.MonkeyPatch, answers: list[dict[str, object]], text: str = TEXT):
-    client = Client()
+def _run(
+    monkeypatch: pytest.MonkeyPatch,
+    answers: list[dict[str, object]],
+    text: str = TEXT,
+    client: Client | None = None,
+):
+    client = client or Client()
     identified = asyncio.run(identify_document(_document(text), client=client))
     _fake_reading(monkeypatch, answers)
     asyncio.run(pinpoint_document(identified, client=client))
@@ -282,3 +288,35 @@ def test_the_artifact_round_trips_with_the_pinpoint_nodes(monkeypatch) -> None:
     page = next(n for n in recovered.records[0].trace.nodes if isinstance(n, PageRetrievalNode))
     assert page.labels == ("570",)
     assert summarize(recovered).outcomes["quote_on_page"] == 1
+
+
+def test_a_misquotation_of_content_the_page_carries_is_altered_not_false(monkeypatch) -> None:
+    text = TEXT.replace(
+        "enough facts to state a claim to relief that is plausible on its face.",
+        "enough facts to state a plausible claim to relief on its face, whatever that means.",
+    )
+    same = {
+        **SAME,
+        "attribution": "enough facts to state a plausible claim to relief on its face, whatever that means.",
+    }
+    identified, _ = _run(monkeypatch, [same, SAME, NONE], text)
+    root = _resolutions(identified)["root"]
+    assert root.outcome is PinpointOutcome.QUOTE_ALTERED
+    assert root.false_pin_cite is False
+    assert root.misquoted is True
+    assert root.passage is not None
+
+
+def test_an_opinion_without_page_markers_stands_in_for_the_page(monkeypatch) -> None:
+    unpaged = PAGE_HTML.replace(
+        '<span class="star-pagination" citation-index="1" label="545">*545</span>', ""
+    )
+    unpaged = unpaged.replace('<span class="star-pagination" citation-index="1" label="570">*570</span>', "")
+    unpaged = unpaged.replace('<span class="star-pagination" citation-index="1" label="571">*571</span>', "")
+    unpaged = unpaged.replace('<span class="star-pagination" citation-index="1" label="572">*572</span>', "")
+    identified, _ = _run(monkeypatch, [SAME, SAME, NONE], client=Client(unpaged))
+    resolutions = _resolutions(identified)
+    assert resolutions["root"].outcome is PinpointOutcome.QUOTE_IN_OPINION
+    assert resolutions["root"].text_scope == "opinion"
+    assert resolutions["id1"].outcome is PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION
+    assert resolutions["id1"].false_pin_cite is True

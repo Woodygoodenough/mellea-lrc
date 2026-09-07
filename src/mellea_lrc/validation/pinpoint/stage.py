@@ -138,12 +138,23 @@ async def pinpoint_document(
                 break
         assert page_node is not None
         record.append(page_node)
+        if page is not None:
+            # Every agreeing cluster's opinions are read for the quote
+            # search: the archive holds a case twice as often as not, and
+            # the words may be in the copy the page was not cut from.
+            for other_id in _clusters_to_try(root, scope.cluster_id):
+                if other_id not in opinions:
+                    _read_opinions(record, other_id, _cluster_of(root, other_id), client, opinions)
         if page is None:
             record.append(_resolution_unretrieved(record, scope, page_node))
             continue
         window = citing_window(record.source, citations, text)
-        paginated = opinions.get(page_node.cluster_id or "", {})
-        quotes = record.append(_quote_check(record, window, page, paginated, page_node))
+        searchable_opinions = {
+            oid: op
+            for cid in _clusters_to_try(root, scope.cluster_id)
+            for oid, op in opinions.get(cid, {}).items()
+        }
+        quotes = record.append(_quote_check(record, window, page, searchable_opinions, page_node, first_page))
         reading = record.append(
             await run_mellea_pinpoint_reading(
                 node_id=f"{record.citation_id}:pinpoint_reading",
@@ -275,6 +286,31 @@ def _clusters_to_try(root: CitationRecord, resolved: str | None) -> tuple[str, .
     return tuple(order)
 
 
+def _read_opinions(
+    record: CitationRecord,
+    cluster_id: str,
+    cluster: CourtListenerOpinionCluster | None,
+    client: CourtListenerServiceClient,
+    opinions: dict[str, dict[str, PaginatedOpinion]],
+) -> tuple[str, ...]:
+    """Fetch and paginate every opinion of a cluster once; raises on a failed fetch."""
+    paginated = opinions.setdefault(cluster_id, {})
+    read: list[str] = []
+    if cluster is None:
+        return ()
+    for opinion_id in cluster.sub_opinion_ids:
+        if opinion_id not in paginated:
+            opinion = record.opinions.get(opinion_id) or client.get_opinion(opinion_id)
+            record.opinions[opinion_id] = opinion
+            paginated[opinion_id] = paginate(opinion)
+        read.append(opinion_id)
+    return tuple(read)
+
+
+MAX_OPINION_CHARS = 60_000
+"""When an opinion carries no page markers, the whole of it stands in for the page, up to this length."""
+
+
 def _retrieve(
     record: CitationRecord,
     scope: PinpointScopeNode,
@@ -309,28 +345,46 @@ def _retrieve(
         return node(
             PageRetrievalOutcome.NO_TEXT, None, (), None, "The cluster's record is not on the trace."
         ), None
-    paginated = opinions.setdefault(cluster_id, {})
-    read: list[str] = []
     try:
-        for opinion_id in cluster.sub_opinion_ids:
-            if opinion_id not in paginated:
-                opinion = record.opinions.get(opinion_id) or client.get_opinion(opinion_id)
-                record.opinions[opinion_id] = opinion
-                paginated[opinion_id] = paginate(opinion)
-            read.append(opinion_id)
+        read = _read_opinions(record, cluster_id, cluster, client, opinions)
     except CourtListenerError as exc:
         return node(
-            PageRetrievalOutcome.FAILED,
-            None,
-            tuple(read),
-            None,
-            "An opinion could not be fetched.",
-            exc.message,
+            PageRetrievalOutcome.FAILED, None, (), None, "An opinion could not be fetched.", exc.message
         ), None
+    paginated = opinions[cluster_id]
     if not any(op.text.strip() for op in paginated.values()):
         return node(
-            PageRetrievalOutcome.NO_TEXT, None, tuple(read), None, "The cluster's opinions carry no text."
+            PageRetrievalOutcome.NO_TEXT, None, read, None, "The cluster's opinions carry no text."
         ), None
+    if not any(op.markers for op in paginated.values()):
+        # No reporter pagination at all -- the archive's own scrape of a
+        # recent opinion. The page cannot be cut; the opinion can be read.
+        lead = min(paginated.values(), key=lambda op: (opinion_order(op.opinion_type), op.opinion_id))
+        if len(lead.text) > MAX_OPINION_CHARS:
+            return node(
+                PageRetrievalOutcome.NO_PAGE,
+                None,
+                read,
+                None,
+                f"The opinions carry no page markers and the lead opinion is {len(lead.text):,} characters, too long to stand in for the page.",
+            ), None
+        page = RetrievedPage(
+            opinion_id=lead.opinion_id,
+            opinion_type=lead.opinion_type,
+            citation_index="",
+            labels=(),
+            text=lead.text,
+            span=Span(0, len(lead.text)),
+            before="",
+            after="",
+        )
+        return node(
+            PageRetrievalOutcome.WHOLE_OPINION,
+            None,
+            read,
+            page,
+            f"The opinions carry no page markers; the whole of opinion {lead.opinion_id} ({lead.opinion_type}) stands in for page {labels[0]}.",
+        ), page
     # The marker index is read from the page numbers themselves; the
     # cluster's citation list is consulted only when the numbers do not decide.
     index = marker_index_for(tuple(paginated.values()), first_page, labels) or citation_index(
@@ -341,7 +395,7 @@ def _retrieve(
         return node(
             PageRetrievalOutcome.NO_REPORTER,
             None,
-            tuple(read),
+            read,
             None,
             f"No opinion's page markers fit {reporter_citation}; the cluster's citations are {listed}.",
         ), None
@@ -358,7 +412,7 @@ def _retrieve(
         return node(
             PageRetrievalOutcome.NO_PAGE,
             index,
-            tuple(read),
+            read,
             None,
             f"No opinion marks page {labels[0]} in {reporter_citation}; the pages marked run {span}.",
         ), None
@@ -367,7 +421,7 @@ def _retrieve(
     return node(
         PageRetrievalOutcome.FOUND,
         index,
-        tuple(read),
+        read,
         page,
         f"Page {', '.join(page.labels)} cut from opinion {page.opinion_id} ({page.opinion_type}) of cluster {cluster_id}.",
     ), page
@@ -376,7 +430,7 @@ def _retrieve(
 def _page_node(
     node_id, scope, cluster_id, outcome, reporter_citation, index, labels, read, page, message, *, error=None
 ) -> PageRetrievalNode:
-    if outcome is PageRetrievalOutcome.FOUND:
+    if outcome in (PageRetrievalOutcome.FOUND, PageRetrievalOutcome.WHOLE_OPINION):
         status = ValidationNodeStatus.SUCCEEDED
     elif outcome is PageRetrievalOutcome.FAILED:
         status = ValidationNodeStatus.FAILED
@@ -398,7 +452,7 @@ def _page_node(
         opinions_read=tuple(read),
         depends_on=(scope.node_id,),
         status_message="Page retrieval completed."
-        if outcome is PageRetrievalOutcome.FOUND
+        if outcome in (PageRetrievalOutcome.FOUND, PageRetrievalOutcome.WHOLE_OPINION)
         else "Page retrieval did not produce a page.",
         outcome_message=message,
         error=error,
@@ -411,41 +465,47 @@ def _quote_check(
     page: RetrievedPage,
     paginated: dict[str, PaginatedOpinion],
     page_node: PageRetrievalNode,
+    first_page: str | None,
 ) -> QuoteCheckNode:
     node_id = f"{page_node.node_id}:quote_check"
     findings: list[QuoteFinding] = []
+    whole = not page.labels
     for quotation in window.quotations:
-        shared = bool(window.string_members) and not quotation.in_parenthetical
-        short = len(quotation.text.split()) < SHORT_QUOTE_WORDS
+        shared = (bool(window.string_members) and not quotation.in_parenthetical) or quotation.alternative
+        needle = searchable(quotation.text)
+        short = len(needle.split()) < SHORT_QUOTE_WORDS
         score_floor = 1.0 if short else QUOTE_MIN_SCORE
         outcome = QuoteFindingOutcome.ABSENT
         opinion_id = label = None
         page_span = None
         score = None
-        if matches := fuzzy.find_all(quotation.text, page.text, min_score=score_floor):
-            outcome, opinion_id, page_span, score = (
-                QuoteFindingOutcome.ON_PAGE,
+        if matches := _find(needle, page.text, score_floor):
+            outcome = QuoteFindingOutcome.FOUND_UNPAGED if whole else QuoteFindingOutcome.ON_PAGE
+            opinion_id, page_span, score = (
                 page.opinion_id,
                 Span(matches[0].start, matches[0].end),
                 matches[0].score,
             )
-            label = _label_in_page(page, matches[0].start)
-        elif any(
-            fuzzy.find_all(quotation.text, side, min_score=score_floor)
-            for side in (page.before, page.after)
-            if side
-        ):
+            label = None if whole else _label_in_page(page, matches[0].start)
+        elif any(_find(needle, side, score_floor) for side in (page.before, page.after) if side):
             outcome, opinion_id = QuoteFindingOutcome.ADJACENT, page.opinion_id
-            label = _adjacent_label(page, quotation.text, score_floor)
+            label = _adjacent_label(page, needle, score_floor)
         else:
-            for opinion in sorted(paginated.values(), key=lambda op: opinion_order(op.opinion_type)):
-                if matches := fuzzy.find_all(quotation.text, opinion.text, min_score=score_floor):
-                    outcome, opinion_id, score = (
-                        QuoteFindingOutcome.ELSEWHERE,
-                        opinion.opinion_id,
-                        matches[0].score,
-                    )
-                    label = opinion.label_at(matches[0].start, page.citation_index)
+            for opinion in sorted(
+                paginated.values(), key=lambda op: (opinion_order(op.opinion_type), op.opinion_id)
+            ):
+                if matches := _find(needle, opinion.text, score_floor):
+                    opinion_id, score = opinion.opinion_id, matches[0].score
+                    index = marker_index_for((opinion,), first_page, page.labels or (first_page or "",))
+                    label = opinion.label_at(matches[0].start, index) if index else None
+                    if label is None:
+                        # The words are in this opinion, and its text carries no
+                        # page marker before them: the page cannot be told.
+                        outcome = QuoteFindingOutcome.FOUND_UNPAGED
+                    elif label in page.labels:
+                        outcome = QuoteFindingOutcome.ON_PAGE
+                    else:
+                        outcome = QuoteFindingOutcome.ELSEWHERE
                     break
         findings.append(
             QuoteFinding(
@@ -464,6 +524,7 @@ def _quote_check(
     order = [
         QuoteFindingOutcome.ABSENT,
         QuoteFindingOutcome.ELSEWHERE,
+        QuoteFindingOutcome.FOUND_UNPAGED,
         QuoteFindingOutcome.ADJACENT,
         QuoteFindingOutcome.ON_PAGE,
     ]
@@ -557,26 +618,55 @@ def _conclude(
 ) -> PinpointResolutionNode:
     node_id = f"{record.citation_id}:pinpoint_resolution"
     depends = (scope.node_id, page_node.node_id, quotes.node_id, reading.node_id)
+    whole = not page.labels
     vocabulary = _vocabulary_on_page(reading.attribution, page)
-    on_page_quote = next((q for q in quotes.quotes if q.outcome is QuoteFindingOutcome.ON_PAGE), None)
+    on_text_quote = next(
+        (
+            q
+            for q in quotes.quotes
+            if q.outcome in (QuoteFindingOutcome.ON_PAGE, QuoteFindingOutcome.FOUND_UNPAGED) and q.page_span
+        ),
+        None,
+    )
+    read_ok = reading.status is ValidationNodeStatus.SUCCEEDED and reading.outcome is not None
+    same_here = (
+        read_ok and reading.outcome is PinpointRelation.SAME_CONTENT and reading.passage_location == "page"
+    )
     decided_by = quotes.node_id
+    misquoted = False
     # Quoted words are decided by the program. Absence in a shared sentence
     # proves nothing about this member; absence in the citation's own
     # parenthetical, or in a sentence it alone closes, is a fact about it.
-    if quotes.outcome is QuoteFindingOutcome.ABSENT:
-        outcome, false = PinpointOutcome.QUOTE_ABSENT, True
+    # But words in quotation marks that differ from the page's while the page
+    # carries the same content are a misquotation, not a wrong page.
+    if quotes.outcome is QuoteFindingOutcome.ABSENT and same_here:
+        outcome, false, misquoted = PinpointOutcome.QUOTE_ALTERED, False, True
+        message = (
+            "The quoted words are not in the opinion as written; the cited text carries the same content."
+        )
+    elif quotes.outcome is QuoteFindingOutcome.ABSENT:
+        outcome, false, misquoted = PinpointOutcome.QUOTE_ABSENT, True, True
         message = "The filing's quoted words are in none of the case's opinions."
     elif quotes.outcome is QuoteFindingOutcome.ELSEWHERE:
         outcome, false = PinpointOutcome.QUOTE_ELSEWHERE, True
         where = next(q for q in quotes.quotes if q.outcome is QuoteFindingOutcome.ELSEWHERE and not q.shared)
-        message = f"The filing's quoted words are in the opinion on page {where.label or '?'}, not on the cited page."
-    elif on_page_quote is not None:
-        outcome, false = PinpointOutcome.QUOTE_ON_PAGE, False
-        message = "The filing's quoted words are on the cited page."
+        message = (
+            f"The filing's quoted words are in the opinion on page {where.label}, not on the cited page."
+        )
+    elif on_text_quote is not None:
+        outcome, false = (PinpointOutcome.QUOTE_IN_OPINION if whole else PinpointOutcome.QUOTE_ON_PAGE), False
+        message = (
+            "The filing's quoted words are in the opinion, whose text carries no page markers."
+            if whole
+            else "The filing's quoted words are on the cited page."
+        )
+    elif quotes.outcome is QuoteFindingOutcome.FOUND_UNPAGED:
+        outcome, false = PinpointOutcome.QUOTE_IN_OPINION, False
+        message = "The filing's quoted words are in an opinion whose text carries no page markers; the page cannot be told."
     elif quotes.outcome is QuoteFindingOutcome.ADJACENT:
         outcome, false = PinpointOutcome.PASSAGE_ADJACENT, False
         message = "The filing's quoted words are on the neighbouring page, a turn away from the cited one."
-    elif reading.status is not ValidationNodeStatus.SUCCEEDED or reading.outcome is None:
+    elif not read_ok:
         decided_by = reading.node_id
         outcome, false = PinpointOutcome.UNDETERMINED, False
         message = f"The reading did not pass its guards: {reading.error or 'no reading'}."
@@ -587,12 +677,15 @@ def _conclude(
     elif reading.outcome in (PinpointRelation.SAME_CONTENT, PinpointRelation.RELATED_SUBJECT):
         decided_by = reading.node_id
         adjacent = reading.passage_location in ("before", "after")
-        outcome, false = (
-            (PinpointOutcome.PASSAGE_ADJACENT if adjacent else PinpointOutcome.PASSAGE_ON_PAGE),
-            False,
-        )
+        if whole:
+            outcome = PinpointOutcome.PASSAGE_IN_OPINION
+        elif adjacent:
+            outcome = PinpointOutcome.PASSAGE_ADJACENT
+        else:
+            outcome = PinpointOutcome.PASSAGE_ON_PAGE
+        false = False
         message = (
-            f"The page {'beside the cited one ' if adjacent else ''}carries a passage on the subject"
+            f"The {'opinion' if whole else ('page beside the cited one' if adjacent else 'page')} carries a passage on the subject"
             f" ({reading.outcome.value}, {reading.voice or 'voice unread'})."
         )
     else:
@@ -604,38 +697,46 @@ def _conclude(
             outcome, false = PinpointOutcome.UNDETERMINED, False
             message = "Nothing on the page concerns the subject, but the sentence is shared by a string cite and may rest on another member."
         else:
-            outcome, false = PinpointOutcome.PASSAGE_ABSENT, True
-            message = f"Nothing on the cited page or beside it concerns the subject; the page discusses: {reading.page_subjects or 'unread'}"
+            outcome = PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION if whole else PinpointOutcome.PASSAGE_ABSENT
+            false = True
+            message = (
+                f"Nothing in the {'opinion' if whole else 'cited page or beside it'} concerns the subject; "
+                f"the {'opinion' if whole else 'page'} discusses: {reading.page_subjects or 'unread'}"
+            )
     passage_label = None
-    if reading.passage_span is not None and reading.passage_location == "page":
+    if reading.passage_span is not None and reading.passage_location == "page" and not whole:
         passage_label = _label_in_page(page, reading.passage_span.start)
-    elif reading.passage_location in ("before", "after"):
-        passage_label = _adjacent_label(page, reading.passage or "", 0.0) if reading.passage else None
+    elif reading.passage_location in ("before", "after") and reading.passage:
+        passage_label = _adjacent_label(page, reading.passage, 0.0)
+    passage_span = (
+        reading.passage_span
+        if reading.passage_span is not None
+        else (on_text_quote.page_span if on_text_quote else None)
+    )
+    passage_text = (
+        reading.passage
+        if reading.passage_span is not None
+        else (
+            page.text[on_text_quote.page_span.start : on_text_quote.page_span.end]
+            if on_text_quote and on_text_quote.page_span
+            else None
+        )
+    )
     return PinpointResolutionNode(
         node_id=node_id,
         status=ValidationNodeStatus.SUCCEEDED,
         outcome=outcome,
         false_pin_cite=false,
         authority_id=scope.authority_id,
-        cluster_id=scope.cluster_id,
+        cluster_id=page_node.cluster_id,
         pin_cite=scope.pin_cite,
         labels=page.labels,
         attribution_span=reading.attribution_span,
         attribution=reading.attribution,
-        passage_opinion_id=page.opinion_id
-        if reading.passage_span is not None
-        else (on_page_quote.opinion_id if on_page_quote else None),
-        passage_label=passage_label or (on_page_quote.label if on_page_quote else None),
-        passage_span=reading.passage_span
-        if reading.passage_span is not None
-        else (on_page_quote.page_span if on_page_quote else None),
-        passage=reading.passage
-        if reading.passage_span is not None
-        else (
-            page.text[on_page_quote.page_span.start : on_page_quote.page_span.end]
-            if on_page_quote and on_page_quote.page_span
-            else None
-        ),
+        passage_opinion_id=page.opinion_id if passage_span is not None else None,
+        passage_label=passage_label or (on_text_quote.label if on_text_quote else None),
+        passage_span=passage_span,
+        passage=passage_text,
         voice=reading.voice,
         signal=reading.signal or window.signal,
         vocabulary_on_page=vocabulary,
@@ -643,6 +744,8 @@ def _conclude(
         depends_on=depends,
         status_message="Pinpoint decided.",
         outcome_message=message,
+        misquoted=misquoted,
+        text_scope="opinion" if whole else "page",
     )
 
 

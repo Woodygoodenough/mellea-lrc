@@ -89,9 +89,10 @@ def run(run_dir: Path, out_dir: Path, *, miss_budget: int, only: str | None, lim
                         "full_start": record.source.full_span.start,
                         "outcome": node.outcome.value,
                         "false": node.false_pin_cite,
+                        "misquoted": node.misquoted,
                         "pin": node.pin_cite,
                     }
-                    if node.false_pin_cite:
+                    if node.false_pin_cite or node.misquoted:
                         findings.append(_finding(path.stem, record, node, text))
         per_document[path.name] = doc_outcomes
     summary = "\n".join(
