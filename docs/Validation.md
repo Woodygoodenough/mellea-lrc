@@ -146,7 +146,105 @@ refused. And the archive's values never reach `citation`: a filing that cites
 the right case under the wrong year keeps its year, gets the right one on
 `resolution`, and the disagreement between them is the finding.
 
-### The route
+### The pinpoint stage
+
+`validation/pinpoint/`. Identity settled which case a filing cites; this
+stage takes every citation that also names a page and puts the filing's words
+beside the page's. It runs over the whole citation tree: the full citation,
+and each `Id. at 570`, `556 U.S. at 678` and `Iqbal at 678` that returns to
+the same authority, since each is its own claim about its own page.
+
+    uv run python -m evaluations.pinpoint.run_identified_artifacts data/runs/extraction-v2.0-identified
+
+Four nodes per citation, appended to the record's trace after the identity
+nodes.
+
+**Scope** (`PinpointScopeNode`). The citation states a pin cite; its authority
+resolved to a cluster (`confirmed_identity`, or `wrong_identity` on a field,
+which still found the case); and the pin names a reporter page. A star page
+(`*3`) counts an electronic report, a paragraph (`¶ 26`) an opinion's or an
+indictment's numbering, a section a statute: none is a reporter page and each
+is named for what it is. A range (`180-81`) is every page it spans, up to
+four.
+
+**Page** (`PageRetrievalNode`, `pinpoint/pages.py`). CourtListener's
+`html_with_citations` marks where each reporter's pages turn, indexed by
+parallel citation, and the same opinion paginated by S. Ct. turns at
+different places -- so the page is cut for the reporter the filing wrote. The
+marker index is read from the page numbers themselves, because the cluster's
+citation list and the HTML's `citation-index` do not always count the same
+way. An opinion's opening pages often carry no marker at all (`814 F.2d 565`
+is marked only from 568), so a page between the case's first page and the
+first marker is the head of the text, cut as one run. The archive may hold the
+page under several clusters that agree on the case, and the one identity
+settled on need not be the one whose text is paginated: every agreeing cluster
+is tried. Every opinion of the cluster is read and paginated, the court's
+first, and the page comes with the tail of the page before and the head of
+the page after, because a sentence pinned to 678 often begins on 677. Which
+opinion the page came from travels with it: words on the cited page in a
+dissent are a different fact from the same words in the opinion of the court.
+
+**Quotes** (`QuoteCheckNode`, `pinpoint/citing.py`). Every quotation the
+filing writes in the sentence the citation belongs to, in the citation's own
+parenthetical, or after the citation in the same sentence, is lifted with its
+span -- double or single marks, an apostrophe told from a quotation mark by
+what stands on either side -- and searched by the program: on the page, on
+the pages beside it, then through every opinion of the cluster. `[n]eglect`
+is searched as `neglect`; a quotation written with ellipses is searched
+fragment by fragment. A quotation shorter than four words is searched exactly,
+never fuzzily. The finding is `on_page`, `adjacent`, `elsewhere` with the
+page it was found on, or `absent` from every opinion. A quotation in a
+sentence a string cite shares proves nothing about one member by its absence
+and is marked `shared`; one shorter than six words decides nothing on its own,
+since a parenthetical's `'failed to show any prejudice'` is as often a close
+paraphrase as a quotation.
+
+**Reading** (`MelleaPinpointReadingNode`, `pinpoint/mellea_reading.py`). One
+model call, shown the filing around the citation with the target marked
+between `«` and `»` -- enough of it to see a string cite and which member the
+target is -- and the page with its neighbours. It answers with quotations
+from each: the words in the filing that state what the target is cited for
+(`attribution`, with whether they are the citation's own, shared by a string,
+or no page-level claim at all), and the passage on the page on that subject
+(`passage`, with where it is), the factual relation between them
+(`same_content`, `related_subject`, `none`), whose words the passage is
+(`voice`: the court, a dissent or concurrence, a party's argument, a lower
+court, a quoted authority, a headnote), the signal word, and one sentence on
+what the page discusses. Both quotations are located by the program before
+anything is believed, with `mellea_lrc.text.fuzzy`; a reading whose quotations
+are not in the texts it was shown is rejected and asked for again, and after
+three turns is recorded as failed with whatever was located. No field asks
+whether the page supports the filing, and the instruction says not to answer
+that question.
+
+**Resolution** (`PinpointResolutionNode`). What was found, with both sides
+located: the attribution's span in the filing and the passage's span in the
+page text, the opinion and page it is on, and the voice.
+
+| outcome | means | false |
+|---|---|---|
+| `quote_on_page` | the filing's quoted words are on the cited page | |
+| `quote_elsewhere` | in the opinion, on another page, which is named | yes |
+| `quote_absent` | in none of the cluster's opinions | yes |
+| `passage_on_page` | the page carries a passage on the filing's subject; both shown | |
+| `passage_adjacent` | the passage is a turn away, on the page before or after | |
+| `passage_absent` | nothing on the cited page or beside it concerns the subject | yes |
+| `not_testable` | no page-level claim of the citation's own: `see generally`, a `citing` parenthetical, a bare string share | |
+| `undetermined` | the reading did not pass its guards, or the evidence points both ways | |
+| `not_retrieved` | out of scope, or no page could be cut | |
+
+Nothing here says a page supports a proposition. A pin cite is called false
+only on a fact of absence, and the program decides the quotations before the
+model is consulted. Two guards stand between a reading of `none` and
+`passage_absent`: if half the attribution's distinctive words are on the page,
+the absence is not believed and the outcome is `undetermined`; and if the
+sentence is shared by a string cite, the passage may rest on another member
+and the outcome is `undetermined`. A `related_subject` reading -- the page is
+about the same thing and says something different -- is `passage_on_page`,
+shown side by side, because whether the difference matters is a legal
+question this stage does not answer.
+
+## The route
 
 ```
 identity scope ── non-root, or not a case → stop, inheriting or out of scope
