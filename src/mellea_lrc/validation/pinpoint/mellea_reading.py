@@ -141,8 +141,7 @@ class PinpointReading(BaseModel):
     passage_location: Literal["page", "before", "after"] | None
     relation: Literal["same_content", "related_subject", "contradicts", "partial", "none"]
     missing: str | None = Field(
-        default=None,
-        description="When relation is partial: the words copied from the attribution that the page does not state.",
+        description="When relation is partial: the words copied from the attribution that the page does not state; otherwise null."
     )
     voice: (
         Literal[
