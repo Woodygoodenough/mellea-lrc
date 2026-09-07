@@ -359,3 +359,40 @@ def test_markers_that_enclose_almost_nothing_yield_no_page(monkeypatch) -> None:
     root = _resolutions(identified)["root"]
     assert root.outcome is PinpointOutcome.NOT_RETRIEVED
     assert "characters" in (root.outcome_message or "")
+
+
+def test_an_opinion_whose_copy_of_the_page_is_empty_yields_to_one_that_holds_it(monkeypatch) -> None:
+    class TwoOpinions(Client):
+        def lookup_citation(self, volume, reporter, page):
+            result = super().lookup_citation(volume, reporter, page)
+            if not result.clusters:
+                return result
+            cluster = result.clusters[0]
+            return CourtListenerCitationLookup(
+                citation=result.citation,
+                status=result.status,
+                clusters=(
+                    CourtListenerOpinionCluster(
+                        cluster_id=cluster.cluster_id,
+                        case_name=cluster.case_name,
+                        date_filed=cluster.date_filed,
+                        docket_id=cluster.docket_id,
+                        citations=cluster.citations,
+                        sub_opinion_ids=("lead", "o1"),
+                    ),
+                ),
+            )
+
+        def get_opinion(self, opinion_id):
+            if opinion_id == "lead":
+                # The lead opinion ends at the turn to 570: the marker is its last thing.
+                html = '<p>Lead opinion text on page five sixty-nine.</p><span class="star-pagination" citation-index="1" label="570">*570</span>'
+                return CourtListenerOpinion(
+                    opinion_id="lead", cluster_id="c1", opinion_type="020lead", html_with_citations=html
+                )
+            return super().get_opinion(opinion_id)
+
+    identified, _ = _run(monkeypatch, [SAME, SAME, NONE], client=TwoOpinions())
+    page = next(n for n in identified.record("root").trace.nodes if isinstance(n, PageRetrievalNode))
+    assert page.opinion_id == "o1"
+    assert _resolutions(identified)["root"].outcome is PinpointOutcome.QUOTE_ON_PAGE

@@ -311,7 +311,7 @@ def _read_opinions(
     return tuple(read)
 
 
-MAX_OPINION_CHARS = 60_000
+MAX_OPINION_CHARS = 120_000
 """When an opinion carries no page markers, the whole of it stands in for the page, up to this length."""
 MIN_PAGE_CHARS = 100
 """A cut page shorter than this is not a page: the markers around it are misplaced, and nothing
@@ -423,7 +423,10 @@ def _retrieve(
             None,
             f"No opinion marks page {labels[0]} in {reporter_citation}; the pages marked run {span}.",
         ), None
-    found.sort(key=lambda item: item[0])
+    # The court's opinion first, unless its copy of the page is empty: a lead
+    # opinion that ends on the cited page leaves the marker with nothing
+    # after it, and the combined opinion holds the page in full.
+    found.sort(key=lambda item: (len(item[1].text.strip()) < MIN_PAGE_CHARS, item[0]))
     page = found[0][1]
     if len(page.text.strip()) < MIN_PAGE_CHARS:
         return node(

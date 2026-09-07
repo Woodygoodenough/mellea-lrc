@@ -183,7 +183,7 @@ first, and the page comes with the tail of the page before and the head of
 the page after, because a sentence pinned to 678 often begins on 677. An
 opinion the archive holds with no page markers at all -- its own scrape of a
 recent decision -- cannot be cut, and the whole of it stands in for the page
-(up to sixty thousand characters), which changes what an absence means: not
+(up to a hundred and twenty thousand characters), which changes what an absence means: not
 "not on this page" but "not in this opinion". Which
 opinion the page came from travels with it: words on the cited page in a
 dissent are a different fact from the same words in the opinion of the court.
