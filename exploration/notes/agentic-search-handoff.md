@@ -65,6 +65,16 @@ By what the filing wrote, the 91:
 131 pin cites hang off the deferred roots and wait on them: the pinpoint
 stage runs on any root the search route resolves, unchanged.
 
+A population the counts above do not include, because it never enters the
+tree: a case named with a court and a year and no locator at all --
+`Akiachak Native Community v. U.S. Department of the Interior (D.D.C. 2016)`
+in document 013. eyecite extracts nothing without a reporter, so no record
+exists, and two of the 22 labelled `WRONG_PINCITE` entries are of this shape
+(`authority: null` in `annotations.json`). Whether extraction should emit a
+name-only citation as a `ReferenceCitation` carrying the court and year is
+the extraction agent's call; if it does, the search route is what resolves
+it, and the pinpoint stage then has a record to hang a finding on.
+
 Read these against the labels before designing: 21 of the 51 labelled
 `WRONG_IDENTITY` are deferred `not_found` -- fabricated Westlaw numbers and
 pages that hold nothing -- and the archive cannot demonstrate a fabrication,
