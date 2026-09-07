@@ -74,10 +74,21 @@ from mellea_lrc.validation.types import (
     MelleaIdentityJudgmentNode,
     MelleaPinpointCheckNode,
     MelleaPinpointCheckOutcome,
+    MelleaPinpointReadingNode,
     MelleaReextractedCaseNameCheckNode,
     OpinionSearchCandidateAssessmentNode,
     OpinionSearchNode,
     OpinionSearchOutcome,
+    PageRetrievalNode,
+    PageRetrievalOutcome,
+    PinpointOutcome,
+    PinpointRelation,
+    PinpointResolutionNode,
+    PinpointScope,
+    PinpointScopeNode,
+    QuoteCheckNode,
+    QuoteFinding,
+    QuoteFindingOutcome,
     RecapSearchCandidateAssessmentNode,
     RecapSearchNode,
     RecapSearchOutcome,
@@ -131,6 +142,11 @@ _NODE_TYPES: dict[str, type[ValidationNode]] = {
         IdentityResolutionNode,
         AuthorityMergeNode,
         DocketIdentityNode,
+        PinpointScopeNode,
+        PageRetrievalNode,
+        QuoteCheckNode,
+        MelleaPinpointReadingNode,
+        PinpointResolutionNode,
     )
 }
 
@@ -166,6 +182,11 @@ _OUTCOME_TYPES = {
     IdentityResolutionNode: IdentityOutcome,
     AuthorityMergeNode: AuthorityMergeOutcome,
     DocketIdentityNode: DocketIdentityOutcome,
+    PinpointScopeNode: PinpointScope,
+    PageRetrievalNode: PageRetrievalOutcome,
+    QuoteCheckNode: QuoteFindingOutcome,
+    MelleaPinpointReadingNode: PinpointRelation,
+    PinpointResolutionNode: PinpointOutcome,
 }
 
 
@@ -231,7 +252,10 @@ def _deserialize_node(value: object) -> ValidationNode:
     node_type = _NODE_TYPES[node_type_name]
     fields = {key: value for key, value in payload.items() if key != "node_type"}
     fields["status"] = ValidationNodeStatus(fields["status"])
-    fields["outcome"] = _OUTCOME_TYPES[node_type](fields["outcome"])
+    if fields.get("outcome") is None and node_type in (QuoteCheckNode, MelleaPinpointReadingNode):
+        fields["outcome"] = None
+    else:
+        fields["outcome"] = _OUTCOME_TYPES[node_type](fields["outcome"])
     fields["depends_on"] = tuple(require_list(fields["depends_on"], name="node.depends_on"))
 
     if node_type is ExactLocatorLookupNode:
@@ -277,6 +301,36 @@ def _deserialize_node(value: object) -> ValidationNode:
     ):
         for field_name in ("case_name_outcome", "year_outcome", "court_outcome"):
             fields[field_name] = AggregatedFieldOutcome(fields[field_name])
+    elif node_type is PageRetrievalNode:
+        fields["labels"] = tuple(require_list(fields["labels"], name="node.labels"))
+        fields["opinions_read"] = tuple(require_list(fields["opinions_read"], name="node.opinions_read"))
+    elif node_type is QuoteCheckNode:
+        fields["quotes"] = tuple(
+            QuoteFinding(
+                text=item["text"],
+                filing_span=_deserialize_span(item["filing_span"], name="quote.filing_span"),
+                in_parenthetical=bool(item["in_parenthetical"]),
+                shared=bool(item["shared"]),
+                outcome=QuoteFindingOutcome(item["outcome"]),
+                opinion_id=item.get("opinion_id"),
+                label=item.get("label"),
+                page_span=_optional_span(item.get("page_span"), name="quote.page_span"),
+                score=item.get("score"),
+            )
+            for item in (
+                require_mapping(value, name="node.quotes")
+                for value in require_list(fields["quotes"], name="node.quotes")
+            )
+        )
+    elif node_type is MelleaPinpointReadingNode:
+        fields["window"] = _deserialize_span(fields["window"], name="node.window")
+        fields["attribution_span"] = _optional_span(fields["attribution_span"], name="node.attribution_span")
+        fields["passage_span"] = _optional_span(fields["passage_span"], name="node.passage_span")
+        fields["grounded"] = tuple(require_list(fields["grounded"], name="node.grounded"))
+    elif node_type is PinpointResolutionNode:
+        fields["labels"] = tuple(require_list(fields["labels"], name="node.labels"))
+        fields["attribution_span"] = _optional_span(fields["attribution_span"], name="node.attribution_span")
+        fields["passage_span"] = _optional_span(fields["passage_span"], name="node.passage_span")
     elif node_type is DocketNumberCourtNode:
         fields["courts"] = tuple(require_list(fields["courts"], name="node.courts"))
         fields["levels"] = tuple(require_list(fields["levels"], name="node.levels"))

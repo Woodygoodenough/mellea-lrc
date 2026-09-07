@@ -345,6 +345,81 @@ class SearchCitationSummaryOutcome(str, Enum):
 MIN_AMBIGUOUS_CANDIDATE_COUNT = 2
 
 
+class PinpointScope(str, Enum):
+    """Whether a citation's pin cite can be checked against a reporter page at all."""
+
+    IN_SCOPE = "in_scope"
+    NO_PIN_CITE = "no_pin_cite"
+    NO_AUTHORITY = "no_authority"
+    """The citation is attributed to no authority, or the authority is not a case."""
+    IDENTITY_NOT_ESTABLISHED = "identity_not_established"
+    """The authority's identity was refuted, deferred or left ambiguous, so there is no page to cut."""
+    PIN_FORM = "pin_form"
+    """A star page, paragraph, section or other pin that names no reporter page."""
+
+
+class PageRetrievalOutcome(str, Enum):
+    """Whether the cited reporter page could be cut from the archive's opinions."""
+
+    FOUND = "found"
+    NO_REPORTER = "no_reporter"
+    """The cluster does not list the filing's reporter among its citations."""
+    NO_PAGE = "no_page"
+    """The opinions carry no marker for the cited page in the filing's reporter."""
+    NO_TEXT = "no_text"
+    FAILED = "failed"
+
+
+class QuoteFindingOutcome(str, Enum):
+    """Where words the filing quotes were found."""
+
+    ON_PAGE = "on_page"
+    ADJACENT = "adjacent"
+    """On the page before or after the cited one, within the neighbour text shown."""
+    ELSEWHERE = "elsewhere"
+    """In the opinion, on another page."""
+    ABSENT = "absent"
+    """Nowhere in any of the cluster's opinions."""
+
+
+class PinpointRelation(str, Enum):
+    """What the model read on the page against the filing's attribution. Factual, not evaluative."""
+
+    SAME_CONTENT = "same_content"
+    """A passage on the page states the same content as the filing's words."""
+    RELATED_SUBJECT = "related_subject"
+    """A passage on the page is about the same subject and says something different."""
+    NONE = "none"
+    """Nothing on the page concerns the subject of the filing's words."""
+
+
+class PinpointOutcome(str, Enum):
+    """What the stage concludes about one pin cite.
+
+    Nothing here says a page *supports* a proposition. The stage reports what
+    is on the page beside what the filing wrote, and calls a pin cite false
+    only on a fact: quoted words that are not there, or a page that carries
+    nothing on the subject.
+    """
+
+    QUOTE_ON_PAGE = "quote_on_page"
+    QUOTE_ELSEWHERE = "quote_elsewhere"
+    """The filing's quoted words are in the opinion, on a page other than the cited one."""
+    QUOTE_ABSENT = "quote_absent"
+    """The filing's quoted words are in none of the cluster's opinions."""
+    PASSAGE_ON_PAGE = "passage_on_page"
+    """The page carries a passage on the filing's subject; both are shown side by side."""
+    PASSAGE_ADJACENT = "passage_adjacent"
+    """The passage is on the page before or after; a turn away, not a different page."""
+    PASSAGE_ABSENT = "passage_absent"
+    """Nothing on the cited page or beside it concerns the filing's subject."""
+    NOT_TESTABLE = "not_testable"
+    """The citation makes no page-level claim of its own: `see generally`, a `citing` parenthetical, a bare string share."""
+    UNDETERMINED = "undetermined"
+    """The reading did not pass its guards, or the evidence points both ways."""
+    NOT_RETRIEVED = "not_retrieved"
+
+
 @dataclass(frozen=True, slots=True)
 class ExactLocatorLookupNode:
     """One exact reporter-locator lookup against CourtListener.
@@ -1088,6 +1163,140 @@ class DocketIdentityNode:
 
 
 # Expand this union as operation-specific validation nodes are introduced.
+
+
+@dataclass(frozen=True, slots=True)
+class PinpointScopeNode:
+    """Whether this citation's pin cite is checked, and against which authority."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: PinpointScope
+    authority_id: str | None
+    cluster_id: str | None
+    pin_cite: str | None
+    pin_form: str | None
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PageRetrievalNode:
+    """The cited page as cut from the archive, with its neighbours and its source opinion."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: PageRetrievalOutcome
+    cluster_id: str | None
+    reporter_citation: str | None
+    citation_index: str | None
+    labels: tuple[str, ...]
+    opinion_id: str | None
+    opinion_type: str | None
+    page_text: str | None
+    before: str | None
+    after: str | None
+    opinions_read: tuple[str, ...]
+    """Every opinion in the cluster whose text was read, so quotes can be searched across all of them."""
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteFinding:
+    """One quotation the filing writes near the citation, and where its words were found."""
+
+    text: str
+    filing_span: Span
+    in_parenthetical: bool
+    shared: bool
+    """Written in a sentence a string cite shares, so absence from this member's opinion proves nothing."""
+    outcome: QuoteFindingOutcome
+    opinion_id: str | None
+    label: str | None
+    """The page the words were found on, in the filing's reporter."""
+    page_span: Span | None
+    """Where the words lie in the retrieved page text, when found on it."""
+    score: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteCheckNode:
+    """Every quotation near the citation searched on the page, beside it, and through the opinions."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: QuoteFindingOutcome | None
+    """The worst finding among the quotations the target owns; None when it quotes nothing."""
+    quotes: tuple[QuoteFinding, ...]
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MelleaPinpointReadingNode:
+    """One reading of the citing passage against the cited page, every quote grounded."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: PinpointRelation | None
+    model: str | None
+    window: Span
+    """The filing window shown to the model, in document coordinates."""
+    attribution: str | None
+    attribution_span: Span | None
+    """Where the filing states what the citation is cited for, in document coordinates."""
+    attribution_scope: str | None
+    """`own`, `shared` or `none`."""
+    signal: str | None
+    passage: str | None
+    passage_location: str | None
+    """`page`, `before` or `after`."""
+    passage_span: Span | None
+    """Where the passage lies in the text of that location, as the retrieval node holds it."""
+    voice: str | None
+    page_subjects: str | None
+    reason: str | None
+    grounded: tuple[str, ...]
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PinpointResolutionNode:
+    """What the stage concludes about one pin cite, with both sides located."""
+
+    node_id: str
+    status: ValidationNodeStatus
+    outcome: PinpointOutcome
+    false_pin_cite: bool
+    """True only on a fact: quoted words not in the opinion or not on the page, or a page with nothing on the subject."""
+    authority_id: str | None
+    cluster_id: str | None
+    pin_cite: str | None
+    labels: tuple[str, ...]
+    attribution_span: Span | None
+    attribution: str | None
+    passage_opinion_id: str | None
+    passage_label: str | None
+    passage_span: Span | None
+    passage: str | None
+    voice: str | None
+    signal: str | None
+    vocabulary_on_page: float | None
+    """Share of the attribution's distinctive words found on the page, the guard against a missed passage."""
+    decided_by: str
+    depends_on: tuple[str, ...]
+    status_message: str | None = None
+    outcome_message: str | None = None
+
+
 ValidationNode: TypeAlias = (
     ExactLocatorLookupNode
     | ExactCaseNameCheckNode
@@ -1120,6 +1329,11 @@ ValidationNode: TypeAlias = (
     | IdentityResolutionNode
     | AuthorityMergeNode
     | DocketIdentityNode
+    | PinpointScopeNode
+    | PageRetrievalNode
+    | QuoteCheckNode
+    | MelleaPinpointReadingNode
+    | PinpointResolutionNode
 )
 
 
