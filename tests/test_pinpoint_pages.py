@@ -84,7 +84,7 @@ def test_the_filing_reporter_is_found_among_the_cluster_citations() -> None:
 
 def test_a_page_before_the_first_marker_is_the_unmarked_head() -> None:
     html = (
-        "<p>Pages five sixty-five to five sixty-seven carry no marker.</p>"
+        "<p>Pages five sixty-five to five sixty-seven carry no marker. " + "Text of the head. " * 110 + "</p>"
         '<span class="star-pagination" citation-index="1" label="568">*568</span>'
         "<p>Page five sixty-eight is marked.</p>"
     )
@@ -124,3 +124,17 @@ def test_a_page_too_short_to_be_a_page_is_not_retrieved() -> None:
     from mellea_lrc.validation.pinpoint.stage import MIN_PAGE_CHARS
 
     assert MIN_PAGE_CHARS == 100
+
+
+def test_a_head_too_short_to_be_the_pages_before_the_first_marker_is_not_those_pages() -> None:
+    html = (
+        "<p>MEMORANDUM OPINION. Taxation without representation is tyranny.</p>"
+        '<span class="star-pagination" citation-index="1" label="1092">*1092</span>'
+        "<p>Page one thousand ninety-two.</p>"
+    )
+    paginated = paginate(
+        CourtListenerOpinion(
+            opinion_id="b", cluster_id=None, opinion_type="010combined", html_with_citations=html
+        )
+    )
+    assert cut_page(paginated, "1", ("1091",), first_page="1087") is None

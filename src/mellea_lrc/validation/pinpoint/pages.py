@@ -38,6 +38,8 @@ MAX_RANGE_PAGES = 4
 """How many pages a range such as `588-90` is allowed to span before only its first page is cut."""
 NEIGHBOUR_CHARS = 700
 """How much of the page before and the page after is shown beside the cited page."""
+HEAD_CHARS_PER_PAGE = 600
+"""The least text per page the unmarked head of an opinion must hold to count as those pages."""
 
 _DASH = re.compile(r"[-\N{EN DASH}\N{EM DASH}\N{MINUS SIGN}]")
 _PAGE = re.compile(r"^(?P<first>\d+)(?:\s*[-\N{EN DASH}\N{EM DASH}]\s*(?P<last>\d+))?$")
@@ -149,7 +151,14 @@ class PaginatedOpinion:
             return Span(marker.offset, end)
         first = next((m for m in self.markers if m.citation_index == citation_index), None)
         if first is not None and first_page is not None and label.isdigit() and first.label.isdigit():
-            if int(first_page) <= int(label) < int(first.label):
+            pages = int(first.label) - int(first_page)
+            # The head must be long enough to be those pages. A title and an
+            # epigraph before a marker for the sixth page are not five pages
+            # of text; the archive's pagination simply starts late.
+            if (
+                int(first_page) <= int(label) < int(first.label)
+                and first.offset >= HEAD_CHARS_PER_PAGE * pages
+            ):
                 return Span(0, first.offset)
         return None
 
@@ -157,6 +166,9 @@ class PaginatedOpinion:
         """The unmarked pages the head of the text spans: from the first page to the first marker."""
         first = next((m for m in self.markers if m.citation_index == citation_index), None)
         if first is None or first_page is None or not first_page.isdigit() or not first.label.isdigit():
+            return ()
+        pages = int(first.label) - int(first_page)
+        if first.offset < HEAD_CHARS_PER_PAGE * pages:
             return ()
         return tuple(str(page) for page in range(int(first_page), int(first.label)))
 
