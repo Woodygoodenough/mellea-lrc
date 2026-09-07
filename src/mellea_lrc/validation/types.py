@@ -412,8 +412,8 @@ class PinpointOutcome(str, Enum):
     QUOTE_ABSENT = "quote_absent"
     """The filing's quoted words are in none of the cluster's opinions."""
     QUOTE_ALTERED = "quote_altered"
-    """The quoted words are not the opinion's as written, but the cited page carries the same content:
-    a misquotation, disclosed side by side, not a wrong page."""
+    """The quoted words are not the opinion's as written, though the cited page carries the same
+    content: a misquotation, shown side by side. False, of its own kind."""
     QUOTE_IN_OPINION = "quote_in_opinion"
     """The quoted words are in the opinion; its text carries no page markers, so the page cannot be checked."""
     PASSAGE_ON_PAGE = "passage_on_page"
@@ -1314,6 +1314,17 @@ class PinpointResolutionNode:
     """The words the filing puts in quotation marks are not in the opinion as written."""
     text_scope: str = "page"
     """`page` when a reporter page was cut; `opinion` when the whole opinion stood in for it."""
+    defect_kind: str | None = None
+    """Which fact makes the pin cite false, when it is:
+
+    - `quote_not_at_page`: the quoted words are not on the cited page -- on another
+      page of the opinion, or in no opinion of the case at all;
+    - `misquotation`: the cited page carries the content, and the words in the
+      filing's quotation marks are not the court's;
+    - `content_not_at_page`: the filing's own words for the content are on another page;
+    - `content_absent`: nothing on the cited page, or in the opinion read whole, concerns
+      the subject the filing cites it for.
+    """
 
 
 ValidationNode: TypeAlias = (

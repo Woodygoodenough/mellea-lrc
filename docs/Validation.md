@@ -232,7 +232,7 @@ page text, the opinion and page it is on, and the voice.
 | `quote_on_page` | the filing's quoted words are on the cited page | |
 | `quote_elsewhere` | in the opinion, on another page, which is named | yes |
 | `quote_absent` | in none of the cluster's opinions, and the page carries no passage with the same content | yes |
-| `quote_altered` | not the opinion's words as written, but the cited page carries the same content: a misquotation, shown side by side (`misquoted`) | |
+| `quote_altered` | not the opinion's words as written, though the cited page carries the same content: a misquotation, shown side by side | yes |
 | `quote_in_opinion` | in the opinion, whose text carries no page markers, so the page cannot be told | |
 | `passage_on_page` | the page carries a passage on the filing's subject; both shown | |
 | `passage_adjacent` | the passage is a turn away, on the page before or after | |
@@ -245,8 +245,11 @@ page text, the opinion and page it is on, and the voice.
 | `not_retrieved` | out of scope, or no page could be cut | |
 
 Nothing here says a page supports a proposition. A pin cite is called false
-only on a fact of absence, and the program decides the quotations before the
-model is consulted. Two guards stand between a reading of `none` and
+only on a fact, and `defect_kind` names which: `quote_not_at_page` (the
+quoted words are on another page or in no opinion of the case),
+`misquotation` (the page carries the content and the words in the quotation
+marks are not the court's), `content_not_at_page`, or `content_absent`. The
+program decides the quotations before the model is consulted. Two guards stand between a reading of `none` and
 `passage_absent`: if half the attribution's distinctive words are on the page,
 the absence is not believed and the outcome is `undetermined`; and if the
 sentence is shared by a string cite, the passage may rest on another member

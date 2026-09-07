@@ -215,6 +215,7 @@ def test_the_whole_tree_is_checked_and_a_quotation_on_the_page_is_found_by_the_p
     assert resolutions["id0"].outcome is PinpointOutcome.PASSAGE_ON_PAGE
     assert resolutions["id1"].outcome is PinpointOutcome.PASSAGE_ABSENT
     assert resolutions["id1"].false_pin_cite is True
+    assert resolutions["id1"].defect_kind == "content_absent"
     # One opinion, fetched once for the three citations.
     assert client.opinions_fetched.count("o1") == 1
     quotes = next(n for n in identified.record("root").trace.nodes if isinstance(n, QuoteCheckNode))
@@ -241,6 +242,7 @@ def test_a_quotation_on_another_page_is_a_wrong_page(monkeypatch) -> None:
     identified, _ = _run(monkeypatch, [SAME, SAME, NONE], text)
     root = _resolutions(identified)["root"]
     assert root.outcome is PinpointOutcome.QUOTE_ELSEWHERE
+    assert root.defect_kind == "quote_not_at_page"
     assert "page 572" in (root.outcome_message or "")
 
 
@@ -290,7 +292,7 @@ def test_the_artifact_round_trips_with_the_pinpoint_nodes(monkeypatch) -> None:
     assert summarize(recovered).outcomes["quote_on_page"] == 1
 
 
-def test_a_misquotation_of_content_the_page_carries_is_altered_not_false(monkeypatch) -> None:
+def test_a_misquotation_of_content_the_page_carries_is_false_of_its_own_kind(monkeypatch) -> None:
     text = TEXT.replace(
         "enough facts to state a claim to relief that is plausible on its face.",
         "enough facts to state a plausible claim to relief on its face, whatever that means.",
@@ -302,7 +304,8 @@ def test_a_misquotation_of_content_the_page_carries_is_altered_not_false(monkeyp
     identified, _ = _run(monkeypatch, [same, SAME, NONE], text)
     root = _resolutions(identified)["root"]
     assert root.outcome is PinpointOutcome.QUOTE_ALTERED
-    assert root.false_pin_cite is False
+    assert root.false_pin_cite is True
+    assert root.defect_kind == "misquotation"
     assert root.misquoted is True
     assert root.passage is not None
 

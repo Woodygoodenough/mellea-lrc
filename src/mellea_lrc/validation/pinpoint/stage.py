@@ -692,7 +692,7 @@ def _conclude(
     # But words in quotation marks that differ from the page's while the page
     # carries the same content are a misquotation, not a wrong page.
     if quotes.outcome is QuoteFindingOutcome.ABSENT and same_here:
-        outcome, false, misquoted = PinpointOutcome.QUOTE_ALTERED, False, True
+        outcome, false, misquoted = PinpointOutcome.QUOTE_ALTERED, True, True
         where = "the cited text" if reading.passage_location == "page" else "the page beside the cited one"
         message = f"The quoted words are not in the opinion as written; {where} carries the same content."
     elif quotes.outcome is QuoteFindingOutcome.ABSENT:
@@ -779,11 +779,20 @@ def _conclude(
             else None
         )
     )
+    kinds = {
+        PinpointOutcome.QUOTE_ABSENT: "quote_not_at_page",
+        PinpointOutcome.QUOTE_ELSEWHERE: "quote_not_at_page",
+        PinpointOutcome.QUOTE_ALTERED: "misquotation",
+        PinpointOutcome.PASSAGE_ELSEWHERE: "content_not_at_page",
+        PinpointOutcome.PASSAGE_ABSENT: "content_absent",
+        PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION: "content_absent",
+    }
     return PinpointResolutionNode(
         node_id=node_id,
         status=ValidationNodeStatus.SUCCEEDED,
         outcome=outcome,
         false_pin_cite=false,
+        defect_kind=kinds.get(outcome) if false else None,
         authority_id=scope.authority_id,
         cluster_id=page_node.cluster_id,
         pin_cite=scope.pin_cite,
