@@ -393,6 +393,8 @@ class PinpointRelation(str, Enum):
     """A passage on the page states the same content as the filing's words."""
     RELATED_SUBJECT = "related_subject"
     """A passage on the page is about the same subject and says something different."""
+    CONTRADICTS = "contradicts"
+    """A passage on the page states the opposite of the filing's words, plainly from the words themselves."""
     NONE = "none"
     """Nothing on the page concerns the subject of the filing's words."""
 
@@ -422,6 +424,8 @@ class PinpointOutcome(str, Enum):
     """The passage is on the page before or after; a turn away, not a different page."""
     PASSAGE_ELSEWHERE = "passage_elsewhere"
     """The filing's own words for the content are in the opinion, on another page, which is named."""
+    PASSAGE_CONTRADICTS = "passage_contradicts"
+    """The cited page states the opposite of what the filing attributes to it; both shown."""
     PASSAGE_ABSENT = "passage_absent"
     """Nothing on the cited page or beside it concerns the filing's subject."""
     PASSAGE_IN_OPINION = "passage_in_opinion"
@@ -1323,7 +1327,8 @@ class PinpointResolutionNode:
       filing's quotation marks are not the court's;
     - `content_not_at_page`: the filing's own words for the content are on another page;
     - `content_absent`: nothing on the cited page, or in the opinion read whole, concerns
-      the subject the filing cites it for.
+      the subject the filing cites it for;
+    - `content_contradicted`: the cited page states the opposite of the filing's words.
     """
 
 

@@ -84,9 +84,9 @@ QUOTE_MIN_SCORE = 0.85
 SHORT_QUOTE_WORDS = 4
 """Quotations shorter than this are searched exactly (after normalisation) and never fuzzily."""
 MIN_DEFECT_QUOTE_WORDS = 6
-"""A quotation shorter than this that is not found decides nothing on its own: `failed to show
-any prejudice` in a parenthetical is as often a close paraphrase as a quotation, and its absence
-is reported but the reading decides."""
+"""A quotation shorter than this found elsewhere or a turn away decides nothing on its own; one
+absent from every opinion of the case decides whatever its length, and the reading turns it into
+a misquotation when the page carries the content in other words."""
 VOCABULARY_GUARD = 0.5
 """When the model finds nothing on the subject but this share of the attribution's distinctive
 words is on the page, the absence is not believed and the outcome is undetermined."""
@@ -539,7 +539,15 @@ def _quote_check(
                 score=score,
             )
         )
-    owned = [f for f in findings if not f.shared and len(f.text.split()) >= MIN_DEFECT_QUOTE_WORDS]
+    # A short quotation decides nothing when it is merely elsewhere or a turn
+    # away, but one that is in no opinion of the case at all is a fact
+    # however short: `particularly disfavored` was two words and nowhere.
+    owned = [
+        f
+        for f in findings
+        if not f.shared
+        and (len(f.text.split()) >= MIN_DEFECT_QUOTE_WORDS or f.outcome is QuoteFindingOutcome.ABSENT)
+    ]
     order = [
         QuoteFindingOutcome.ABSENT,
         QuoteFindingOutcome.ELSEWHERE,
@@ -725,6 +733,12 @@ def _conclude(
         decided_by = reading.node_id
         outcome, false = PinpointOutcome.NOT_TESTABLE, False
         message = "The citation makes no page-level claim of its own here."
+    elif reading.outcome is PinpointRelation.CONTRADICTS and reading.passage_span is not None:
+        decided_by = reading.node_id
+        outcome, false = PinpointOutcome.PASSAGE_CONTRADICTS, True
+        message = (
+            f"The cited text states the opposite of the filing's words ({reading.voice or 'voice unread'})."
+        )
     elif reading.outcome in (PinpointRelation.SAME_CONTENT, PinpointRelation.RELATED_SUBJECT):
         decided_by = reading.node_id
         adjacent = reading.passage_location in ("before", "after")
@@ -786,6 +800,7 @@ def _conclude(
         PinpointOutcome.PASSAGE_ELSEWHERE: "content_not_at_page",
         PinpointOutcome.PASSAGE_ABSENT: "content_absent",
         PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION: "content_absent",
+        PinpointOutcome.PASSAGE_CONTRADICTS: "content_contradicted",
     }
     return PinpointResolutionNode(
         node_id=node_id,

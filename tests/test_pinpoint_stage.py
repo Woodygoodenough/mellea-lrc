@@ -399,3 +399,34 @@ def test_an_opinion_whose_copy_of_the_page_is_empty_yields_to_one_that_holds_it(
     page = next(n for n in identified.record("root").trace.nodes if isinstance(n, PageRetrievalNode))
     assert page.opinion_id == "o1"
     assert _resolutions(identified)["root"].outcome is PinpointOutcome.QUOTE_ON_PAGE
+
+
+def test_a_page_that_states_the_opposite_is_false_of_its_own_kind(monkeypatch) -> None:
+    contra = {
+        **SAME,
+        "attribution": "The Court added that mere labels will not do.",
+        "passage": "Labels and conclusions will not do.",
+        "relation": "contradicts",
+    }
+    identified, _ = _run(monkeypatch, [SAME, contra, NONE])
+    node = _resolutions(identified)["id0"]
+    assert node.outcome is PinpointOutcome.PASSAGE_CONTRADICTS
+    assert node.false_pin_cite is True
+    assert node.defect_kind == "content_contradicted"
+    assert node.passage == "Labels and conclusions will not do."
+
+
+def test_a_two_word_quotation_in_no_opinion_decides(monkeypatch) -> None:
+    text = TEXT.replace(
+        'A complaint must contain "enough facts to state a claim to relief that is plausible on its face."',
+        'Mandatory injunctions are "particularly disfavored" in this circuit.',
+    )
+    related = {
+        **SAME,
+        "attribution": 'Mandatory injunctions are "particularly disfavored" in this circuit.',
+        "relation": "related_subject",
+    }
+    identified, _ = _run(monkeypatch, [related, SAME, NONE], text)
+    root = _resolutions(identified)["root"]
+    assert root.outcome is PinpointOutcome.QUOTE_ABSENT
+    assert root.defect_kind == "quote_not_at_page"

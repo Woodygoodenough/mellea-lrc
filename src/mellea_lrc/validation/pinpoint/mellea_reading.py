@@ -83,7 +83,11 @@ filing's -- copy that passage exactly as `passage`, say where it is
 (`passage_location`: "page", or "before" or "after" for the neighbouring
 text), and set `relation` to "same_content". If the page discusses the same
 subject but what it says differs from the attribution, copy the nearest
-passage and set `relation` to "related_subject". If nothing on the page or
+passage and set `relation` to "related_subject". If a passage on the page
+states the opposite of the attribution -- the filing says a rule holds and
+the page says in so many words that it does not -- copy that passage and set
+`relation` to "contradicts"; use this only where the contradiction is plain
+from the two texts side by side, and otherwise use "related_subject". If nothing on the page or
 beside it concerns the subject at all, set `passage` to null and `relation` to
 "none", and describe in `page_subjects` what the page does discuss, in one
 sentence.
@@ -128,7 +132,7 @@ class PinpointReading(BaseModel):
         description="Words copied from the page (or its neighbours) on the same subject; null when none."
     )
     passage_location: Literal["page", "before", "after"] | None
-    relation: Literal["same_content", "related_subject", "none"]
+    relation: Literal["same_content", "related_subject", "contradicts", "none"]
     voice: (
         Literal[
             "court",

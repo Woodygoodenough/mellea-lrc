@@ -237,6 +237,7 @@ page text, the opinion and page it is on, and the voice.
 | `passage_on_page` | the page carries a passage on the filing's subject; both shown | |
 | `passage_adjacent` | the passage is a turn away, on the page before or after | |
 | `passage_elsewhere` | the filing's own sentence, copied without quotation marks, is in the opinion on another page, which is named | yes |
+| `passage_contradicts` | the page states the opposite of the filing's words, plainly from the two texts; both shown | yes |
 | `passage_absent` | nothing on the cited page or beside it concerns the subject | yes |
 | `passage_in_opinion` | the opinion, read whole for want of page markers, carries a passage on the subject | |
 | `passage_absent_from_opinion` | nothing in the whole opinion concerns the subject | yes |
@@ -248,8 +249,10 @@ Nothing here says a page supports a proposition. A pin cite is called false
 only on a fact, and `defect_kind` names which: `quote_not_at_page` (the
 quoted words are on another page or in no opinion of the case),
 `misquotation` (the page carries the content and the words in the quotation
-marks are not the court's), `content_not_at_page`, or `content_absent`. The
-program decides the quotations before the model is consulted. Two guards stand between a reading of `none` and
+marks are not the court's), `content_not_at_page`, `content_absent`, or
+`content_contradicted`. The program decides the quotations before the model
+is consulted, and a quotation absent from every opinion of the case decides
+however short it is. Two guards stand between a reading of `none` and
 `passage_absent`: if half the attribution's distinctive words are on the page,
 the absence is not believed and the outcome is `undetermined`; and if the
 sentence is shared by a string cite, the passage may rest on another member

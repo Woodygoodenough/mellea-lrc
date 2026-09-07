@@ -223,6 +223,7 @@ def score(per_document: dict[str, dict[str, object]]) -> str:
         "  as misquotation",
         "  as content_not_at_page",
         "  as content_absent",
+        "  as content_contradicted",
     ]
     ordered = [(k, tally[k]) for k in order if k in tally] + [
         (k, v) for k, v in tally.most_common() if k not in order
