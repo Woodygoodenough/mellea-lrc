@@ -7,33 +7,113 @@ the loop's design.
 
 ## 1. Where this stands
 
-The branch is based on `preprocessing-and-extraction-summary`, whose citation
-tree and date and reporter objects the validation side now depends on. The
-stages, in the order they run and the order they are being built:
+The branch `validation-summary` is the validation side as of 2026-09-07,
+based on `preprocessing-and-extraction-summary` (b176d3b), whose citation
+tree, pin-cite spans and reporter and date objects it depends on. Two stages
+are built, run and documented in `docs/Validation.md`; one is designed and
+handed over here.
 
-1. **Identity**, built and run over false-citation-bench v2.0.
-   `validation/identity/` runs once per root of the citation tree,
-   establishes which case each authority names, and writes corrections onto a
-   mutable record with the trace node that justifies each. `docs/Validation.md`
-   describes it and `identity-stage-on-the-bench.md` has the run: 397 roots,
-   353 settled by rule, 47 model calls, 20 refutations.
-2. **Pinpoint**, not yet reworked. Runs per occurrence, including every return
-   visit, once identity is established. Whether the existing pinpoint route
-   changes is open.
-3. **Secondary citations**, not started. Primarily a pinpoint check per return
-   visit; a pinpoint that fails on a return visit is how a misattribution in
-   the citation tree shows up.
-4. **Open search**, designed and not built. Its population is every root the
-   identity stage left `unresolved` or `ambiguous`. `open-search-loop.md` is
-   the design, and section 4 of it names the measurement that has to come
-   first: whether a full-text search for opinions that quote the locator
-   recovers the vendor-number citations the cluster search cannot reach.
+1. **Identity** (`validation/identity/`), built and run. Once per root of the
+   citation tree it establishes which case the authority names: exact
+   lookup, a rule guard on every record at the page (case name with variant
+   and misspelling told apart, court with the reporter's family and the
+   docket number as a second witness, date with the archive's other dates
+   read when the plain date disagrees), one composite model judgement when
+   the rules cannot settle it, and every correction written onto the record
+   with the trace node that justifies it. Four outcomes: `confirmed_identity`,
+   `wrong_identity` (with reason and fields), `ambiguous_identity`,
+   `defer_to_search`. On `extraction-v2.0`: 397 roots, 270 confirmed, 36
+   wrong, 1 ambiguous, 90 deferred. Every labelled `WRONG_IDENTITY` the
+   archive holds a page for is caught.
+2. **Pinpoint** (`validation/pinpoint/`), built and run, over the whole tree:
+   every citation naming a page under an established identity -- the full
+   citation and each `Id.`, short form and reference -- is read beside the
+   reporter page cut from the archive. One model call per pin cite, both of
+   its quotations located by the program before anything is believed; a
+   second call over the whole opinion before irrelevance is called. Never
+   says a page supports the filing. False on three facts, `irrelevant`,
+   `wrong_page`, `misquote`, the last two not exclusive. On the bench: 300 in
+   scope, about 35 called false, 11 of the 22 labelled `WRONG_PINCITE`
+   caught, 6 shown side by side and not called because the court's finding
+   was a judgement about the holding.
+3. **Open search**, designed and not built. This is the handover. Its
+   population and its contract are §1a and §1b below; `open-search-loop.md`
+   is the loop's design and §§2-6 the constraints.
 
-The counts in `agentic-search-population.md` still hold and are the reason the
-loop is last. Nothing in the ambiguous route wanted a query, and the unresolved
-route on LePhantomCite is mostly vendor numbers. The citing-opinion move is the
-first thing that could change that reading, and it costs 85 requests to find
-out.
+### 1a. The deferred population, from the committed identity run
+
+`data/runs/extraction-v2.0-identified` (the datasets repo tracks it). Every
+root the identity stage did not establish:
+
+    defer_to_search  not_found        83     the lookup returns no cluster
+    defer_to_search  docket            6     a docket number, no reporter locator
+    defer_to_search  undeterminable    1     the judgement could not read a name
+    ambiguous_identity  crowded_page   1     more records at the page than a
+                                             judgement is shown, none agreeing
+
+By what the filing wrote, the 91:
+
+    Westlaw and LEXIS numbers         54     the archive has no lookup for these
+    docket numbers                     6     `validation/identity/docket.py`
+                                             documents the RECAP route, unbuilt
+    printed reporters the archive
+      holds nothing at                31     F. Supp. 3d 12, B.R. 4, A.D.3d 4,
+                                             F.3d 2, F.R.D. 2, one each of F.4th,
+                                             F.2d, F. App'x, U.S., S.E.2d,
+                                             N.Y.S.3d, NY Slip Op
+
+131 pin cites hang off the deferred roots and wait on them: the pinpoint
+stage runs on any root the search route resolves, unchanged.
+
+Read these against the labels before designing: 21 of the 51 labelled
+`WRONG_IDENTITY` are deferred `not_found` -- fabricated Westlaw numbers and
+pages that hold nothing -- and the archive cannot demonstrate a fabrication,
+only fail to find it. The route's first question is which of the 83 the
+archive's *search* (as against its lookup) can reach, and which are false
+because nothing anywhere holds them. `agentic-search-population.md` counted
+this on the earlier bench; the counts above supersede its identity numbers.
+
+### 1b. The contract with the stages either side
+
+The search route is a stage between identity and pinpoint, over the records
+whose `IdentityResolutionNode` is `defer_to_search` or `ambiguous_identity`.
+It touches nothing else.
+
+- **Input**: an `IdentifiedDocument` (`serialization/identified_document.py`
+  reads the artifact back, records and traces intact). `document.roots`,
+  `document.resolution_of(citation_id)`, and each record's `trace.nodes`
+  carry what identity already did: the lookup node with every cluster the
+  page returned, the candidate evaluations, the judgement and its grounded
+  readings. Do not redo any of it.
+- **Writing a result**: append nodes to the record with `record.append(node)`
+  (a node's `depends_on` must name nodes already on that trace), then
+  `record.resolve(Resolution(...))` once, and finally append an
+  `IdentityResolutionNode` with `decided_by` naming the node that settled it.
+  A field the search corrects on the filing's reading goes through
+  `record.correct_field(...)`; a citation that turns out to belong to another
+  authority through `record.reattribute(...)`. The pinpoint stage reads the
+  resolution node's `resolved` property and the resolution's `cluster_id`,
+  and needs the cluster's record (with its `citations` and `sub_opinion_ids`)
+  on the trace, as identity's `CandidateEvaluationNode` or
+  `ExactLocatorLookupNode` carries it -- put yours there in the same shape.
+- **New node types** register in `serialization/validated_document.py`
+  (`_NODE_TYPES`, `_OUTCOME_TYPES`, and a branch in `_deserialize_node` for
+  any nested field), or the artifact will not read back. Tests in
+  `tests/test_identity_stage.py` show a document built by hand and a fake
+  archive; `tests/test_pinpoint_stage.py` shows a fake model.
+- **Outcomes**: a search that establishes the case is `confirmed_identity`
+  or `wrong_identity` with reason and fields, as identity writes them, so the
+  pinpoint stage and the scores need no new case. A search that establishes
+  the archive holds nothing -- which is not the same as the citation being
+  false -- needs an outcome of its own; name it, do not reuse
+  `defer_to_search`.
+- **Run and score**: `evaluations/identity/run_extraction_artifacts.py` is
+  the pattern (budgeted client, tally, `summary.txt`, `manifest.json` naming
+  the commit); `evaluations/pinpoint/run_identified_artifacts.py` scores
+  against `data/validation-v2.0/annotations.json` by authority span. Runs
+  are committed in the datasets repo under `runs/`, never deleted; findings
+  and questions go in `data/NOTE.md`, appended, with evidence per claim, and
+  never edit another agent's entry.
 
 ## 2. Why search is the one stage that earns this
 
@@ -142,40 +222,50 @@ plain function expresses it. Mellea makes every model call inside a graph node.
 
 ## 7. What is on this branch
 
-- `validation/record.py` -- `CitationRecord`, the one mutable object
-- `validation/identity/` -- the stage, the rule guard, the composite judgement,
-  the docket stub
-- `serialization/identified_document.py` -- the artifact, and
-  `mellea-lrc identify --from-artifact` to produce one from extraction's
-- `evaluations/identity/run_extraction_artifacts.py` -- the stage over a whole
-  extraction run, stopping when uncached responses exceed a budget
-- `validation/duplicate_clusters.py` and the merge in `candidate_selection.py`
-- `search/narrowing.py`, unwired, waiting on the search-route measurement
-- `experimental/web_refutation/domains.py` -- the domain tiers, 12 tests
-- `evaluations/agentic_search/` -- the two population counts, free of the API
-  allowance
-- this brief, `agentic-search-population.md`, and `open-search-loop.md`
+- `validation/record.py` -- `CitationRecord`, the one mutable object, with
+  `Resolution`, `Correction` and the date exploration
+- `validation/identity/` -- the stage: `stage.py`, the rule guard, the
+  composite judgement (`mellea_judgment.py`, `mellea_candidates.py`), case
+  names, windows, dates, the reporter families, the docket number as a
+  second witness to the court, and the docket stub
+- `validation/pinpoint/` -- the stage: `pages.py` (the page along the
+  reporter's pagination), `citing.py` (the filing window, strings, signals,
+  quotations), `mellea_reading.py` (the one reading, grounded),
+  `stage.py` (scope, retrieval, quotes, reading, the three kinds)
+- `serialization/identified_document.py` -- the artifact both stages write,
+  and `mellea-lrc identify --from-artifact`
+- `evaluations/identity/` and `evaluations/pinpoint/` -- the runs and scores
+- `text/fuzzy.py` -- the matcher that locates every quotation
+- `search/narrowing.py`, unwired; `experimental/web_refutation/domains.py`,
+  the domain tiers with 12 tests; `evaluations/agentic_search/`, the earlier
+  population counts
+- `docs/Validation.md`, this brief, `agentic-search-population.md`,
+  `open-search-loop.md`, `identity-stage-on-the-bench.md`
 
 Inherited from the extraction branch: the citation tree, co-location, the
-reporter and date objects, and the adjudication layer whose model half is
-unfinished. Inherited from `main`: `courtlistener/`, `validation/case_search/`
-with the single-shot query, and the pinpoint route.
-
-Not here: `caselaw/cap_index.py` and `evaluations/lephantomcite/locator_probe.py`,
-on `experiment/general-explorations`.
+reporter, date and pin-cite objects. Inherited from `main`: `courtlistener/`
+(the client, cached through a proxy; the people, cluster, opinion and docket
+endpoints), `validation/case_search/` with the single-shot query, and the
+old pinpoint route under `validation/pinpoint_retrieval/`, superseded.
 
 ## 8. Where to read what already exists
 
-- `exploration/notes/open-ended-search.md` — what the current fallback does,
-  what it requires before running at all, and what it refuses to do
-- `exploration/notes/caselaw-archive.md` — why the domain tiers are scoped by
-  jurisdiction, and how the archive displaced the first attempt at this
-- `exploration/AUDIT.md` §4 — the request budget and its two throttling windows
-
-Both notes are on `experiment/general-explorations`.
+- `docs/Validation.md` -- both stages, what each node means, how a result reads
+- `exploration/notes/identity-stage-on-the-bench.md` -- the identity run read
+  against the labels
+- `data/NOTE.md` -- the note log between agents: the leg vocabulary for the
+  archive (`lookup`, `cluster`, `docket`, `opinion`), what the datasets carry,
+  every measurement to date with its evidence
+- `data/validation-v2.0/pinpoint-domain-brief.md` -- the domain, for the
+  pinpoint side
+- `exploration/AUDIT.md` §4 on `experiment/general-explorations` -- the request
+  budget and its two throttling windows; `caselaw-archive.md` and
+  `open-ended-search.md` there too
 
 ## 9. Standing constraints
 
 Nothing is committed or pushed to `origin` without asking; work goes to
-`woody-fork`. No dataset is pushed anywhere, and run artifacts stay in the
-git-ignored working directory.
+`woody-fork`. No dataset is pushed anywhere. Run artifacts are committed in
+the datasets repo (`data/`, a symlink in every worktree) and never deleted.
+Never put dataset examples into a prompt. Never call a page or a case
+"supported"; every finding is a fact the trace can show.
