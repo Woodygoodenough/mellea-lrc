@@ -337,3 +337,13 @@ def test_the_filings_own_sentence_on_another_page_is_a_wrong_page(monkeypatch) -
     assert root.outcome is PinpointOutcome.PASSAGE_ELSEWHERE
     assert root.false_pin_cite is True
     assert "page 572" in (root.outcome_message or "")
+
+
+def test_a_passage_the_model_places_on_the_wrong_side_of_the_turn_is_located_where_it_is(monkeypatch) -> None:
+    same = {**SAME, "passage_location": "before"}
+    identified, _ = _run(monkeypatch, [same, same, NONE])
+    reading = next(
+        n for n in identified.record("id0").trace.nodes if type(n).__name__ == "MelleaPinpointReadingNode"
+    )
+    assert reading.status.value == "succeeded"
+    assert reading.passage_location == "page"

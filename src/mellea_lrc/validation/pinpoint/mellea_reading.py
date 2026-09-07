@@ -162,20 +162,24 @@ def locate(reading: PinpointReading, window: CitingWindow, page: RetrievedPage) 
     if attribution is None:
         problems.append("attribution: the words are not in the filing window as written")
     passage = None
+    location = None
     if reading.relation == "none":
         if reading.passage:
             problems.append("passage: a relation of none must come with no passage")
+    elif not reading.passage or reading.passage_location is None:
+        problems.append("passage: a relation other than none must quote a passage and say where it is")
     else:
-        if not reading.passage or reading.passage_location is None:
-            problems.append("passage: a relation other than none must quote a passage and say where it is")
-        else:
-            source = {"page": page.text, "before": page.before, "after": page.after}[reading.passage_location]
-            passage = _best(reading.passage, source)
-            if passage is None:
-                problems.append(
-                    f"passage: the words are not in the {reading.passage_location} text as written"
-                )
-    return Located(attribution, passage, tuple(problems))
+        sources = {"page": page.text, "before": page.before, "after": page.after}
+        # The stated location first, then the other two: a passage the model
+        # places `before` that sits at the top of the page is the same words,
+        # and where they are is a fact the program can settle.
+        for name in (reading.passage_location, *[k for k in sources if k != reading.passage_location]):
+            if sources[name] and (passage := _best(reading.passage, sources[name])) is not None:
+                location = name
+                break
+        if passage is None:
+            problems.append("passage: the words are not in the page text or its neighbours as written")
+    return Located(attribution, passage, tuple(problems), location)
 
 
 def _best(needle: str, haystack: str) -> fuzzy.Match | None:
@@ -227,6 +231,29 @@ def _located_requirement(window: CitingWindow, page: RetrievedPage):
     return validation_fn
 
 
+_PLAIN = str.maketrans(
+    {
+        "\N{LEFT DOUBLE QUOTATION MARK}": '"',
+        "\N{RIGHT DOUBLE QUOTATION MARK}": '"',
+        "\N{LEFT SINGLE QUOTATION MARK}": "'",
+        "\N{RIGHT SINGLE QUOTATION MARK}": "'",
+        "\N{EN DASH}": "-",
+        "\N{EM DASH}": "-",
+        "\N{NO-BREAK SPACE}": " ",
+    }
+)
+
+
+def plain(text: str) -> str:
+    """The text with typographic quotes and dashes made plain.
+
+    A curly quotation mark inside a JSON string is legal, and one provider
+    still cut the model's answer off at it three times running. The words the
+    model copies are located by a matcher that folds these anyway.
+    """
+    return text.translate(_PLAIN)
+
+
 def describe_quotes(quotes) -> str:
     """The deterministic quote findings, for the model to know what was already searched."""
     if not quotes:
@@ -257,17 +284,17 @@ async def run_mellea_pinpoint_reading(
 ) -> MelleaPinpointReadingNode:
     """Ask for one reading, ground it, and keep whatever quotations were located even if it failed."""
     model_name: str | None = None
-    page_text = page.text
+    page_text = plain(page.text)
     if page.before:
-        page_text = f"[end of the page before]\n{page.before}\n[*{page.labels[0]}]\n{page.text}"
+        page_text = f"[end of the page before]\n{plain(page.before)}\n[*{page.labels[0] if page.labels else 'page'}]\n{page_text}"
     if page.after:
-        page_text = f"{page_text}\n[next page]\n{page.after}"
+        page_text = f"{page_text}\n[next page]\n{plain(page.after)}"
     try:
         config = llm_api_config_from_env(os.environ)
         model_name = config.model
         spec = InstructIvrSpec(
             description=INSTRUCTION,
-            grounding_context={"filing": window.marked, "cited_page": page_text},
+            grounding_context={"filing": plain(window.marked), "cited_page": page_text},
             user_variables={"record": record, "pin_cite": pin_cite, "quotes": describe_quotes(quotes)},
             output_format=PinpointReading,
             requirements=[

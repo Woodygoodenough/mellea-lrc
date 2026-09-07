@@ -667,7 +667,7 @@ def _conclude(
     )
     read_ok = reading.status is ValidationNodeStatus.SUCCEEDED and reading.outcome is not None
     same_here = (
-        read_ok and reading.outcome is PinpointRelation.SAME_CONTENT and reading.passage_location == "page"
+        read_ok and reading.outcome is PinpointRelation.SAME_CONTENT and reading.passage_span is not None
     )
     decided_by = quotes.node_id
     misquoted = False
@@ -678,9 +678,8 @@ def _conclude(
     # carries the same content are a misquotation, not a wrong page.
     if quotes.outcome is QuoteFindingOutcome.ABSENT and same_here:
         outcome, false, misquoted = PinpointOutcome.QUOTE_ALTERED, False, True
-        message = (
-            "The quoted words are not in the opinion as written; the cited text carries the same content."
-        )
+        where = "the cited text" if reading.passage_location == "page" else "the page beside the cited one"
+        message = f"The quoted words are not in the opinion as written; {where} carries the same content."
     elif quotes.outcome is QuoteFindingOutcome.ABSENT:
         outcome, false, misquoted = PinpointOutcome.QUOTE_ABSENT, True, True
         message = "The filing's quoted words are in none of the case's opinions."
