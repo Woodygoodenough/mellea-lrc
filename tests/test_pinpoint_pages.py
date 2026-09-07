@@ -118,3 +118,9 @@ def test_the_marker_index_is_read_from_the_numbers_not_the_citation_list() -> No
     assert marker_index_for((paginated,), "166", ("168",)) == "1"
     assert marker_index_for((paginated,), "1253", ("1254",)) == "2"
     assert marker_index_for((paginated,), "900", ("905",)) is None
+
+
+def test_a_page_too_short_to_be_a_page_is_not_retrieved() -> None:
+    from mellea_lrc.validation.pinpoint.stage import MIN_PAGE_CHARS
+
+    assert MIN_PAGE_CHARS == 100

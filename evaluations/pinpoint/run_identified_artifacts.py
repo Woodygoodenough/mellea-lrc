@@ -203,10 +203,12 @@ def score(per_document: dict[str, dict[str, object]]) -> str:
         rows.append(
             f"  {entry['document'][:3]} {entry['cited_authority'][:40]:40} {'FALSE' if caught else '     '} {'; '.join(verdicts)}"
         )
+    reported = tally["called false"] + tally["misquotation reported"]
     return "\n".join(
         [
             "WRONG_PINCITE entries against the run:",
             *(f"  {k:40} {v:3}" for k, v in tally.most_common()),
+            f"  {'reported (false or misquoted)':40} {reported:3}",
             *rows,
         ]
     )

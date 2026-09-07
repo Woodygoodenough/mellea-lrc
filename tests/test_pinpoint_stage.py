@@ -45,7 +45,7 @@ US = Reporter(
 PAGE_HTML = (
     "<p>Opening of the opinion, page five forty-four.</p>"
     '<span class="star-pagination" citation-index="1" label="545">*545</span>'
-    "<p>Page five forty-five discusses the facts of the antitrust claim.</p>"
+    "<p>Page five forty-five discusses the facts of the antitrust claim, the parties, and the procedural history of the case below.</p>"
     '<span class="star-pagination" citation-index="1" label="570">*570</span>'
     "<p>To survive a motion to dismiss, a complaint must contain enough facts to state a claim to relief "
     "that is plausible on its face. Labels and conclusions will not do.</p>"
@@ -347,3 +347,15 @@ def test_a_passage_the_model_places_on_the_wrong_side_of_the_turn_is_located_whe
     )
     assert reading.status.value == "succeeded"
     assert reading.passage_location == "page"
+
+
+def test_markers_that_enclose_almost_nothing_yield_no_page(monkeypatch) -> None:
+    html = PAGE_HTML.replace(
+        "<p>To survive a motion to dismiss, a complaint must contain enough facts to state a claim to relief "
+        "that is plausible on its face. Labels and conclusions will not do.</p>",
+        "<p>(emphasis</p>",
+    )
+    identified, _ = _run(monkeypatch, [SAME, SAME, NONE], client=Client(html))
+    root = _resolutions(identified)["root"]
+    assert root.outcome is PinpointOutcome.NOT_RETRIEVED
+    assert "characters" in (root.outcome_message or "")

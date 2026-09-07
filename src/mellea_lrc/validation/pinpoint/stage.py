@@ -313,6 +313,9 @@ def _read_opinions(
 
 MAX_OPINION_CHARS = 60_000
 """When an opinion carries no page markers, the whole of it stands in for the page, up to this length."""
+MIN_PAGE_CHARS = 100
+"""A cut page shorter than this is not a page: the markers around it are misplaced, and nothing
+can be absent from it."""
 
 
 def _retrieve(
@@ -422,6 +425,15 @@ def _retrieve(
         ), None
     found.sort(key=lambda item: item[0])
     page = found[0][1]
+    if len(page.text.strip()) < MIN_PAGE_CHARS:
+        return node(
+            PageRetrievalOutcome.NO_PAGE,
+            index,
+            read,
+            None,
+            f"The text between the markers for page {labels[0]} holds {len(page.text.strip())} characters; "
+            "the markers are misplaced and the page cannot be read.",
+        ), None
     return node(
         PageRetrievalOutcome.FOUND,
         index,
