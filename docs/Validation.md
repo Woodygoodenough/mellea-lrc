@@ -246,20 +246,18 @@ page text, the opinion and page it is on, and the voice.
 | `not_retrieved` | out of scope, or no page could be cut | |
 
 Nothing here says a page supports a proposition. A pin cite is called false
-only on a fact, and `defect_kind` names which: `quote_not_at_page` (the
-quoted words are on another page or in no opinion of the case),
-`misquotation` (the page carries the content and the words in the quotation
-marks are not the court's), `content_not_at_page`, `content_absent`, or
-`content_contradicted`. The program decides the quotations before the model
-is consulted, and a quotation absent from every opinion of the case decides
-however short it is. Two guards stand between a reading of `none` and
-`passage_absent`: if half the attribution's distinctive words are on the page,
-the absence is not believed and the outcome is `undetermined`; and if the
-sentence is shared by a string cite, the passage may rest on another member
-and the outcome is `undetermined`. A `related_subject` reading -- the page is
-about the same thing and says something different -- is `passage_on_page`,
-shown side by side, because whether the difference matters is a legal
-question this stage does not answer.
+only on a fact, and `defect_kinds` names it in three words, the last two of
+which may both apply: `irrelevant` (nothing in the cited opinion, read
+whole, concerns what the filing cites it for), `wrong_page` (the thing is in
+the opinion on a page other than the one cited, which is named), `misquote`
+(what the filing attributes to the page differs from what the page says:
+words in quotation marks that are not the court's, a passage that says the
+opposite, or a claim the page only partly carries, with the missing words
+checked against the whole opinion). `outcome_message` says how. When the
+page reading finds nothing, the whole opinion is read once more before
+irrelevance is called, and a passage found elsewhere names its page. The
+program decides the quotations before the model is consulted, and a
+quotation absent from every opinion of the case decides however short it is.
 
 ## The route
 

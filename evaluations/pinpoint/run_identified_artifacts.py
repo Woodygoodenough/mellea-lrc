@@ -90,7 +90,7 @@ def run(run_dir: Path, out_dir: Path, *, miss_budget: int, only: str | None, lim
                         "outcome": node.outcome.value,
                         "false": node.false_pin_cite,
                         "misquoted": node.misquoted,
-                        "kind": node.defect_kind,
+                        "kinds": list(node.defect_kinds),
                         "pin": node.pin_cite,
                     }
                     if node.false_pin_cite or node.misquoted:
@@ -146,7 +146,7 @@ def _finding(stem: str, record, node: PinpointResolutionNode, text: str) -> str:
     )
     lines = [
         f"## {stem[:3]} `{record.source.matched_text}` pin {node.pin_cite} -- {node.outcome.value}"
-        + (f" ({node.defect_kind})" if node.defect_kind else ""),
+        + (f" ({', '.join(node.defect_kinds)})" if node.defect_kinds else ""),
         f"authority {node.authority_id}, cluster {node.cluster_id}, page {', '.join(node.labels)}",
         "",
         f"**filing** (chars {node.attribution_span.start}-{node.attribution_span.end}): {filing}"
@@ -189,7 +189,7 @@ def score(per_document: dict[str, dict[str, object]]) -> str:
         members = [o for o in outcomes.values() if (o["authority_id"] or "") == root_authority]
         verdicts = [f"{o['pin'] or '-'}:{o['outcome']}" for o in members]
         caught = any(o["false"] for o in members)
-        kinds = sorted({o["kind"] for o in members if o.get("kind")})
+        kinds = sorted({k for o in members for k in o.get("kinds", [])})
         located = any(
             o["outcome"]
             in (
@@ -217,14 +217,7 @@ def score(per_document: dict[str, dict[str, object]]) -> str:
         rows.append(
             f"  {entry['document'][:3]} {entry['cited_authority'][:40]:40} {flag} {'; '.join(verdicts)}"
         )
-    order = [
-        "called false",
-        "  as quote_not_at_page",
-        "  as misquotation",
-        "  as content_not_at_page",
-        "  as content_absent",
-        "  as content_contradicted",
-    ]
+    order = ["called false", "  as irrelevant", "  as wrong_page", "  as misquote"]
     ordered = [(k, tally[k]) for k in order if k in tally] + [
         (k, v) for k, v in tally.most_common() if k not in order
     ]

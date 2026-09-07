@@ -205,7 +205,7 @@ NONE = {
 
 
 def test_the_whole_tree_is_checked_and_a_quotation_on_the_page_is_found_by_the_program(monkeypatch) -> None:
-    identified, client = _run(monkeypatch, [SAME, SAME, NONE])
+    identified, client = _run(monkeypatch, [SAME, SAME, NONE, NONE])
     resolutions = _resolutions(identified)
     assert resolutions["root"].outcome is PinpointOutcome.QUOTE_ON_PAGE
     assert resolutions["root"].false_pin_cite is False
@@ -215,7 +215,7 @@ def test_the_whole_tree_is_checked_and_a_quotation_on_the_page_is_found_by_the_p
     assert resolutions["id0"].outcome is PinpointOutcome.PASSAGE_ON_PAGE
     assert resolutions["id1"].outcome is PinpointOutcome.PASSAGE_ABSENT
     assert resolutions["id1"].false_pin_cite is True
-    assert resolutions["id1"].defect_kind == "content_absent"
+    assert resolutions["id1"].defect_kinds == ("irrelevant",)
     # One opinion, fetched once for the three citations.
     assert client.opinions_fetched.count("o1") == 1
     quotes = next(n for n in identified.record("root").trace.nodes if isinstance(n, QuoteCheckNode))
@@ -242,7 +242,7 @@ def test_a_quotation_on_another_page_is_a_wrong_page(monkeypatch) -> None:
     identified, _ = _run(monkeypatch, [SAME, SAME, NONE], text)
     root = _resolutions(identified)["root"]
     assert root.outcome is PinpointOutcome.QUOTE_ELSEWHERE
-    assert root.defect_kind == "quote_not_at_page"
+    assert root.defect_kinds == ("wrong_page",)
     assert "page 572" in (root.outcome_message or "")
 
 
@@ -305,7 +305,7 @@ def test_a_misquotation_of_content_the_page_carries_is_false_of_its_own_kind(mon
     root = _resolutions(identified)["root"]
     assert root.outcome is PinpointOutcome.QUOTE_ALTERED
     assert root.false_pin_cite is True
-    assert root.defect_kind == "misquotation"
+    assert root.defect_kinds == ("misquote",)
     assert root.misquoted is True
     assert root.passage is not None
 
@@ -335,7 +335,7 @@ def test_the_filings_own_sentence_on_another_page_is_a_wrong_page(monkeypatch) -
         **NONE,
         "attribution": "Page five seventy-two holds the distinctive closing words of the majority opinion.",
     }
-    identified, _ = _run(monkeypatch, [SAME, SAME, none], text)
+    identified, _ = _run(monkeypatch, [SAME, SAME, none, none], text)
     root = _resolutions(identified)["id1"]
     assert root.outcome is PinpointOutcome.PASSAGE_ELSEWHERE
     assert root.false_pin_cite is True
@@ -412,7 +412,7 @@ def test_a_page_that_states_the_opposite_is_false_of_its_own_kind(monkeypatch) -
     node = _resolutions(identified)["id0"]
     assert node.outcome is PinpointOutcome.PASSAGE_CONTRADICTS
     assert node.false_pin_cite is True
-    assert node.defect_kind == "content_contradicted"
+    assert node.defect_kinds == ("misquote",)
     assert node.passage == "Labels and conclusions will not do."
 
 
@@ -429,4 +429,41 @@ def test_a_two_word_quotation_in_no_opinion_decides(monkeypatch) -> None:
     identified, _ = _run(monkeypatch, [related, SAME, NONE], text)
     root = _resolutions(identified)["root"]
     assert root.outcome is PinpointOutcome.QUOTE_ABSENT
-    assert root.defect_kind == "quote_not_at_page"
+    assert "misquote" in root.defect_kinds
+
+
+def test_nothing_on_the_page_is_irrelevant_only_when_the_whole_opinion_has_nothing(monkeypatch) -> None:
+    found = {
+        **SAME,
+        "attribution": "A quite different point about class certification is made there too.",
+        "passage": "Page five seventy-two holds the distinctive closing words of the majority opinion.",
+        "relation": "related_subject",
+    }
+    identified, _ = _run(monkeypatch, [SAME, SAME, NONE, found])
+    node = _resolutions(identified)["id1"]
+    assert node.outcome is PinpointOutcome.PASSAGE_ELSEWHERE
+    assert node.defect_kinds == ("wrong_page",)
+    assert "page 572" in (node.outcome_message or "")
+
+
+def test_a_partial_attribution_is_a_misquote_when_the_missing_words_are_in_no_opinion(monkeypatch) -> None:
+    partial = {
+        **SAME,
+        "attribution": "enough facts to state a claim to relief that is plausible on its face.",
+        "relation": "partial",
+        "missing": "plausible on its face",
+    }
+    # `plausible` is on the page, so the words are not missing from the opinion: not called.
+    identified, _ = _run(monkeypatch, [SAME, partial, NONE, NONE])
+    assert _resolutions(identified)["id0"].outcome is PinpointOutcome.PASSAGE_ON_PAGE
+    partial2 = {
+        **SAME,
+        "attribution": "The Court added that mere labels will not do.",
+        "passage": "Labels and conclusions will not do.",
+        "relation": "partial",
+        "missing": "The Court added",
+    }
+    identified, _ = _run(monkeypatch, [SAME, partial2, NONE, NONE])
+    node = _resolutions(identified)["id0"]
+    assert node.outcome is PinpointOutcome.PASSAGE_PARTIAL
+    assert node.defect_kinds == ("misquote",)

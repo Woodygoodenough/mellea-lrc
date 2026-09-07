@@ -329,6 +329,8 @@ def _deserialize_node(value: object) -> ValidationNode:
         fields["grounded"] = tuple(require_list(fields["grounded"], name="node.grounded"))
     elif node_type is PinpointResolutionNode:
         fields["labels"] = tuple(require_list(fields["labels"], name="node.labels"))
+        fields["defect_kinds"] = tuple(require_list(fields.get("defect_kinds", []), name="node.defect_kinds"))
+        fields.pop("defect_kind", None)
         fields["attribution_span"] = _optional_span(fields["attribution_span"], name="node.attribution_span")
         fields["passage_span"] = _optional_span(fields["passage_span"], name="node.passage_span")
     elif node_type is DocketNumberCourtNode:

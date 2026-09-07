@@ -395,6 +395,8 @@ class PinpointRelation(str, Enum):
     """A passage on the page is about the same subject and says something different."""
     CONTRADICTS = "contradicts"
     """A passage on the page states the opposite of the filing's words, plainly from the words themselves."""
+    PARTIAL = "partial"
+    """A passage on the page states part of the filing's words, and names the part it does not state."""
     NONE = "none"
     """Nothing on the page concerns the subject of the filing's words."""
 
@@ -426,6 +428,8 @@ class PinpointOutcome(str, Enum):
     """The filing's own words for the content are in the opinion, on another page, which is named."""
     PASSAGE_CONTRADICTS = "passage_contradicts"
     """The cited page states the opposite of what the filing attributes to it; both shown."""
+    PASSAGE_PARTIAL = "passage_partial"
+    """The page states part of what the filing attributes to it; the rest is in no opinion of the case."""
     PASSAGE_ABSENT = "passage_absent"
     """Nothing on the cited page or beside it concerns the filing's subject."""
     PASSAGE_IN_OPINION = "passage_in_opinion"
@@ -1285,6 +1289,10 @@ class MelleaPinpointReadingNode:
     status_message: str | None = None
     outcome_message: str | None = None
     error: str | None = None
+    missing: str | None = None
+    """When the relation is partial: the words of the attribution the page does not state."""
+    text_scope: str = "page"
+    """`page` when the reading was of the cut page; `opinion` when it was of the whole opinion."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -1318,17 +1326,15 @@ class PinpointResolutionNode:
     """The words the filing puts in quotation marks are not in the opinion as written."""
     text_scope: str = "page"
     """`page` when a reporter page was cut; `opinion` when the whole opinion stood in for it."""
-    defect_kind: str | None = None
-    """Which fact makes the pin cite false, when it is:
+    defect_kinds: tuple[str, ...] = ()
+    """Why the pin cite is false, when it is. Three kinds, and the last two may both apply:
 
-    - `quote_not_at_page`: the quoted words are not on the cited page -- on another
-      page of the opinion, or in no opinion of the case at all;
-    - `misquotation`: the cited page carries the content, and the words in the
-      filing's quotation marks are not the court's;
-    - `content_not_at_page`: the filing's own words for the content are on another page;
-    - `content_absent`: nothing on the cited page, or in the opinion read whole, concerns
-      the subject the filing cites it for;
-    - `content_contradicted`: the cited page states the opposite of the filing's words.
+    - `irrelevant`: nothing in the cited opinion, read whole, concerns what the
+      filing cites it for;
+    - `wrong_page`: the thing is in the opinion, on a page other than the one cited;
+    - `misquote`: what the filing attributes to the page differs from what the page
+      says -- words in quotation marks that are not the court's, a passage that says
+      the opposite, or a claim the page only partly carries. `outcome_message` says how.
     """
 
 

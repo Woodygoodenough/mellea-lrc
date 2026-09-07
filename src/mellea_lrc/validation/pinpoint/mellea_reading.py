@@ -87,7 +87,14 @@ passage and set `relation` to "related_subject". If a passage on the page
 states the opposite of the attribution -- the filing says a rule holds and
 the page says in so many words that it does not -- copy that passage and set
 `relation` to "contradicts"; use this only where the contradiction is plain
-from the two texts side by side, and otherwise use "related_subject". If nothing on the page or
+from the two texts side by side, and otherwise use "related_subject". If the
+page states part of the attribution and is silent on the rest -- the filing
+says the page bars two things and the page bars one -- set `relation` to
+"partial", copy the passage that carries the part it states, and copy into
+`missing` the exact words of the attribution the page does not state (a
+term, a party, a condition), so a program can check them against the whole
+opinion. Wording that merely differs is "same_content"; a genuine element
+the page never mentions is "partial". If nothing on the page or
 beside it concerns the subject at all, set `passage` to null and `relation` to
 "none", and describe in `page_subjects` what the page does discuss, in one
 sentence.
@@ -132,7 +139,11 @@ class PinpointReading(BaseModel):
         description="Words copied from the page (or its neighbours) on the same subject; null when none."
     )
     passage_location: Literal["page", "before", "after"] | None
-    relation: Literal["same_content", "related_subject", "contradicts", "none"]
+    relation: Literal["same_content", "related_subject", "contradicts", "partial", "none"]
+    missing: str | None = Field(
+        default=None,
+        description="When relation is partial: the words copied from the attribution that the page does not state.",
+    )
     voice: (
         Literal[
             "court",
@@ -183,6 +194,11 @@ def locate(reading: PinpointReading, window: CitingWindow, page: RetrievedPage) 
                 break
         if passage is None:
             problems.append("passage: the words are not in the page text or its neighbours as written")
+    if reading.relation == "partial":
+        if not reading.missing or not reading.missing.strip():
+            problems.append("missing: a partial relation must name the words the page does not state")
+        elif _best(reading.missing, reading.attribution) is None:
+            problems.append("missing: the words must be copied from the attribution")
     return Located(attribution, passage, tuple(problems), location)
 
 
@@ -285,6 +301,7 @@ async def run_mellea_pinpoint_reading(
     pin_cite: str,
     quotes,
     session: MelleaSession | None = None,
+    text_scope: str = "page",
 ) -> MelleaPinpointReadingNode:
     """Ask for one reading, ground it, and keep whatever quotations were located even if it failed."""
     model_name: str | None = None
@@ -328,9 +345,9 @@ async def run_mellea_pinpoint_reading(
                 f"{exc} | output {len(str(last or ''))} chars, ends: {tail!r}",
             )
     except Exception as exc:
-        return _failed(node_id, depends_on, model_name, window, f"{type(exc).__name__}: {exc}")
+        return _failed(node_id, depends_on, model_name, window, f"{type(exc).__name__}: {exc}", text_scope)
     if reading is None:
-        return _failed(node_id, depends_on, model_name, window, "No output")
+        return _failed(node_id, depends_on, model_name, window, "No output", text_scope)
     located = locate(reading, window, page)
     grounded = tuple(
         name
@@ -369,11 +386,18 @@ async def run_mellea_pinpoint_reading(
         if succeeded
         else "; ".join(located.problems) or "The model's answer was rejected.",
         error=None if succeeded else ("; ".join(located.problems) or "rejected"),
+        missing=reading.missing if reading.relation == "partial" else None,
+        text_scope=text_scope,
     )
 
 
 def _failed(
-    node_id: str, depends_on: tuple[str, ...], model: str | None, window: CitingWindow, error: str
+    node_id: str,
+    depends_on: tuple[str, ...],
+    model: str | None,
+    window: CitingWindow,
+    error: str,
+    text_scope: str = "page",
 ) -> MelleaPinpointReadingNode:
     return MelleaPinpointReadingNode(
         node_id=node_id,
@@ -396,6 +420,7 @@ def _failed(
         status_message="Pinpoint reading failed during execution.",
         outcome_message="No reading was obtained.",
         error=error,
+        text_scope=text_scope,
     )
 
 

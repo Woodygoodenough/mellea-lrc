@@ -167,9 +167,43 @@ async def pinpoint_document(
                 session=session,
             )
         )
+        opinion_reading = None
+        if (
+            reading.status is ValidationNodeStatus.SUCCEEDED
+            and reading.outcome is PinpointRelation.NONE
+            and page.labels
+            and quotes.outcome not in (QuoteFindingOutcome.ABSENT, QuoteFindingOutcome.ELSEWHERE)
+        ):
+            # Nothing on the page: before that is called irrelevance, the
+            # whole opinion is read once, and a passage found elsewhere in
+            # it names the page the filing should have cited.
+            whole = _whole_opinion(page, opinions.get(page_node.cluster_id or "", {}))
+            if whole is not None:
+                opinion_reading = record.append(
+                    await run_mellea_pinpoint_reading(
+                        node_id=f"{record.citation_id}:opinion_reading",
+                        depends_on=(reading.node_id,),
+                        window=window,
+                        page=whole,
+                        record=_describe_record(root),
+                        pin_cite=str(record.citation.pin_cite),
+                        quotes=quotes.quotes,
+                        session=session,
+                        text_scope="opinion",
+                    )
+                )
         record.append(
             _conclude(
-                record, scope, page_node, page, quotes, reading, window, searchable_opinions, first_page
+                record,
+                scope,
+                page_node,
+                page,
+                quotes,
+                reading,
+                window,
+                searchable_opinions,
+                first_page,
+                opinion_reading,
             )
         )
     return identified
@@ -665,6 +699,35 @@ def _attribution_elsewhere(
     return None
 
 
+def _whole_opinion(page: RetrievedPage, opinions: dict[str, PaginatedOpinion]) -> RetrievedPage | None:
+    """The opinion the page came from, whole, as a page to read; None when it is too long."""
+    opinion = opinions.get(page.opinion_id)
+    if opinion is None or not opinion.text.strip() or len(opinion.text) > MAX_OPINION_CHARS:
+        return None
+    return RetrievedPage(
+        opinion_id=opinion.opinion_id,
+        opinion_type=opinion.opinion_type,
+        citation_index=page.citation_index,
+        labels=(),
+        text=opinion.text,
+        span=Span(0, len(opinion.text)),
+        before="",
+        after="",
+    )
+
+
+def _missing_absent(missing: str | None, opinions: dict[str, PaginatedOpinion]) -> bool:
+    """Whether the words the page does not state are in no opinion of the case either."""
+    if not missing:
+        return False
+    terms = [w for w in _WORD.findall(missing) if w.lower() not in _STOP]
+    if not terms:
+        return False
+    return not any(
+        fuzzy.find_word(term, opinion.text, min_score=0.9) for term in terms for opinion in opinions.values()
+    )
+
+
 def _conclude(
     record: CitationRecord,
     scope: PinpointScopeNode,
@@ -675,9 +738,12 @@ def _conclude(
     window: CitingWindow,
     opinions: dict[str, PaginatedOpinion],
     first_page: str | None,
+    opinion_reading: MelleaPinpointReadingNode | None = None,
 ) -> PinpointResolutionNode:
     node_id = f"{record.citation_id}:pinpoint_resolution"
-    depends = (scope.node_id, page_node.node_id, quotes.node_id, reading.node_id)
+    depends = (scope.node_id, page_node.node_id, quotes.node_id, reading.node_id) + (
+        (opinion_reading.node_id,) if opinion_reading is not None else ()
+    )
     whole = not page.labels
     vocabulary = _vocabulary_on_page(reading.attribution, page)
     on_text_quote = next(
@@ -693,52 +759,77 @@ def _conclude(
         read_ok and reading.outcome is PinpointRelation.SAME_CONTENT and reading.passage_span is not None
     )
     decided_by = quotes.node_id
+    kinds: tuple[str, ...] = ()
     misquoted = False
+    where = "the opinion" if whole else "the cited page"
     # Quoted words are decided by the program. Absence in a shared sentence
     # proves nothing about this member; absence in the citation's own
     # parenthetical, or in a sentence it alone closes, is a fact about it.
-    # But words in quotation marks that differ from the page's while the page
-    # carries the same content are a misquotation, not a wrong page.
     if quotes.outcome is QuoteFindingOutcome.ABSENT and same_here:
-        outcome, false, misquoted = PinpointOutcome.QUOTE_ALTERED, True, True
-        where = "the cited text" if reading.passage_location == "page" else "the page beside the cited one"
-        message = f"The quoted words are not in the opinion as written; {where} carries the same content."
-    elif quotes.outcome is QuoteFindingOutcome.ABSENT:
-        outcome, false, misquoted = PinpointOutcome.QUOTE_ABSENT, True, True
-        message = "The filing's quoted words are in none of the case's opinions."
-    elif quotes.outcome is QuoteFindingOutcome.ELSEWHERE:
-        outcome, false = PinpointOutcome.QUOTE_ELSEWHERE, True
-        where = next(q for q in quotes.quotes if q.outcome is QuoteFindingOutcome.ELSEWHERE and not q.shared)
+        outcome, kinds, misquoted = PinpointOutcome.QUOTE_ALTERED, ("misquote",), True
         message = (
-            f"The filing's quoted words are in the opinion on page {where.label}, not on the cited page."
+            f"The words in the filing's quotation marks are not the court's; {where} says the same thing in other "
+            f"words: {reading.passage!r}."
+        )
+    elif quotes.outcome is QuoteFindingOutcome.ABSENT:
+        absent = next(q for q in quotes.quotes if q.outcome is QuoteFindingOutcome.ABSENT and not q.shared)
+        outcome, misquoted = PinpointOutcome.QUOTE_ABSENT, True
+        nothing_anywhere = (whole and read_ok and reading.outcome is PinpointRelation.NONE) or (
+            opinion_reading is not None
+            and opinion_reading.status is ValidationNodeStatus.SUCCEEDED
+            and opinion_reading.outcome is PinpointRelation.NONE
+        )
+        kinds = ("irrelevant", "misquote") if nothing_anywhere else ("misquote",)
+        message = f"The quoted words {absent.text!r} are in no opinion of the case" + (
+            ", and nothing in the opinion concerns the subject." if nothing_anywhere else "."
+        )
+    elif quotes.outcome is QuoteFindingOutcome.ELSEWHERE:
+        elsewhere_quote = next(
+            q for q in quotes.quotes if q.outcome is QuoteFindingOutcome.ELSEWHERE and not q.shared
+        )
+        outcome, kinds = PinpointOutcome.QUOTE_ELSEWHERE, ("wrong_page",)
+        message = (
+            f"The quoted words are in the opinion on page {elsewhere_quote.label}, not on the cited page."
         )
     elif on_text_quote is not None:
-        outcome, false = (PinpointOutcome.QUOTE_IN_OPINION if whole else PinpointOutcome.QUOTE_ON_PAGE), False
+        outcome = PinpointOutcome.QUOTE_IN_OPINION if whole else PinpointOutcome.QUOTE_ON_PAGE
         message = (
             "The filing's quoted words are in the opinion, whose text carries no page markers."
             if whole
             else "The filing's quoted words are on the cited page."
         )
     elif quotes.outcome is QuoteFindingOutcome.FOUND_UNPAGED:
-        outcome, false = PinpointOutcome.QUOTE_IN_OPINION, False
+        outcome = PinpointOutcome.QUOTE_IN_OPINION
         message = "The filing's quoted words are in an opinion whose text carries no page markers; the page cannot be told."
     elif quotes.outcome is QuoteFindingOutcome.ADJACENT:
-        outcome, false = PinpointOutcome.PASSAGE_ADJACENT, False
+        outcome = PinpointOutcome.PASSAGE_ADJACENT
         message = "The filing's quoted words are on the neighbouring page, a turn away from the cited one."
     elif not read_ok:
         decided_by = reading.node_id
-        outcome, false = PinpointOutcome.UNDETERMINED, False
+        outcome = PinpointOutcome.UNDETERMINED
         message = f"The reading did not pass its guards: {reading.error or 'no reading'}."
     elif reading.attribution_scope == "none" or reading.signal in ("see generally", "compare"):
         decided_by = reading.node_id
-        outcome, false = PinpointOutcome.NOT_TESTABLE, False
+        outcome = PinpointOutcome.NOT_TESTABLE
         message = "The citation makes no page-level claim of its own here."
     elif reading.outcome is PinpointRelation.CONTRADICTS and reading.passage_span is not None:
         decided_by = reading.node_id
-        outcome, false = PinpointOutcome.PASSAGE_CONTRADICTS, True
-        message = (
-            f"The cited text states the opposite of the filing's words ({reading.voice or 'voice unread'})."
-        )
+        outcome, kinds = PinpointOutcome.PASSAGE_CONTRADICTS, ("misquote",)
+        message = f"{where.capitalize()} states the opposite of the filing's words ({reading.voice or 'voice unread'}): {reading.passage!r}."
+    elif reading.outcome is PinpointRelation.PARTIAL and reading.passage_span is not None:
+        decided_by = reading.node_id
+        if _missing_absent(reading.missing, opinions):
+            outcome, kinds = PinpointOutcome.PASSAGE_PARTIAL, ("misquote",)
+            message = (
+                f"{where.capitalize()} states part of what the filing attributes to it, and {reading.missing!r} "
+                "appears nowhere in any opinion of the case."
+            )
+        else:
+            outcome = PinpointOutcome.PASSAGE_IN_OPINION if whole else PinpointOutcome.PASSAGE_ON_PAGE
+            message = (
+                f"{where.capitalize()} carries a passage on the subject; the reading found {reading.missing!r} "
+                "unstated there, but the words are elsewhere in the opinion, so nothing is called."
+            )
     elif reading.outcome in (PinpointRelation.SAME_CONTENT, PinpointRelation.RELATED_SUBJECT):
         decided_by = reading.node_id
         adjacent = reading.passage_location in ("before", "after")
@@ -748,32 +839,46 @@ def _conclude(
             outcome = PinpointOutcome.PASSAGE_ADJACENT
         else:
             outcome = PinpointOutcome.PASSAGE_ON_PAGE
-        false = False
         message = (
             f"The {'opinion' if whole else ('page beside the cited one' if adjacent else 'page')} carries a passage on the subject"
             f" ({reading.outcome.value}, {reading.voice or 'voice unread'})."
         )
-    elif (elsewhere := _attribution_elsewhere(reading.attribution, page, opinions, first_page)) is not None:
-        # The filing's own sentence is the opinion's, on another page: a wrong
-        # page for the right case, which the reading could not see.
-        decided_by = reading.node_id
-        outcome, false = PinpointOutcome.PASSAGE_ELSEWHERE, True
-        message = f"The filing's words for the content are in the opinion on page {elsewhere[1]}, not on the cited page."
     else:
         decided_by = reading.node_id
+        elsewhere = _attribution_elsewhere(reading.attribution, page, opinions, first_page)
         if vocabulary is not None and vocabulary >= VOCABULARY_GUARD:
-            outcome, false = PinpointOutcome.UNDETERMINED, False
+            outcome = PinpointOutcome.UNDETERMINED
             message = f"The reading found nothing on the subject, but {vocabulary:.0%} of the attribution's distinctive words are on the page."
         elif reading.attribution_scope == "shared":
-            outcome, false = PinpointOutcome.UNDETERMINED, False
+            outcome = PinpointOutcome.UNDETERMINED
             message = "Nothing on the page concerns the subject, but the sentence is shared by a string cite and may rest on another member."
-        else:
-            outcome = PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION if whole else PinpointOutcome.PASSAGE_ABSENT
-            false = True
+        elif elsewhere is not None:
+            outcome, kinds = PinpointOutcome.PASSAGE_ELSEWHERE, ("wrong_page",)
+            message = f"The filing's words for the content are in the opinion on page {elsewhere[1]}, not on the cited page."
+        elif whole:
+            outcome, kinds = PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION, ("irrelevant",)
+            message = f"Nothing in the opinion concerns the subject; it discusses: {reading.page_subjects or 'unread'}"
+        elif opinion_reading is None or opinion_reading.status is not ValidationNodeStatus.SUCCEEDED:
+            outcome = PinpointOutcome.UNDETERMINED
+            message = "Nothing on the cited page concerns the subject, and the whole opinion could not be read to say whether it is elsewhere."
+        elif opinion_reading.outcome is PinpointRelation.NONE:
+            outcome, kinds = PinpointOutcome.PASSAGE_ABSENT, ("irrelevant",)
             message = (
-                f"Nothing in the {'opinion' if whole else 'cited page or beside it'} concerns the subject; "
-                f"the {'opinion' if whole else 'page'} discusses: {reading.page_subjects or 'unread'}"
+                f"Nothing on the cited page or anywhere in the opinion concerns the subject; the opinion discusses: "
+                f"{opinion_reading.page_subjects or reading.page_subjects or 'unread'}"
             )
+        else:
+            decided_by = opinion_reading.node_id
+            found_label = _label_of_opinion_span(page, opinions, first_page, opinion_reading)
+            if found_label is not None and found_label not in page.labels:
+                outcome, kinds = PinpointOutcome.PASSAGE_ELSEWHERE, ("wrong_page",)
+                message = (
+                    f"Nothing on the cited page concerns the subject; the opinion carries a passage on it on page "
+                    f"{found_label} ({opinion_reading.outcome.value}): {opinion_reading.passage!r}."
+                )
+            else:
+                outcome = PinpointOutcome.UNDETERMINED
+                message = "Nothing on the cited page concerns the subject; the opinion carries a passage on it whose page could not be told."
     passage_label = None
     if reading.passage_span is not None and reading.passage_location == "page" and not whole:
         passage_label = _label_in_page(page, reading.passage_span.start)
@@ -793,21 +898,12 @@ def _conclude(
             else None
         )
     )
-    kinds = {
-        PinpointOutcome.QUOTE_ABSENT: "quote_not_at_page",
-        PinpointOutcome.QUOTE_ELSEWHERE: "quote_not_at_page",
-        PinpointOutcome.QUOTE_ALTERED: "misquotation",
-        PinpointOutcome.PASSAGE_ELSEWHERE: "content_not_at_page",
-        PinpointOutcome.PASSAGE_ABSENT: "content_absent",
-        PinpointOutcome.PASSAGE_ABSENT_FROM_OPINION: "content_absent",
-        PinpointOutcome.PASSAGE_CONTRADICTS: "content_contradicted",
-    }
     return PinpointResolutionNode(
         node_id=node_id,
         status=ValidationNodeStatus.SUCCEEDED,
         outcome=outcome,
-        false_pin_cite=false,
-        defect_kind=kinds.get(outcome) if false else None,
+        false_pin_cite=bool(kinds),
+        defect_kinds=kinds,
         authority_id=scope.authority_id,
         cluster_id=page_node.cluster_id,
         pin_cite=scope.pin_cite,
@@ -828,6 +924,28 @@ def _conclude(
         misquoted=misquoted,
         text_scope="opinion" if whole else "page",
     )
+
+
+def _label_of_opinion_span(
+    page: RetrievedPage,
+    opinions: dict[str, PaginatedOpinion],
+    first_page: str | None,
+    opinion_reading: MelleaPinpointReadingNode,
+) -> str | None:
+    """The reporter page a passage located in the whole opinion falls on."""
+    if opinion_reading.passage_span is None:
+        return None
+    opinion = opinions.get(page.opinion_id)
+    if opinion is None:
+        return None
+    index = marker_index_for((opinion,), first_page, page.labels or (first_page or "",))
+    if index is None:
+        return None
+    label = opinion.label_at(opinion_reading.passage_span.start, index)
+    if label is None:
+        head = opinion.head_labels(index, first_page)
+        return head[-1] if head else None
+    return label
 
 
 def _resolution_from_scope(record: CitationRecord, scope: PinpointScopeNode) -> PinpointResolutionNode:
