@@ -6,7 +6,7 @@ from mellea_lrc.validation.docket_lookup.lookup import (
     DocketRecord,
     lookup_docket,
 )
-from mellea_lrc.validation.docket_lookup.numbers import docket_core, docket_number_matches
+from mellea_lrc.validation.docket_lookup.numbers import docket_core, docket_number_matches, docket_parts
 
 __all__ = [
     "ArchiveAnswer",
@@ -14,5 +14,6 @@ __all__ = [
     "DocketRecord",
     "docket_core",
     "docket_number_matches",
+    "docket_parts",
     "lookup_docket",
 ]

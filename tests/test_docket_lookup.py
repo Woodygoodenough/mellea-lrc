@@ -8,7 +8,12 @@ from types import SimpleNamespace
 from mellea_lrc.courtlistener import CourtListenerError
 from mellea_lrc.courtlistener.search_models import CourtListenerSearchResult
 from mellea_lrc.govinfo import GovinfoCase, GovinfoClient, GovinfoConfig, GovinfoOpinion
-from mellea_lrc.validation.docket_lookup import docket_core, docket_number_matches, lookup_docket
+from mellea_lrc.validation.docket_lookup import (
+    docket_core,
+    docket_number_matches,
+    docket_parts,
+    lookup_docket,
+)
 
 
 def test_the_year_and_sequence_name_the_case() -> None:
@@ -171,3 +176,15 @@ def test_the_govinfo_client_finds_a_case_and_its_deposited_opinions() -> None:
     assert [o.date_issued for o in cases[0].opinions] == ["2006-01-12", "2006-01-30"]
     assert client.requests == 3
     assert json.dumps(session.calls[0][3])
+
+
+def test_a_civil_and_a_criminal_case_can_share_a_number() -> None:
+    assert docket_parts("1:25-cv-05745-RPK") == ("25", "cv", "5745")
+    assert docket_parts("No. 05-4206") == ("5", None, "4206")
+    assert docket_core("No. 05-4206") == ("05", "4206")
+    assert docket_parts("21-CV-01915-PAB-KAS") == ("21", "cv", "1915")
+    assert not docket_number_matches("21-cv-01915", "21-cr-01915")
+    assert not docket_number_matches("1:25-cv-05745", "1:25-cr-05745")
+    # A filing that omits the kind has not said the case is something else.
+    assert docket_number_matches("05-4206", "2:05-cv-04206")
+    assert docket_number_matches("21-CV-01915", "21-CV-01915-PAB-KAS")
