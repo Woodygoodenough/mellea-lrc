@@ -12,13 +12,17 @@ from mellea_lrc.preprocessing.repeated_furniture import (
     repeated_furniture,
 )
 from mellea_lrc.preprocessing.types import (
+    DEFAULT_LAYOUT_RULES,
+    LayoutRule,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
 )
 
 __all__ = [
+    "DEFAULT_LAYOUT_RULES",
     "DocumentBase",
+    "LayoutRule",
     "PreprocessedDocument",
     "PreprocessingBackend",
     "PreprocessingMetadata",
