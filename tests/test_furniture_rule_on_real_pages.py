@@ -5,8 +5,8 @@ what it says on the shapes it was written for. It does not answer the question
 that matters: on a real page, is everything the rule throws away actually
 noise, and is everything it keeps actually content?
 
-`tests/fixtures/furniture_pages.json` holds every text item Docling produced
-for two pages of one filing -- text, label, content layer, page, and bounding
+`furniture_pages.json`, recorded beside the corpus rather than here, holds
+every text item Docling produced for two pages of one filing -- text, label, content layer, page, and bounding
 box. They carry a page number Docling labelled `page_footer` on one page and
 `text` on the other, which is the case the rule exists for.
 
@@ -32,7 +32,14 @@ from docling_core.types.doc.labels import DocItemLabel  # noqa: E402
 
 from mellea_lrc.preprocessing.repeated_furniture import reclassify_repeated_furniture  # noqa: E402
 
-FIXTURE = Path(__file__).parent / "fixtures" / "furniture_pages.json"
+PAGE_LAYOUTS = (
+    Path(__file__).resolve().parents[1] / "data" / "extraction-v2.0" / "provenance" / "page-layouts"
+)
+FIXTURE = PAGE_LAYOUTS / "furniture_pages.json"
+
+pytestmark = pytest.mark.skipif(
+    not FIXTURE.exists(), reason="The recorded page layouts live with the corpus, not in this repository"
+)
 SOURCE = "azd-487494839"
 
 
