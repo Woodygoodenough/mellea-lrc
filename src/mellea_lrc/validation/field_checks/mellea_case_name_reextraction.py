@@ -62,8 +62,8 @@ class _PartyProposal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     classification: Literal["complete_case_name", "partial_case_name", "no_case_name"]
-    plaintiff: str | None = None
-    defendant: str | None = None
+    plaintiff: str | None
+    defendant: str | None
 
 
 async def run_mellea_case_name_reextraction(

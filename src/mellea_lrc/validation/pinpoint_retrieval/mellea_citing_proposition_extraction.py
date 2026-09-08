@@ -77,7 +77,7 @@ class _CitingPropositionProposal(BaseModel):
 
     classification: Literal["identified", "inconclusive"]
     reasoning: str = Field(min_length=1)
-    proposition_quote: str | None = None
+    proposition_quote: str | None
 
 
 async def run_mellea_citing_proposition_extraction(
