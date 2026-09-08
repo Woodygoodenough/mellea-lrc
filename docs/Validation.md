@@ -343,6 +343,26 @@ witnesses can be measured against each other over a corpus. courts-db types
 39 federal district courts `appellate`, so the federal level is read from the
 court's name.
 
+**A root cited by docket number** -- `Reyes v. Pac. Bell, No.
+1:25-cv-05745-RPK (E.D.N.Y. Oct. 31, 2024)` -- has no page to look up, and
+its court and docket number are a key instead. `validation/docket_lookup/`
+asks two archives the key, deterministically and without a model:
+CourtListener's docket index, scoped to the court, and the Government
+Publishing Office's United States Courts Opinions (`govinfo/`, needing
+`GOVINFO_API_KEY`), fed by the court itself under the E-Government Act. They
+are fed oppositely -- one holds the docket sheet and what somebody bought
+from PACER, the other the opinions the court deposited, publication aside --
+so each answers what the other cannot, and a decision one holds on a day is
+a fact the other's silence does not undo. A docket number without a court is
+refused rather than guessed, since every district has one like it. The
+caption that comes back is compared with the filing's parties by the same
+rule a reporter record gets: the case confirms, or it is a different case
+under that key (`1:19-CV-362` in the Middle District of North Carolina is
+Peerless Insurance v. Innovative Textiles, not Calderon v. GEICO), and
+nothing under the key in any archive defers the root to search. The
+`DocketIdentityNode` carries every archive's answer and every decision they
+hold, dated, and the resolution carries the docket id and the package id.
+
 **The composite judgement** runs only when a rule disagrees, and it sees the
 filing's own text rather than two strings, because a disagreement has three
 possible sources — the filing is wrong, the extractor misread it, or the two

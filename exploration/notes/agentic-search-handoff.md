@@ -54,8 +54,11 @@ root the identity stage did not establish:
 By what the filing wrote, the 91:
 
     Westlaw and LEXIS numbers         54     the archive has no lookup for these
-    docket numbers                     6     `validation/identity/docket.py`
-                                             documents the RECAP route, unbuilt
+    docket numbers                     6     now looked up: `validation/docket_lookup/`
+                                             asks CourtListener's docket index and the
+                                             Publishing Office (govinfo) the key; only
+                                             a key both archives hold nothing under
+                                             still defers here
     printed reporters the archive
       holds nothing at                31     F. Supp. 3d 12, B.R. 4, A.D.3d 4,
                                              F.3d 2, F.R.D. 2, one each of F.4th,
@@ -117,6 +120,15 @@ It touches nothing else.
   the archive holds nothing -- which is not the same as the citation being
   false -- needs an outcome of its own; name it, do not reuse
   `defer_to_search`.
+- **The docket lookup is shared.** `validation/docket_lookup/lookup_docket`
+  answers a court and docket number from both archives (caption, the
+  number as each writes it, every decision each holds with its date);
+  `docket_number_matches` and `docket_core` are the number comparison. The
+  search route's `docket_date.py` should call it rather than the index
+  directly, and a date-on-the-docket check belongs beside it, not in either
+  stage. `GovinfoClient` (`govinfo/`) has `find_case`, `case` and `opinion`;
+  govinfo's court codes are courts-db identifiers, and `casenumber:` matches
+  the number roughly as a filing writes it.
 - **Run and score**: `evaluations/identity/run_extraction_artifacts.py` is
   the pattern (budgeted client, tally, `summary.txt`, `manifest.json` naming
   the commit); `evaluations/pinpoint/run_identified_artifacts.py` scores
