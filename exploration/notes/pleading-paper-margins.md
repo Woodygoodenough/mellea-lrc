@@ -74,8 +74,7 @@ right-hand margin, a two-column layout, or a page where Docling absorbs enough
 line numbers to drop it under the count threshold, because it contains none of
 those.
 
-`exploration/margin_rules/` scores candidate rules against a cached layout of
-this corpus. The bar it sets is deliberately conservative: since the current
+Candidate rules were scored against a cached layout of this corpus. The bar it sets is deliberately conservative: since the current
 rule is already perfect here, a candidate earns its place only by matching it
 exactly while closing a failure this corpus does not contain. What that
 measurement found:
