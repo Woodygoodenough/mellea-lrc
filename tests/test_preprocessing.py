@@ -72,16 +72,36 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
     class FakeResult:
         document = FakeDocument()
 
+    class FakePipelineOptions:
+        do_table_structure = True
+
     class FakeConverter:
+        def __init__(self, format_options: dict[object, object] | None = None) -> None:
+            (option,) = (format_options or {}).values()
+            # A table is read as one block of text, not rebuilt as a grid.
+            calls["do_table_structure"] = option.pipeline_options.do_table_structure
+
         def convert(self, path: str) -> FakeResult:
             calls["path"] = path
             return FakeResult()
 
+    class FakeFormatOption:
+        def __init__(self, pipeline_options: object) -> None:
+            self.pipeline_options = pipeline_options
+
     fake_docling = types.ModuleType("docling")
     fake_converter_module = types.ModuleType("docling.document_converter")
     fake_converter_module.DocumentConverter = FakeConverter
+    fake_converter_module.PdfFormatOption = FakeFormatOption
+    fake_models = types.ModuleType("docling.datamodel.base_models")
+    fake_models.InputFormat = types.SimpleNamespace(PDF="pdf")
+    fake_options = types.ModuleType("docling.datamodel.pipeline_options")
+    fake_options.PdfPipelineOptions = FakePipelineOptions
     monkeypatch.setitem(sys.modules, "docling", fake_docling)
     monkeypatch.setitem(sys.modules, "docling.document_converter", fake_converter_module)
+    monkeypatch.setitem(sys.modules, "docling.datamodel", types.ModuleType("docling.datamodel"))
+    monkeypatch.setitem(sys.modules, "docling.datamodel.base_models", fake_models)
+    monkeypatch.setitem(sys.modules, "docling.datamodel.pipeline_options", fake_options)
 
     # No layout rules: this test is about which export is called, and the rules
     # need a real Docling document to walk.
@@ -90,7 +110,7 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
     assert document.text == "Plain text"
     assert document.source_metadata.format == SourceFormat.PDF
     assert document.preprocessing_metadata.backend == PreprocessingBackend.DOCLING
-    assert calls == {"path": "sample.pdf", "export_to_text": True}
+    assert calls == {"path": "sample.pdf", "export_to_text": True, "do_table_structure": False}
     assert document.index_spans == ()
 
 

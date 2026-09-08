@@ -105,3 +105,42 @@ def test_containment_is_required_rather_than_overlap() -> None:
     assert is_within(Span(12, 30), regions)
     assert not is_within(Span(35, 55), regions)
     assert not is_within(Span(5, 15), regions)
+
+
+def test_two_indexes_are_located_separately() -> None:
+    """A brief opens with a table of contents and a table of authorities.
+
+    Each is measured against the unmodified rendering, so the span of the second
+    is where the reader will find it rather than where it would sit had the
+    first been removed.
+    """
+    document = DoclingDocument(name="brief")
+    _table(document, "I. Introduction ......... 1", "document_index")
+    _table(document, ENTRY, "document_index")
+    document.add_text(label="text", text=PROSE)
+    text = document.export_to_text()
+
+    first, second = index_table_spans(document)
+
+    assert "I. Introduction" in text[first.start : first.end]
+    assert "654 F.3d 404" in text[second.start : second.end]
+    assert first.end <= second.start
+
+
+def test_an_entry_repeated_in_the_body_does_not_fragment_the_span() -> None:
+    """An index entry repeats verbatim in the body -- that is what an index is.
+
+    Comparing the two renderings with a block matcher lets it pair fragments of
+    the removed index against those repetitions, which returned an index as 175
+    two-character spans rather than as one.
+    """
+    document = DoclingDocument(name="brief")
+    _table(document, ENTRY, "document_index")
+    for _ in range(3):
+        document.add_text(label="text", text=ENTRY)
+    text = document.export_to_text()
+
+    (span,) = index_table_spans(document)
+
+    assert text[span.start : span.end].count("654 F.3d 404") == 1
+    assert span.start < text.index(ENTRY, span.end)

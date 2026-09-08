@@ -71,9 +71,39 @@ def preprocess_with_docling(
     Each rule moves the offsets of everything after it, so two renderings made
     under different lists are different coordinate spaces. Which ran is recorded
     on the result rather than assumed.
+
+    ## Tables are read, not rebuilt
+
+    ``do_table_structure`` is off, so docling's layout model still finds a table
+    and still labels it -- a table of authorities still comes back as
+    ``document_index`` -- but its structure model does not divide it into cells.
+    The region is written out as one block, in the order the page reads.
+
+    A brief's table of authorities is not a table. It is indented lines with dot
+    leaders, which the layout model classifies as one because of the alignment,
+    and dividing it into cells does two kinds of damage. It interleaves cell
+    separators into the text, so seven citations on this corpus carry a `|`
+    inside their own span -- characters the filing does not contain. And it
+    assigns lines to the wrong cells, which reorders them: document 021's
+    `Loos v. Lowe's` and `796 F. Supp. 2d 1013, 1023` come out with the page
+    before its own reporter and the reporter beside the *next* case's name, a
+    citation no relaxation can read because the parts are out of order rather
+    than merely separated.
+
+    Reading the region as text instead is worth, over the 26 filings of
+    `false-citation-bench`: pipes 915 to 80, one authority recovered that
+    appeared nowhere else in its filing, none lost, and 24 fewer case names left
+    with no locator beside them. Where a document has no table it changes
+    nothing at all.
+
+    What is given up is the column structure of the genuine tables -- a table of
+    evidence, a list of proceedings. Nothing here reads columns, and a citation
+    inside one is read in the same order a person would read it.
     """
     try:
-        from docling.document_converter import DocumentConverter
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
     except ImportError as exc:
         msg = (
             "Docling is required for raw document preprocessing. Install with: uv sync --group preprocessing"
@@ -81,7 +111,11 @@ def preprocess_with_docling(
         raise ImportError(msg) from exc
 
     source_path = Path(path)
-    converter = DocumentConverter()
+    # A table is read as one block of text rather than as a grid. See the note
+    # on `do_table_structure` below.
+    options = PdfPipelineOptions()
+    options.do_table_structure = False
+    converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
     result = converter.convert(str(source_path))
     applied = tuple(layout_rules)
     removals = tuple((rule, _LAYOUT_RULES[rule](result.document)) for rule in applied)
