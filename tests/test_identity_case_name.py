@@ -287,3 +287,15 @@ def test_an_unstated_court_is_compatible_or_in_conflict_with_the_reporter() -> N
     )
     assert stated.outcome is FieldCheckOutcome.MISMATCH
     assert stated.implied_court_ids == ()
+
+
+def test_an_acronym_skips_the_joining_words_of_the_record() -> None:
+    from mellea_lrc.validation.identity.case_name import compare_case_names
+    from mellea_lrc.validation.types import CaseNameAgreement
+
+    comparison = compare_case_names(
+        plaintiff="Neguse",
+        defendant="ICE",
+        recorded="NEGUSE et al v. U.S. IMMIGRATION AND CUSTOMS ENFORCEMENT",
+    )
+    assert comparison.agreement is CaseNameAgreement.CONTAINED

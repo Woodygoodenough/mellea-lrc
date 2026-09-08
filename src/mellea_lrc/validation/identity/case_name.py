@@ -156,9 +156,17 @@ def _acronym_covered(acronym: str, initials: str) -> bool:
     )
 
 
+_NOT_INITIALLED = frozenset({"and", "of", "the", "for", "in", "on", "at", "to", "&"})
+"""Joining words an acronym leaves out: `ICE` is Immigration and Customs Enforcement."""
+
+
 def _initials(recorded_side: str) -> str:
-    """The first letters of every word on a record's side, generic words included."""
-    return "".join(word[0] for word in ordered_words(recorded_side, minimum_length=1, keep_generic=True))
+    """The first letters of every word on a record's side, joining words left out."""
+    return "".join(
+        word[0]
+        for word in ordered_words(recorded_side, minimum_length=1, keep_generic=True)
+        if word.casefold() not in _NOT_INITIALLED
+    )
 
 
 def _with_joins(recorded_side: str) -> set[str]:
