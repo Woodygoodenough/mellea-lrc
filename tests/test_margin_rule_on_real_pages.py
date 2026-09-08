@@ -5,8 +5,8 @@ what it says on the shapes it was written for. It does not answer the question
 that matters: on a real page, is everything the rule throws away actually
 noise, and is everything it keeps actually content?
 
-`tests/fixtures/margin_pages.json` holds every text item Docling produced for
-two pages of one filing -- text, label, content layer, page, and bounding box.
+`margin_pages.json`, recorded beside the corpus rather than here, holds every
+text item Docling produced for two pages of one filing -- text, label, content layer, page, and bounding box.
 The two carry a citation split by a line-number margin, which is the case the
 rule exists for.
 
@@ -31,7 +31,14 @@ from docling_core.types.doc.document import DoclingDocument  # noqa: E402
 
 from mellea_lrc.preprocessing.margin_line_numbers import reclassify_margin_line_numbers  # noqa: E402
 
-FIXTURE = Path(__file__).parent / "fixtures" / "margin_pages.json"
+PAGE_LAYOUTS = (
+    Path(__file__).resolve().parents[1] / "data" / "extraction-v2.0" / "provenance" / "page-layouts"
+)
+FIXTURE = PAGE_LAYOUTS / "margin_pages.json"
+
+pytestmark = pytest.mark.skipif(
+    not FIXTURE.exists(), reason="The recorded page layouts live with the corpus, not in this repository"
+)
 
 
 def _load(source: str) -> DoclingDocument:
