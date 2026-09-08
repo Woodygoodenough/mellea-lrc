@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 from mellea_lrc.extraction import ExtractedDocument, extract_citations, extract_from_plain_text
+from mellea_lrc.govinfo import GovinfoClient
 from mellea_lrc.preprocessing import preprocess
 from mellea_lrc.serialization import (
     deserialize_extracted_document,
@@ -51,7 +52,7 @@ def _identify(args: argparse.Namespace) -> int:
     document = _parse(args.source, from_file=args.from_file, from_artifact=args.from_artifact)
     roots = sum(1 for item in document.citations if item.authority_id == item.citation_id)
     print(f"{len(document.citations)} citations, {roots} roots; identifying", file=sys.stderr)
-    identified = asyncio.run(identify_document(document))
+    identified = asyncio.run(identify_document(document, govinfo=GovinfoClient.from_env()))
     _write(json.dumps(serialize_identified_document(identified), indent=2, ensure_ascii=False), args.output)
     return 0
 

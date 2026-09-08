@@ -247,6 +247,32 @@ class CourtListenerClientTests(unittest.TestCase):
             {"q": "Brown", "type": "o", "cursor": "current-page", "semantic": "true"},
         )
 
+    def test_search_sends_highlight_and_court_only_when_asked(self) -> None:
+        """Highlighting and a court filter are extra parameters, absent from a plain search."""
+        session = FakeSession(
+            [
+                FakeResponse({"count": 0, "next": None, "previous": None, "results": []}),
+                FakeResponse({"count": 0, "next": None, "previous": None, "results": []}),
+            ]
+        )
+        client(session).search('"2009 WL 902437"', "r")
+        client(session).search('docketNumber:"1:19-cv-362"', "d", highlight=True, court="ncmd")
+
+        self.assertEqual(session.calls[0]["params"], {"q": '"2009 WL 902437"', "type": "r"})
+        self.assertEqual(
+            session.calls[1]["params"],
+            {"q": 'docketNumber:"1:19-cv-362"', "type": "d", "highlight": "on", "court": "ncmd"},
+        )
+
+    def test_search_sends_one_form_of_a_query_however_it_was_written(self) -> None:
+        """Two ways of asking one question are served from one cache entry."""
+        session = FakeSession([FakeResponse({"count": 0, "next": None, "previous": None, "results": []})] * 2)
+        client(session).search("caseName:(Turner AND Murphy)", "o")
+        client(session).search("caseName:( Murphy   AND Turner )", "o")
+
+        assert session.calls[0]["params"]["q"] == "caseName:(Murphy AND Turner)"
+        assert session.calls[1]["params"]["q"] == session.calls[0]["params"]["q"]
+
     def test_search_rejects_unsupported_type(self) -> None:
         """The public wrapper exposes only the CourtListener v4 search corpora."""
         with self.assertRaises(ValueError):

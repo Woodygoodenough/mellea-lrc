@@ -99,7 +99,10 @@ class Client:
         failing: set[tuple[str, str, str]] | None = None,
         details: dict[str, tuple[str, tuple[str, ...]]] | None = None,
         headers: dict[str, str] | None = None,
+        dockets: dict[str, tuple[dict[str, object], ...]] | None = None,
     ) -> None:
+        self.docket_index = dockets or {}
+        """Per court id: the docket index rows a docketNumber search returns."""
         self.table = table
         self.courts = courts or {}
         self.failing = failing or set()
@@ -125,8 +128,22 @@ class Client:
         self.dockets.append(docket_id)
         return CourtListenerDocket(docket_id=docket_id, court_id=self.courts.get(docket_id))
 
-    def search(self, *args: object, **kwargs: object) -> object:
-        raise AssertionError("the identity stage sends no search")
+    def search(self, query: str, search_type: str, cursor: str | None = None, **kwargs: object):
+        """The docket index: rows per court, returned for a docketNumber query scoped to it."""
+        from mellea_lrc.courtlistener.search_models import CourtListenerSearchResult
+
+        if search_type != "d":
+            raise AssertionError("the identity stage searches only the docket index")
+        rows = list(self.docket_index.get(kwargs.get("court") or "", ()))
+        return CourtListenerSearchResult.from_payload(
+            query=query,
+            search_type="d",
+            semantic=False,
+            count=len(rows),
+            results=rows,
+            next_cursor=None,
+            previous_cursor=None,
+        )
 
     def get_cluster(self, cluster_id: str) -> CourtListenerClusterDetail:
         self.clusters.append(cluster_id)
@@ -291,11 +308,121 @@ def test_a_docket_root_is_deferred_and_says_so() -> None:
     assert client.lookups == []
     resolution = _resolution(result.record("c1"))
     assert resolution.outcome is IdentityOutcome.DEFER_TO_SEARCH
+    assert resolution.reason is IdentityReason.DOCKET
     assert [type(n).__name__ for n in result.record("c1").trace.nodes] == [
         "IdentityScopeNode",
         "DocketIdentityNode",
         "IdentityResolutionNode",
     ]
+
+
+def _docket_root(text: str, *, plaintiff: str = "Reyes", defendant: str = "Pac. Bell") -> ExtractedCitation:
+    docket = DocketCitation(
+        plaintiff=plaintiff,
+        defendant=defendant,
+        docket_number="1:25-cv-05745-RPK",
+        court="nyed",
+        date=CitationDate(year="2024", month="Oct.", day="31"),
+    )
+    return _cite("c1", docket, text=text, locator="No. 1:25-cv-05745-RPK", authority_id="c1")
+
+
+def test_a_docket_key_the_index_holds_confirms_the_case_by_its_caption() -> None:
+    text = "Reyes v. Pac. Bell, No. 1:25-cv-05745-RPK (E.D.N.Y. Oct. 31, 2024)."
+    client = Client(
+        {},
+        dockets={
+            "nyed": (
+                {
+                    "docket_id": 77,
+                    "docketNumber": "1:25-cv-05745",
+                    "caseName": "Reyes v. Pacific Bell Telephone Co.",
+                    "dateFiled": "2025-10-14",
+                },
+            )
+        },
+    )
+
+    result = _run(_document(text, _docket_root(text)), client)
+
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.CONFIRMED_IDENTITY
+    assert result.record("c1").resolution is not None
+    assert result.record("c1").resolution.docket_id == "77"
+    assert result.record("c1").resolution.cluster_id is None
+    docket = next(n for n in result.record("c1").trace.nodes if type(n).__name__ == "DocketIdentityNode")
+    assert docket.caption == "Reyes v. Pacific Bell Telephone Co."
+    assert docket.answers[0].archive == "courtlistener"
+    assert docket.date_stated == "2024-10-31"
+
+
+def test_a_docket_key_naming_another_case_is_a_wrong_identity() -> None:
+    text = "Calderon v. GEICO Gen. Ins. Co., No. 1:25-cv-05745-RPK (E.D.N.Y. Oct. 31, 2024)."
+    client = Client(
+        {},
+        dockets={
+            "nyed": (
+                {
+                    "docket_id": 78,
+                    "docketNumber": "1:25-cv-05745",
+                    "caseName": "Peerless Insurance Co. v. Innovative Textiles, Inc.",
+                    "dateFiled": "2025-10-14",
+                },
+            )
+        },
+    )
+
+    result = _run(
+        _document(text, _docket_root(text, plaintiff="Calderon", defendant="GEICO Gen. Ins. Co.")), client
+    )
+
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.WRONG_IDENTITY
+    assert resolution.reason is IdentityReason.DIFFERENT_CASE_AT_LOCATOR
+    assert resolution.record_case_name == "Peerless Insurance Co. v. Innovative Textiles, Inc."
+
+
+def test_the_publishing_office_answers_the_key_on_its_own() -> None:
+    from mellea_lrc.govinfo import GovinfoCase, GovinfoOpinion
+
+    class Govinfo:
+        def find_case(self, court_code: str, docket_number: str):
+            assert (court_code, docket_number) == ("nyed", "1:25-cv-05745-RPK")
+            return (
+                GovinfoCase(
+                    package_id="USCOURTS-nyed-1_25-cv-05745",
+                    court_code="nyed",
+                    case_number="1:25-cv-05745",
+                    title="Reyes v. Pacific Bell",
+                    case_type="civil",
+                    date_issued="2024-10-31",
+                    opinions=(
+                        GovinfoOpinion(
+                            "USCOURTS-nyed-1_25-cv-05745",
+                            "USCOURTS-nyed-1_25-cv-05745-0",
+                            "Reyes v. Pacific Bell",
+                            "2024-10-31",
+                        ),
+                    ),
+                ),
+            )
+
+    text = "Reyes v. Pac. Bell, No. 1:25-cv-05745-RPK (E.D.N.Y. Oct. 31, 2024)."
+    result = asyncio.run(
+        identify_document(_document(text, _docket_root(text)), client=Client({}), govinfo=Govinfo())
+    )
+
+    resolution = _resolution(result.record("c1"))
+    assert resolution.outcome is IdentityOutcome.CONFIRMED_IDENTITY
+    assert result.record("c1").resolution.govinfo_package_id == "USCOURTS-nyed-1_25-cv-05745"
+    docket = next(n for n in result.record("c1").trace.nodes if type(n).__name__ == "DocketIdentityNode")
+    assert docket.decisions_on_date == 1
+    assert [a.status for a in docket.answers] == ["found", "not_found"]
+    payload = json.loads(json.dumps(serialize_identified_document(result)))
+    recovered = deserialize_identified_document(payload)
+    again = next(n for n in recovered.record("c1").trace.nodes if type(n).__name__ == "DocketIdentityNode")
+    assert again.answers[0].identifier == "USCOURTS-nyed-1_25-cv-05745"
+    assert again.decisions[0].date == "2024-10-31"
 
 
 # --- the rule guard --------------------------------------------------------------

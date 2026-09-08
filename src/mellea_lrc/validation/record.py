@@ -115,6 +115,10 @@ class Resolution:
     rather than resolving the cluster's opinions again."""
     dates: DateExploration | None = None
     """What was read about the record's dates, when the plain comparison disagreed."""
+    docket_id: str | None = None
+    """CourtListener's docket, when the case was identified by docket number."""
+    govinfo_package_id: str | None = None
+    """The Publishing Office's package, when the case was identified by docket number."""
 
 
 @dataclass(slots=True)

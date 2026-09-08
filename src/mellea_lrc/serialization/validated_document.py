@@ -40,8 +40,10 @@ from mellea_lrc.validation.types import (
     DateCheckNode,
     DatePrecision,
     DateReconciliationNode,
+    DocketArchiveAnswer,
     DocketCourtRetrievalNode,
     DocketCourtRetrievalOutcome,
+    DocketDecisionRecord,
     DocketIdentityNode,
     DocketIdentityOutcome,
     DocketNumberCourtNode,
@@ -333,6 +335,37 @@ def _deserialize_node(value: object) -> ValidationNode:
         fields.pop("defect_kind", None)
         fields["attribution_span"] = _optional_span(fields["attribution_span"], name="node.attribution_span")
         fields["passage_span"] = _optional_span(fields["passage_span"], name="node.passage_span")
+    elif node_type is DocketIdentityNode:
+        fields["answers"] = tuple(
+            DocketArchiveAnswer(
+                archive=item["archive"],
+                status=item["status"],
+                identifier=item.get("identifier"),
+                docket_number=item.get("docket_number"),
+                caption=item.get("caption"),
+                date_filed=item.get("date_filed"),
+                decisions=int(item.get("decisions") or 0),
+                error=item.get("error"),
+                candidates=tuple(item.get("candidates") or ()),
+            )
+            for item in (
+                require_mapping(v, name="node.answers")
+                for v in require_list(fields.get("answers", []), name="node.answers")
+            )
+        )
+        fields["decisions"] = tuple(
+            DocketDecisionRecord(
+                archive=item["archive"],
+                identifier=item["identifier"],
+                date=item.get("date"),
+                description=item.get("description"),
+            )
+            for item in (
+                require_mapping(v, name="node.decisions")
+                for v in require_list(fields.get("decisions", []), name="node.decisions")
+            )
+        )
+        fields["name_agreement"] = _optional_enum(CaseNameAgreement, fields.get("name_agreement"))
     elif node_type is DocketNumberCourtNode:
         fields["courts"] = tuple(require_list(fields["courts"], name="node.courts"))
         fields["levels"] = tuple(require_list(fields["levels"], name="node.levels"))

@@ -114,6 +114,10 @@ def _deserialize_record(payload: Mapping[str, object], extracted: object) -> Cit
                     )
                 ),
                 dates=_deserialize_dates(fields.get("dates")),
+                docket_id=_optional_string(fields.get("docket_id"), name="record.resolution.docket_id"),
+                govinfo_package_id=_optional_string(
+                    fields.get("govinfo_package_id"), name="record.resolution.govinfo_package_id"
+                ),
             )
         )
     record.corrections = tuple(

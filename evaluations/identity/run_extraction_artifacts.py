@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from mellea_lrc.courtlistener import CourtListenerClient
+from mellea_lrc.govinfo import GovinfoClient
 from mellea_lrc.serialization import deserialize_extracted_document, serialize_identified_document
 from mellea_lrc.validation.identity import identify_document
 from mellea_lrc.validation.types import (
@@ -102,9 +103,10 @@ class BudgetedClient:
         cursor: str | None = None,
         *,
         semantic: bool = False,
+        **options: object,
     ) -> CourtListenerSearchResult:
         try:
-            return self.inner.search(query, search_type, cursor, semantic=semantic)
+            return self.inner.search(query, search_type, cursor, semantic=semantic, **options)
         finally:
             self._after()
 
@@ -212,6 +214,7 @@ def run(run_dir: Path, out_dir: Path, *, miss_budget: int, limit: int | None, on
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     entries = [entry for entry in manifest["entries"] if not only or only in entry["document"]][:limit]
     client = BudgetedClient(CourtListenerClient(), miss_budget=miss_budget)
+    govinfo = GovinfoClient.from_env()
     tally = Tally()
     (out_dir / "documents").mkdir(parents=True, exist_ok=True)
     stopped: str | None = None
@@ -224,7 +227,7 @@ def run(run_dir: Path, out_dir: Path, *, miss_budget: int, limit: int | None, on
             file=sys.stderr,
         )
         try:
-            identified = asyncio.run(identify_document(document, client=client))
+            identified = asyncio.run(identify_document(document, client=client, govinfo=govinfo))
         except MissBudgetExhausted as exc:
             stopped = str(exc)
             break

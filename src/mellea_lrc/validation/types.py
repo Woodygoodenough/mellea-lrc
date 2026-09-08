@@ -219,6 +219,16 @@ class AuthorityMergeOutcome(str, Enum):
 class DocketIdentityOutcome(str, Enum):
     """Results of identifying a case by docket number and court."""
 
+    FOUND = "found"
+    """One case under the key, in at least one archive."""
+    NOT_FOUND = "not_found"
+    """Every archive asked holds nothing under the key."""
+    SEVERAL = "several"
+    """An archive holds more than one case under the key."""
+    NO_COURT = "no_court"
+    """The filing named no court, and a docket number without one is not a key."""
+    UNAVAILABLE = "unavailable"
+    """Every archive asked failed to answer."""
     NOT_IMPLEMENTED = "not_implemented"
 
 
@@ -1172,8 +1182,33 @@ class AuthorityMergeNode:
 
 
 @dataclass(frozen=True, slots=True)
+class DocketArchiveAnswer:
+    """What one archive said to a court and docket number."""
+
+    archive: str
+    status: str
+    identifier: str | None = None
+    docket_number: str | None = None
+    caption: str | None = None
+    date_filed: str | None = None
+    decisions: int = 0
+    error: str | None = None
+    candidates: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DocketDecisionRecord:
+    """One thing the court wrote in the case, as an archive holds it."""
+
+    archive: str
+    identifier: str
+    date: str | None
+    description: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class DocketIdentityNode:
-    """Identity of a case cited by docket number. The route is recorded, not run."""
+    """Identity of a case cited by docket number, from the archives that answer the key."""
 
     node_id: str
     status: ValidationNodeStatus
@@ -1183,6 +1218,16 @@ class DocketIdentityNode:
     depends_on: tuple[str, ...] = ()
     status_message: str | None = None
     outcome_message: str | None = None
+    caption: str | None = None
+    """The case's caption as the archives hold it, the court's own deposit first."""
+    answers: tuple[DocketArchiveAnswer, ...] = ()
+    decisions: tuple[DocketDecisionRecord, ...] = ()
+    """Every decision either archive holds for the case, dated."""
+    name_agreement: CaseNameAgreement | None = None
+    date_stated: str | None = None
+    """The day the filing states, when it states one exactly."""
+    decisions_on_date: int | None = None
+    """How many decisions the archives hold on that day; None when no day was stated or nothing is held."""
 
 
 # Expand this union as operation-specific validation nodes are introduced.

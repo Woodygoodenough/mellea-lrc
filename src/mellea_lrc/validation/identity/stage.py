@@ -44,6 +44,7 @@ from mellea_lrc.courtlistener import CourtListenerClient
 from mellea_lrc.validation.candidate_evaluation import run_locator_candidate_evaluation
 from mellea_lrc.validation.citation_lookup import run_exact_locator_lookup
 from mellea_lrc.validation.court_retrieval import run_docket_court_retrieval
+from mellea_lrc.validation.identity.case_name import written_case_name
 from mellea_lrc.validation.identity.dates import exploration_of, run_date_reconciliation
 from mellea_lrc.validation.identity.docket import run_docket_identity
 from mellea_lrc.validation.identity.docket_number import run_docket_number_check
@@ -64,9 +65,14 @@ from mellea_lrc.validation.types import (
     AuthorityMergeNode,
     AuthorityMergeOutcome,
     CandidateEvaluationNode,
+    CaseNameAgreement,
     DateReconciliationNode,
+    DocketIdentityNode,
+    DocketIdentityOutcome,
     DocketNumberCourtNode,
+    FieldAgreement,
     FieldCheckOutcome,
+    FieldDisagreement,
     IdentityOutcome,
     IdentityReason,
     IdentityResolutionNode,
@@ -85,12 +91,12 @@ if TYPE_CHECKING:
     from mellea_lrc.courtlistener.opinion_models import CourtListenerOpinionCluster
     from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
     from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument
+    from mellea_lrc.govinfo import GovinfoServiceClient
     from mellea_lrc.validation.types import (
         CaseNameAgreementNode,
         CourtCheckNode,
         DateCheckNode,
         ExactLocatorLookupNode,
-        FieldDisagreement,
     )
 
 RULE = "validation.identity.stage"
@@ -164,8 +170,13 @@ async def identify_document(
     *,
     client: CourtListenerServiceClient | None = None,
     session: MelleaSession | None = None,
+    govinfo: GovinfoServiceClient | None = None,
 ) -> IdentifiedDocument:
-    """Run the identity stage over every root in a document."""
+    """Run the identity stage over every root in a document.
+
+    ``govinfo`` is the Publishing Office's client, asked beside CourtListener
+    for roots cited by docket number; without it only CourtListener is asked.
+    """
     service = client if client is not None else CourtListenerClient()
     records = tuple(CitationRecord.from_extracted(item) for item in document.citations)
     for record in records:
@@ -181,18 +192,78 @@ async def identify_document(
                 session=session,
             )
         elif scope is IdentityScope.ROOT_DOCKET:
-            docket = record.append(run_docket_identity(record))
-            record.append(
-                _resolution(
-                    record,
-                    IdentityOutcome.DEFER_TO_SEARCH,
-                    reason=IdentityReason.DOCKET,
-                    depends_on=(docket.node_id,),
-                    message="A docket number is identified by the RECAP search route, which is not built.",
-                )
-            )
+            docket = record.append(run_docket_identity(record, client=service, govinfo=govinfo))
+            _conclude_docket(record, docket)
     merge_colocated_roots(records)
     return IdentifiedDocument(source=document, records=records)
+
+
+def _conclude_docket(record: CitationRecord, docket: DocketIdentityNode) -> IdentityResolutionNode:
+    """What the archives' answer to a docket key says about the root, by rule.
+
+    The caption is compared with the filing's parties as a reporter record's
+    would be. A day the filing states on which neither archive holds anything
+    the court wrote is disclosed on the docket node and not made a
+    disagreement here: the archives hold what they hold, and a decision they
+    do not hold is not thereby a decision the court did not make.
+    """
+    if docket.outcome is not DocketIdentityOutcome.FOUND:
+        node = _resolution(
+            record,
+            IdentityOutcome.DEFER_TO_SEARCH,
+            reason=IdentityReason.DOCKET,
+            depends_on=(docket.node_id,),
+            message=docket.outcome_message or "The archives hold nothing under the docket key.",
+        )
+        record.append(node)
+        return node
+    agreement = docket.name_agreement
+    if (agreement is not None and agreement.agrees) or agreement is CaseNameAgreement.UNAVAILABLE:
+        node = _resolution(
+            record,
+            IdentityOutcome.CONFIRMED_IDENTITY,
+            reason=None,
+            depends_on=(docket.node_id,),
+            message=f"The docket key names {docket.caption!r}, and the filing's case name agrees.",
+            record_case_name=docket.caption,
+            decided_by="rule",
+        )
+    else:
+        node = _resolution(
+            record,
+            IdentityOutcome.WRONG_IDENTITY,
+            reason=IdentityReason.DIFFERENT_CASE_AT_LOCATOR,
+            depends_on=(docket.node_id,),
+            message=f"The docket key names a different case: {docket.caption!r}.",
+            record_case_name=docket.caption,
+            decided_by="rule",
+            fields=(
+                FieldDisagreement(
+                    field="case_name",
+                    filing_value=written_case_name(record.citation.plaintiff, record.citation.defendant)
+                    or "",
+                    record_value=docket.caption or "",
+                    agreement=FieldAgreement.DISAGREE,
+                ),
+            ),
+        )
+    record.append(node)
+    if node.resolved:
+        by_archive = {answer.archive: answer for answer in docket.answers if answer.status == "found"}
+        record.resolve(
+            Resolution(
+                cluster_id=None,
+                case_name=docket.caption,
+                date_filed=next((a.date_filed for a in by_archive.values() if a.date_filed), None),
+                court_id=docket.court_id,
+                node_id=node.node_id,
+                docket_id=by_archive.get("courtlistener").identifier
+                if "courtlistener" in by_archive
+                else None,
+                govinfo_package_id=by_archive.get("govinfo").identifier if "govinfo" in by_archive else None,
+            )
+        )
+    return node
 
 
 def scope_node(record: CitationRecord) -> IdentityScopeNode:

@@ -12,9 +12,14 @@ from pydantic import ValidationError
 
 from mellea_lrc.courtlistener.citation_lookup import normalize_citation_lookup_payload
 from mellea_lrc.courtlistener.docket import normalize_docket_payload
+from mellea_lrc.courtlistener.docket_entry import normalize_docket_entries_payload
+from mellea_lrc.courtlistener.docket_entry_models import CourtListenerDocketEntries
 from mellea_lrc.courtlistener.opinion import normalize_opinion_payload
 from mellea_lrc.courtlistener.opinion_models import CourtListenerClusterDetail
 from mellea_lrc.courtlistener.protocols import CourtListenerServiceClient
+from mellea_lrc.courtlistener.query import normalize_query
+from mellea_lrc.courtlistener.recap_document import normalize_recap_document_payload
+from mellea_lrc.courtlistener.recap_document_models import CourtListenerRecapDocument
 from mellea_lrc.courtlistener.search import normalize_search_payload
 
 if TYPE_CHECKING:
@@ -137,15 +142,30 @@ class CourtListenerClient(CourtListenerServiceClient):
         cursor: str | None = None,
         *,
         semantic: bool = False,
+        highlight: bool = False,
+        court: str | None = None,
     ) -> CourtListenerSearchResult:
-        """Search CourtListener's opinions, RECAP, docket, or document corpus."""
+        """Search CourtListener's opinions, RECAP, docket, or document corpus.
+
+        The query is put into one form before it is sent, so that two ways of
+        writing the same question are served from one cache entry rather than
+        spending the allowance twice. ``highlight`` asks for each hit's snippet to be the text around the
+        query's matches, with each match in a ``<mark>`` element, rather than
+        the first 500 characters of the document. ``court`` restricts the hits
+        to one court identifier. Both are sent only when set, so the request
+        for a plain search is unchanged and a caching proxy keys it the same.
+        """
         if search_type not in {"r", "rd", "d", "o"}:
             raise ValueError("search_type must be one of: r, rd, d, o")
-        params: dict[str, str] = {"q": query, "type": search_type}
+        params: dict[str, str] = {"q": normalize_query(query), "type": search_type}
         if cursor:
             params["cursor"] = cursor
         if semantic:
             params["semantic"] = "true"
+        if highlight:
+            params["highlight"] = "on"
+        if court:
+            params["court"] = court
         response = self._send_search(params)
         payload = self._response_payload(response)
         try:
@@ -158,6 +178,66 @@ class CourtListenerClient(CourtListenerServiceClient):
         except ValidationError as exc:
             raise CourtListenerError(
                 "CourtListener returned an invalid search response",
+                failure_type="upstream_invalid_response",
+                upstream_status_code=response.status_code,
+                retryable=False,
+                url=response.url,
+                upstream_detail=exc.errors(include_url=False),
+            ) from exc
+
+    def get_docket_entries(
+        self,
+        docket_id: str,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+        cursor: str | None = None,
+    ) -> CourtListenerDocketEntries:
+        """Retrieve one docket's entries, optionally bounded by the date they were filed.
+
+        A citation to an unreported decision states a docket number, a court
+        and a day. The entries say what the court actually entered that day,
+        which is the court's own record rather than an index's coverage of it.
+        """
+        # `count=on` makes the endpoint answer with a count and no results at
+        # all, so it is never sent: the entries themselves are what say what
+        # the court entered, and how many came back says whether the docket is
+        # populated over the window at all.
+        params: dict[str, str] = {"docket": docket_id}
+        if since:
+            params["date_filed__gte"] = since
+        if until:
+            params["date_filed__lte"] = until
+        if cursor:
+            params["cursor"] = cursor
+        response = self._send_get("docket-entries/", params)
+        payload = self._response_payload(response)
+        try:
+            return normalize_docket_entries_payload(payload, docket_id=docket_id)
+        except ValidationError as exc:
+            raise CourtListenerError(
+                "CourtListener returned an invalid docket-entries response",
+                failure_type="upstream_invalid_response",
+                upstream_status_code=response.status_code,
+                retryable=False,
+                url=response.url,
+                upstream_detail=exc.errors(include_url=False),
+            ) from exc
+
+    def get_recap_document(self, document_id: str) -> CourtListenerRecapDocument:
+        """Retrieve one document filed on a docket, with its text where the archive has it.
+
+        The search endpoint returns a window around a match; this returns the
+        document, which is what a reader needs when the window begins inside a
+        case name.
+        """
+        response = self._send_get(f"recap-documents/{document_id}/", {})
+        payload = self._response_payload(response)
+        try:
+            return normalize_recap_document_payload(payload)
+        except ValidationError as exc:
+            raise CourtListenerError(
+                "CourtListener returned an invalid RECAP-document response",
                 failure_type="upstream_invalid_response",
                 upstream_status_code=response.status_code,
                 retryable=False,
@@ -250,6 +330,36 @@ class CourtListenerClient(CourtListenerServiceClient):
     def _send_search(self, params: dict[str, str]) -> requests.Response:
         """GET CourtListener search without coupling it to citation lookup."""
         url = urljoin(self.config.base_url.rstrip("/") + "/", "search/")
+        try:
+            response = self.session.request(
+                "GET",
+                url,
+                params=params,
+                headers=self._headers(),
+                timeout=self.config.timeout_seconds,
+            )
+        except requests.Timeout as exc:
+            raise CourtListenerError(
+                "CourtListener request timed out",
+                failure_type="upstream_timeout",
+                retryable=True,
+                url=url,
+            ) from exc
+        except requests.RequestException as exc:
+            raise CourtListenerError(
+                "CourtListener request failed before a response was received",
+                failure_type="upstream_request_error",
+                retryable=True,
+                url=url,
+                upstream_detail=str(exc),
+            ) from exc
+        if response.status_code >= 400:
+            raise _courtlistener_http_error(response)
+        return response
+
+    def _send_get(self, path: str, params: dict[str, str]) -> requests.Response:
+        """GET one collection endpoint with query parameters."""
+        url = urljoin(self.config.base_url.rstrip("/") + "/", path)
         try:
             response = self.session.request(
                 "GET",

@@ -3,8 +3,10 @@
 from typing import Literal, Protocol
 
 from mellea_lrc.courtlistener.citation_lookup_models import CourtListenerCitationLookup
+from mellea_lrc.courtlistener.docket_entry_models import CourtListenerDocketEntries
 from mellea_lrc.courtlistener.docket_models import CourtListenerDocket
 from mellea_lrc.courtlistener.opinion_models import CourtListenerClusterDetail, CourtListenerOpinion
+from mellea_lrc.courtlistener.recap_document_models import CourtListenerRecapDocument
 from mellea_lrc.courtlistener.search_models import CourtListenerSearchResult
 
 
@@ -26,14 +28,29 @@ class CourtListenerServiceClient(Protocol):
         cursor: str | None = None,
         *,
         semantic: bool = False,
+        highlight: bool = False,
+        court: str | None = None,
     ) -> CourtListenerSearchResult:
         """Search a CourtListener corpus."""
 
     def get_docket(self, docket_id: str) -> CourtListenerDocket:
         """Retrieve one docket by its CourtListener identifier."""
 
+    def get_docket_entries(
+        self,
+        docket_id: str,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+        cursor: str | None = None,
+    ) -> CourtListenerDocketEntries:
+        """Retrieve one docket's entries, bounded by the date they were filed."""
+
     def get_opinion(self, opinion_id: str) -> CourtListenerOpinion:
         """Retrieve one sub-opinion by its CourtListener identifier."""
+
+    def get_recap_document(self, document_id: str) -> CourtListenerRecapDocument:
+        """Retrieve one document filed on a docket, with its text where the archive has it."""
 
     def get_cluster(self, cluster_id: str) -> CourtListenerClusterDetail:
         """Retrieve one opinion cluster by its identifier, with its other dates."""
