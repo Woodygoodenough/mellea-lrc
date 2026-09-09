@@ -1366,7 +1366,10 @@ def test_parallel_citations_that_resolve_to_one_cluster_become_one_authority() -
     # The correction records what was learned, not a rewriting of the root.
     assert [(c.field, c.before, c.after) for c in merged.corrections] == [("authority_id", None, "c1")]
     assert merged.corrections[0].node_id == merge.node_id
-    assert result.record("c3").authority == "c1"
+    # The return still points at the root whose identifier it restates, and
+    # the walk from it reaches the authority that root joined.
+    assert result.record("c3").root_id == "c2"
+    assert result.authority_record("c3").citation_id == "c1"
     assert result.resolution_of("c3") is _resolution(result.record("c1"))
 
 
