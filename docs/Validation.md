@@ -101,6 +101,28 @@ same category error as reading `not_found` as fabrication.
 
 ---
 
+## The words
+
+Extraction's four, and this side produces the third.
+
+| word | means |
+|---|---|
+| **occurrence** | one place in a filing where a case is referred to |
+| **root** | an identifier the filing states, plus the returns that inherit it. A claim, checkable |
+| **authority** | the identity a root is established to have. This side's word |
+| **cluster** / **docket** | what an archive holds: one decision, and the court file that produced it |
+
+A record carries both: `root_id` is what extraction read and is never written
+to, and `authority_id` is empty until a lookup finds that two roots name one
+case. Reading `record.authority` gives the second where there is one and the
+first otherwise; `IdentifiedDocument.authority_record` walks from any citation
+to the record holding its identity, root then merge. So `roots` counts what the
+filings state and `authorities` counts what they reach, and the two differ by
+exactly the merges.
+
+`case` is not used for a thing: a court file can produce several decisions and
+a decision can hold several opinions.
+
 ## The identity stage
 
 `identify_document` answers one question for a whole filing: which case does
@@ -400,8 +422,10 @@ not lost because the court could not be grounded.
 
 **Parallel citations** arrive as separate roots sharing a `colocation_id`,
 because extraction leaves identity to the lookup. When both resolve to one
-cluster, the later root is re-attributed to the earlier one, and so is every
-citation that referred to it. When they resolve differently, both stay.
+cluster, the later root records the earlier one as its authority; both stay
+roots, since what the filing stated does not change, and every return still
+points at the root whose identifier it restates. When they resolve
+differently, they remain two authorities.
 
 ### Reading an identity result
 
