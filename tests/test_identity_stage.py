@@ -1353,15 +1353,20 @@ def test_parallel_citations_that_resolve_to_one_cluster_become_one_authority() -
 
     result = _run(_document(text, first, second, follower), client)
 
-    assert [r.citation_id for r in result.roots] == ["c1"]
+    # Both stay roots: the filing stated two identifiers, and the merge is a
+    # finding about the world rather than about the document.
+    assert [r.citation_id for r in result.roots] == ["c1", "c2"]
+    assert [r.citation_id for r in result.authorities] == ["c1"]
+    assert result.record("c2").root_id == "c2"
     merged = result.record("c2")
     assert merged.authority_id == "c1"
     merge = next(n for n in merged.trace.nodes if isinstance(n, AuthorityMergeNode))
     assert merge.outcome is AuthorityMergeOutcome.MERGED_INTO
     assert merge.target_citation_id == "c1"
-    assert [(c.field, c.before, c.after) for c in merged.corrections] == [("authority_id", "c2", "c1")]
+    # The correction records what was learned, not a rewriting of the root.
+    assert [(c.field, c.before, c.after) for c in merged.corrections] == [("authority_id", None, "c1")]
     assert merged.corrections[0].node_id == merge.node_id
-    assert result.record("c3").authority_id == "c1"
+    assert result.record("c3").authority == "c1"
     assert result.resolution_of("c3") is _resolution(result.record("c1"))
 
 
@@ -1391,6 +1396,7 @@ def test_parallel_citations_that_resolve_differently_stay_two_authorities() -> N
     result = _run(_document(text, first, second), client)
 
     assert [r.citation_id for r in result.roots] == ["c1", "c2"]
+    assert [r.citation_id for r in result.authorities] == ["c1", "c2"]
     merge = next(n for n in result.record("c2").trace.nodes if isinstance(n, AuthorityMergeNode))
     assert merge.outcome is AuthorityMergeOutcome.KEPT
 

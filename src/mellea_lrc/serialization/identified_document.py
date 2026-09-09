@@ -63,6 +63,7 @@ def _serialize_record(record: CitationRecord) -> dict[str, JsonValue]:
             "citation_type": record.citation.kind.value,
             **serialize_dataclass(record.citation),
         },
+        "root_id": record.root_id,
         "authority_id": record.authority_id,
         "resolution": serialize_dataclass(record.resolution) if record.resolution is not None else None,
         "corrections": [serialize_dataclass(correction) for correction in record.corrections],
@@ -93,6 +94,7 @@ def _deserialize_record(payload: Mapping[str, object], extracted: object) -> Cit
     record = CitationRecord(
         source=extracted,
         citation=current,
+        root_id=_optional_string(payload.get("root_id"), name="record.root_id"),
         authority_id=_optional_string(payload.get("authority_id"), name="record.authority_id"),
     )
     for node_payload in require_list(payload.get("nodes"), name="record.nodes"):

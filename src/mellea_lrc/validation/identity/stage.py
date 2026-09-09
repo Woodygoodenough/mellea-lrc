@@ -127,8 +127,21 @@ class IdentifiedDocument:
 
     @property
     def roots(self) -> tuple[CitationRecord, ...]:
-        """The records that introduce an authority, after any merge."""
+        """Every citation that states an identifier of its own, merged or not."""
         return tuple(record for record in self.records if record.is_root)
+
+    @property
+    def authorities(self) -> tuple[CitationRecord, ...]:
+        """One record per authority: a merged root is counted with the one it joined."""
+        seen: set[str] = set()
+        found: list[CitationRecord] = []
+        for record in self.roots:
+            authority = record.authority
+            if authority is None or authority in seen:
+                continue
+            seen.add(authority)
+            found.append(record)
+        return tuple(found)
 
     def date_only_disagreements(self) -> tuple[CitationRecord, ...]:
         """The roots that are a wrong identity on the date and nothing else.
@@ -153,12 +166,26 @@ class IdentifiedDocument:
                 found.append(record)
         return tuple(found)
 
+    def authority_record(self, citation_id: str) -> CitationRecord | None:
+        """The record that holds this citation's identity: its root, or the root that root merged into.
+
+        A return points at the root whose identifier it restates, and that
+        root may itself have been found to name the same case as an earlier
+        one. Following both steps here means nothing has to be rewritten when
+        a merge happens.
+        """
+        record = self.record(citation_id)
+        seen = {citation_id}
+        while record.authority is not None and record.authority not in seen:
+            seen.add(record.authority)
+            record = self.record(record.authority)
+        return record if record.is_root else None
+
     def resolution_of(self, citation_id: str) -> IdentityResolutionNode | None:
         """The identity conclusion a citation inherits, through its root."""
-        record = self.record(citation_id)
-        if record.authority_id is None:
+        root = self.authority_record(citation_id)
+        if root is None:
             return None
-        root = self.record(record.authority_id)
         for node in root.trace.nodes:
             if isinstance(node, IdentityResolutionNode):
                 return node
@@ -270,7 +297,7 @@ def scope_node(record: CitationRecord) -> IdentityScopeNode:
     """Decide from the citation tree whether this citation's identity is checked."""
     citation = record.citation
     node_id = f"{record.citation_id}:identity_scope"
-    if record.authority_id is None:
+    if record.authority is None:
         return IdentityScopeNode(
             node_id=node_id,
             status=ValidationNodeStatus.SKIPPED,
@@ -285,10 +312,10 @@ def scope_node(record: CitationRecord) -> IdentityScopeNode:
             node_id=node_id,
             status=ValidationNodeStatus.SKIPPED,
             outcome=IdentityScope.NON_ROOT,
-            authority_id=record.authority_id,
+            authority_id=record.authority,
             colocation_id=record.source.colocation_id,
             status_message="Skipped identity because another citation introduced this authority.",
-            outcome_message=f"Inherits the identity of {record.authority_id}.",
+            outcome_message=f"Inherits the identity of {record.authority}.",
         )
     if isinstance(citation, DocketCitation):
         outcome, message = IdentityScope.ROOT_DOCKET, "Introduces an authority by docket number."
@@ -299,7 +326,7 @@ def scope_node(record: CitationRecord) -> IdentityScopeNode:
             node_id=node_id,
             status=ValidationNodeStatus.SKIPPED,
             outcome=IdentityScope.OUT_OF_SCOPE,
-            authority_id=record.authority_id,
+            authority_id=record.authority,
             colocation_id=record.source.colocation_id,
             status_message="Skipped identity because the root is not a case citation.",
             outcome_message=f"A {citation.kind.value} cannot introduce a case authority.",
@@ -308,7 +335,7 @@ def scope_node(record: CitationRecord) -> IdentityScopeNode:
         node_id=node_id,
         status=ValidationNodeStatus.SUCCEEDED,
         outcome=outcome,
-        authority_id=record.authority_id,
+        authority_id=record.authority,
         colocation_id=record.source.colocation_id,
         status_message="Identity scope decided.",
         outcome_message=message,
@@ -444,17 +471,12 @@ def merge_colocated_roots(records: Sequence[CitationRecord]) -> None:
                 ),
             )
         )
-        reason = merge.outcome_message or ""
-        former_root = record.citation_id
-        record.reattribute(earlier.citation_id, made_by=RULE, reason=reason, node_id=merge.node_id)
-        for follower in records:
-            if follower.authority_id == former_root and follower is not record:
-                follower.reattribute(
-                    earlier.citation_id,
-                    made_by=RULE,
-                    reason=f"Followed {former_root}, which merged into {earlier.citation_id}.",
-                    node_id=_scope_node(follower).node_id,
-                )
+        # Only the merged root is written to. Every return that restates its
+        # identifier still points at it, and reading the authority follows the
+        # one further step, so nothing a filing stated is rewritten.
+        record.reattribute(
+            earlier.citation_id, made_by=RULE, reason=merge.outcome_message or "", node_id=merge.node_id
+        )
 
 
 @dataclass(frozen=True, slots=True)

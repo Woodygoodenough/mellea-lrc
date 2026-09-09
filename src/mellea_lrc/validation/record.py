@@ -47,7 +47,7 @@ class Correction:
     """One change to the record, and the evidence it rests on."""
 
     field: str
-    """Which field changed: a citation field such as ``court``, or ``authority_id``."""
+    """Which field changed: a citation field such as ``court``, or ``root_id``."""
     before: object
     after: object
     made_by: str
@@ -127,7 +127,20 @@ class CitationRecord:
 
     source: ExtractedCitation
     citation: CanonicalCitation
-    authority_id: str | None
+    root_id: str | None
+    """The root this citation belongs to, as extraction assigned it. Never rewritten.
+
+    Extraction reads a filing and says which identifier a return inherits;
+    that is a fact about the document and stays what it was. What a lookup
+    finds -- that two roots name one case -- is written to ``authority_id``
+    instead, so the trace says which of the two is being read.
+    """
+    authority_id: str | None = None
+    """The authority this citation's root was established to reach, once one is.
+
+    ``None`` until a lookup settles it. Where two roots are found to name one
+    case, both carry the same value here and their ``root_id`` stays apart.
+    """
     resolution: Resolution | None = None
     corrections: tuple[Correction, ...] = ()
     trace: CitationValidation = field(init=False)
@@ -142,7 +155,7 @@ class CitationRecord:
     @classmethod
     def from_extracted(cls, source: ExtractedCitation) -> CitationRecord:
         """Start a record from what extraction produced, unchanged."""
-        return cls(source=source, citation=source.citation, authority_id=source.authority_id)
+        return cls(source=source, citation=source.citation, root_id=source.authority_id)
 
     @property
     def citation_id(self) -> str:
@@ -151,8 +164,12 @@ class CitationRecord:
 
     @property
     def is_root(self) -> bool:
-        """Whether this citation introduces the authority it refers to."""
-        return self.authority_id == self.citation_id
+        """Whether this citation states an identifier of its own, rather than returning to one.
+
+        A root stays a root after a merge: that two roots name one case is a
+        fact about the world, and what the filing stated does not change.
+        """
+        return self.root_id == self.citation_id
 
     def append(self, node: ValidationNode) -> ValidationNode:
         """Add one node to the trace, returning it so a caller can depend on it."""
@@ -170,7 +187,12 @@ class CitationRecord:
         self.corrections = (*self.corrections, correction)
 
     def reattribute(self, authority_id: str, *, made_by: str, reason: str, node_id: str) -> None:
-        """Point this citation at a different authority, logging why."""
+        """Say which authority this citation's root reaches, logging why.
+
+        The root stays what extraction read. This is the lookup's finding
+        that two roots name one case, and both of them end up here with the
+        same value.
+        """
         self._require_node(node_id)
         correction = Correction(
             field="authority_id",
@@ -182,6 +204,11 @@ class CitationRecord:
         )
         self.authority_id = authority_id
         self.corrections = (*self.corrections, correction)
+
+    @property
+    def authority(self) -> str | None:
+        """The authority this citation belongs to: the one a lookup found, else its root."""
+        return self.authority_id or self.root_id
 
     def resolve(self, resolution: Resolution) -> None:
         """Record what the archive holds, once. A second resolution is a bug."""

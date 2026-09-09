@@ -217,8 +217,8 @@ def _scope(record: CitationRecord, identified: IdentifiedDocument) -> PinpointSc
             node_id, PinpointScope.NO_PIN_CITE, None, None, None, None, "The citation names no page."
         )
     pages = pin_pages(pin)
-    resolution = identified.resolution_of(record.citation_id) if record.authority_id else None
-    authority_id = record.authority_id
+    resolution = identified.resolution_of(record.citation_id) if record.authority else None
+    authority_id = record.authority
     if resolution is None:
         return _scope_node(
             node_id,
