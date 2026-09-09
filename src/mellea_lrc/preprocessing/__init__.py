@@ -7,14 +7,22 @@ from mellea_lrc.preprocessing.plain_text import (
     preprocess_plain_text_from_string,
     split_plain_text_file,
 )
+from mellea_lrc.preprocessing.repeated_furniture import (
+    reclassify_repeated_furniture,
+    repeated_furniture,
+)
 from mellea_lrc.preprocessing.types import (
+    DEFAULT_LAYOUT_RULES,
+    LayoutRule,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
 )
 
 __all__ = [
+    "DEFAULT_LAYOUT_RULES",
     "DocumentBase",
+    "LayoutRule",
     "PreprocessedDocument",
     "PreprocessingBackend",
     "PreprocessingMetadata",
@@ -24,5 +32,7 @@ __all__ = [
     "preprocess",
     "preprocess_plain_text_from_string",
     "preprocess_with_docling",
+    "reclassify_repeated_furniture",
+    "repeated_furniture",
     "split_plain_text_file",
 ]

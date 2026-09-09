@@ -7,7 +7,9 @@ import pytest
 
 from mellea_lrc.core import SourceMetadata
 from mellea_lrc.preprocessing import (
+    DEFAULT_LAYOUT_RULES,
     DocumentBase,
+    LayoutRule,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
@@ -77,12 +79,57 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
     monkeypatch.setitem(sys.modules, "docling", fake_docling)
     monkeypatch.setitem(sys.modules, "docling.document_converter", fake_converter_module)
 
-    document = preprocess_with_docling("sample.pdf")
+    # No layout rules: this test is about which export is called, and the rules
+    # need a real Docling document to walk.
+    document = preprocess_with_docling("sample.pdf", layout_rules=())
 
     assert document.text == "Plain text"
     assert document.source_metadata.format == SourceFormat.PDF
     assert document.preprocessing_metadata.backend == PreprocessingBackend.DOCLING
     assert calls == {"path": "sample.pdf", "export_to_text": True}
+
+
+def test_docling_runs_the_rules_it_was_given_and_records_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every rule in the list runs, and the result says which did.
+
+    A rule that is exported but never reached removes nothing, and a document
+    rendered without it is a different coordinate space than one rendered with
+    it. The record is what tells the two apart.
+    """
+
+    class FakeDocument:
+        # Both rules walk these. Empty here: this test is about which rules run.
+        texts: tuple[object, ...] = ()
+
+        def export_to_text(self) -> str:
+            return "Plain text"
+
+    class FakeResult:
+        document = FakeDocument()
+
+    class FakeConverter:
+        def convert(self, path: str) -> FakeResult:
+            return FakeResult()
+
+    fake_docling = types.ModuleType("docling")
+    fake_converter_module = types.ModuleType("docling.document_converter")
+    fake_converter_module.DocumentConverter = FakeConverter
+    monkeypatch.setitem(sys.modules, "docling", fake_docling)
+    monkeypatch.setitem(sys.modules, "docling.document_converter", fake_converter_module)
+
+    document = preprocess_with_docling("sample.pdf")
+
+    assert document.preprocessing_metadata.layout_rules == DEFAULT_LAYOUT_RULES
+    assert document.preprocessing_metadata.layout_removals == (
+        (LayoutRule.MARGIN_LINE_NUMBERS, 0),
+        (LayoutRule.REPEATED_FURNITURE, 0),
+    )
+
+    kept = preprocess_with_docling("sample.pdf", layout_rules=())
+    assert kept.preprocessing_metadata.layout_rules == ()
+    assert kept.preprocessing_metadata.layout_removals == ()
 
 
 def test_preprocessed_document_rejects_empty_text() -> None:
