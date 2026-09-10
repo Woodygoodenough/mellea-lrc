@@ -14,11 +14,11 @@ from mellea_lrc.preprocessing.document_index import index_table_spans
 from mellea_lrc.preprocessing.margin_line_numbers import reclassify_margin_line_numbers
 from mellea_lrc.preprocessing.repeated_furniture import reclassify_repeated_furniture
 from mellea_lrc.preprocessing.types import (
-    DEFAULT_LAYOUT_RULES,
-    LayoutRule,
+    DEFAULT_RULES,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
+    Rule,
 )
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ def _source_format(path: Path) -> SourceFormat:
     return _SOURCE_FORMAT_BY_SUFFIX.get(path.suffix.lower(), SourceFormat.UNKNOWN)
 
 
-def _reads_tables_as_text(rules: Sequence[LayoutRule]) -> bool:
+def _reads_tables_as_text(rules: Sequence[Rule]) -> bool:
     """Whether the converter should leave a table as text rather than rebuild it.
 
     This rule is decided before the conversion runs, because it is the only one
@@ -59,31 +59,31 @@ def _reads_tables_as_text(rules: Sequence[LayoutRule]) -> bool:
     produced. It is still a rule: named, declinable, and recorded on the result
     like the rest.
     """
-    return LayoutRule.TABLE_AS_TEXT in rules
+    return Rule.TABLE_AS_TEXT in rules
 
 
-def _apply_layout_rules(
-    document: DoclingDocument, rules: Sequence[LayoutRule]
-) -> tuple[tuple[tuple[LayoutRule, int], ...], tuple[Span, ...]]:
+def _apply_rules(
+    document: DoclingDocument, rules: Sequence[Rule]
+) -> tuple[tuple[tuple[Rule, int], ...], tuple[Span, ...]]:
     """Run each rule against the converted document, in the order given.
 
     Returns how many items the counting rules moved out of the body, and the
     regions `TABLE_OF_AUTHORITIES` marked. The rules added here do not count
-    what they did: `layout_rules` says which ran, and that is all this records
+    what they did: `rules` says which ran, and that is all this records
     until counting is done for every rule the same way.
     """
     removals = []
     index_spans: tuple[Span, ...] = ()
     for rule in rules:
-        if rule is LayoutRule.MARGIN_LINE_NUMBERS:
+        if rule is Rule.MARGIN_LINE_NUMBERS:
             removals.append((rule, reclassify_margin_line_numbers(document)))
-        elif rule is LayoutRule.REPEATED_FURNITURE:
+        elif rule is Rule.REPEATED_FURNITURE:
             removals.append((rule, reclassify_repeated_furniture(document)))
-        elif rule is LayoutRule.DOCKET_STAMP:
+        elif rule is Rule.DOCKET_STAMP:
             reclassify_docket_stamps(document)
-        elif rule is LayoutRule.TABLE_AS_TEXT:
+        elif rule is Rule.TABLE_AS_TEXT:
             pass  # Decided before the conversion; see `_reads_tables_as_text`.
-        elif rule is LayoutRule.TABLE_OF_AUTHORITIES:
+        elif rule is Rule.TABLE_OF_AUTHORITIES:
             index_spans = index_table_spans(document)
         else:
             msg = f"Unknown layout rule: {rule}"
@@ -94,11 +94,11 @@ def _apply_layout_rules(
 def preprocess_with_docling(
     path: Path | str,
     *,
-    layout_rules: Sequence[LayoutRule] = DEFAULT_LAYOUT_RULES,
+    rules: Sequence[Rule] = DEFAULT_RULES,
 ) -> PreprocessedDocument:
     """Convert a raw document to plain text using Docling.
 
-    ``layout_rules`` says which page furniture to take out before the text is
+    ``rules`` says which page furniture to take out before the text is
     written. Docling reads all of it correctly and files some of it under the
     body layer, where it survives into the text and lands wherever the page
     broke -- a margin number inside a citation, the `9` of "Page 3 of 9" read
@@ -154,11 +154,11 @@ def preprocess_with_docling(
     # A table is read as one block of text rather than as a grid. See the note
     # on `do_table_structure` below.
     options = PdfPipelineOptions()
-    options.do_table_structure = not _reads_tables_as_text(layout_rules)
+    options.do_table_structure = not _reads_tables_as_text(rules)
     converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
     result = converter.convert(str(source_path))
-    applied = tuple(layout_rules)
-    removals, index_spans = _apply_layout_rules(result.document, applied)
+    applied = tuple(rules)
+    counted, index_spans = _apply_rules(result.document, applied)
     text = result.document.export_to_text()  # Ensure to normalize all characters to Unicode TODO
 
     return PreprocessedDocument(
@@ -171,7 +171,7 @@ def preprocess_with_docling(
         preprocessing_metadata=PreprocessingMetadata(
             backend=PreprocessingBackend.DOCLING,
             backend_version=_docling_version(),
-            layout_rules=applied,
-            layout_removals=removals,
+            rules=applied,
+            removals=counted,
         ),
     )

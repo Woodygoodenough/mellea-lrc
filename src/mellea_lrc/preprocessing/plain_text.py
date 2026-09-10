@@ -24,29 +24,29 @@ from pathlib import Path
 
 from mellea_lrc.core.documents import SourceFormat, SourceMetadata
 from mellea_lrc.preprocessing.types import (
-    DEFAULT_LAYOUT_RULES,
-    LayoutRule,
+    DEFAULT_RULES,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
+    Rule,
 )
 
 
 def preprocess_plain_text(
     path: Path | str,
     *,
-    layout_rules: Sequence[LayoutRule] = DEFAULT_LAYOUT_RULES,
+    rules: Sequence[Rule] = DEFAULT_RULES,
 ) -> PreprocessedDocument:
     """Load a `.txt` file as a preprocessed document.
 
-    ``layout_rules`` is accepted so that one list serves every format, and is
+    ``rules`` is accepted so that one list serves every format, and is
     not applied: see the note above.
     """
     source_path = Path(path)
     return preprocess_plain_text_from_string(
         source_path.read_text(encoding="utf-8"),
         source_path=str(source_path),
-        layout_rules=layout_rules,
+        rules=rules,
     )
 
 
@@ -54,10 +54,10 @@ def preprocess_plain_text_from_string(
     text: str,
     *,
     source_path: str | None = None,
-    layout_rules: Sequence[LayoutRule] = DEFAULT_LAYOUT_RULES,
+    rules: Sequence[Rule] = DEFAULT_RULES,
 ) -> PreprocessedDocument:
     """Wrap raw text in a preprocessed document without reading a file."""
-    del layout_rules
+    del rules
     return PreprocessedDocument(
         source_metadata=SourceMetadata(
             path=source_path,

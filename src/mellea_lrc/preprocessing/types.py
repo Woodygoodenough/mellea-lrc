@@ -14,7 +14,7 @@ class PreprocessingBackend(str, Enum):
     PLAIN_TEXT = "plain_text"
 
 
-class LayoutRule(str, Enum):
+class Rule(str, Enum):
     """One reading of the page this project makes rather than leaving to the converter.
 
     Each names one reading of the page that a converter would otherwise decide
@@ -52,12 +52,12 @@ class LayoutRule(str, Enum):
     """The index of cited cases, marked because it cites nothing."""
 
 
-DEFAULT_LAYOUT_RULES: tuple[LayoutRule, ...] = (
-    LayoutRule.MARGIN_LINE_NUMBERS,
-    LayoutRule.REPEATED_FURNITURE,
-    LayoutRule.DOCKET_STAMP,
-    LayoutRule.TABLE_AS_TEXT,
-    LayoutRule.TABLE_OF_AUTHORITIES,
+DEFAULT_RULES: tuple[Rule, ...] = (
+    Rule.MARGIN_LINE_NUMBERS,
+    Rule.REPEATED_FURNITURE,
+    Rule.DOCKET_STAMP,
+    Rule.TABLE_AS_TEXT,
+    Rule.TABLE_OF_AUTHORITIES,
 )
 """All of them. None of this is the document's text, and a rendering that keeps
 it is wrong about the document -- a margin number landing inside a citation, a
@@ -73,7 +73,7 @@ class PreprocessingMetadata:
 
     backend: PreprocessingBackend = PreprocessingBackend.PLAIN_TEXT
     backend_version: str | None = None
-    layout_rules: tuple[LayoutRule, ...] = ()
+    rules: tuple[Rule, ...] = ()
     """Which rules ran, in the order they ran.
 
     Empty means none did, which is not the same as a rule finding nothing: the
@@ -81,11 +81,11 @@ class PreprocessingMetadata:
     has to record which reading it was rendered under.
     """
 
-    layout_removals: tuple[tuple[LayoutRule, int], ...] = ()
+    removals: tuple[tuple[Rule, int], ...] = ()
     """How many items each rule moved out of the body.
 
     Only the two rules that were here before this counted: a rule added since
-    runs without reporting, and `layout_rules` is what says it ran.
+    runs without reporting, and `rules` is what says it ran.
     """
 
 
@@ -99,10 +99,10 @@ class PreprocessedDocument(DocumentBase):
     """Regions of `text` holding a table of authorities, which cites nothing.
 
     An index entry lists a case; it attaches no proposition to it and makes no
-    claim about any page. What `LayoutRule.TABLE_OF_AUTHORITIES` marked, and
+    claim about any page. What `Rule.TABLE_OF_AUTHORITIES` marked, and
     empty when that rule did not run or the backend cannot tell -- plain text
     carries no structure, so absence here means unknown rather than none, and
-    `layout_rules` is what says which.
+    `rules` is what says which.
     """
 
     def __post_init__(self) -> None:

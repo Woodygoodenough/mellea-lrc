@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import re
-import uuid
-from bisect import bisect_left, bisect_right
+import contextlib
+from dataclasses import replace
 from typing import cast
 
 from eyecite import get_citations, resolve_citations
-from eyecite.annotate import SpanUpdater
 from eyecite.models import (
     CitationBase,
     Resource,
@@ -37,66 +35,32 @@ from eyecite.models import (
 from eyecite.models import (
     UnknownCitation as EyeciteUnknownCitation,
 )
-from eyecite.tokenizers import Tokenizer, default_tokenizer
 
 from mellea_lrc.core.citations import (
     CanonicalCitation,
+    CitationDate,
+    DocketCitation,
     FullCaseCitation,
     FullJournalCitation,
     FullLawCitation,
     IdCitation,
     ReferenceCitation,
+    Reporter,
     ShortCaseCitation,
     SupraCitation,
     UnknownCitation,
 )
 from mellea_lrc.core.spans import Span
+from mellea_lrc.extraction.identity import citation_id as citation_id_for
+from mellea_lrc.extraction.reading.dockets import DOCKET_GROUP, with_dockets
+from mellea_lrc.extraction.reading.pin_cite_spans import locate_pin_cite
+from mellea_lrc.extraction.reading.pin_cites import relaxed_pin_cites, strip_connector
+from mellea_lrc.extraction.reading.relaxation import Relaxation, tokenizer_for
+from mellea_lrc.extraction.reading.unread_names import unread_case_names
+from mellea_lrc.extraction.stages import refine
 from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument, ExtractionMetadata
-from mellea_lrc.preprocessing.plain_text import preprocess_plain_text_from_string
+from mellea_lrc.preprocessing import preprocess
 from mellea_lrc.preprocessing.types import PreprocessedDocument
-
-_REPEATED_INLINE_WHITESPACE = re.compile(r"[ \t]{2,}")
-
-
-def _get_citations_with_recovered_spans(
-    text: str,
-    *,
-    tokenizer: Tokenizer = default_tokenizer,
-) -> list[CitationBase]:
-    """Extract citations from whitespace-collapsed text, then remap spans back to `text`.
-
-    Docling PDF extraction leaves runs of repeated spaces/tabs (e.g. from
-    justified-text columns) that break eyecite's tokenizer and silently drop
-    otherwise well-formed citations. Collapsing those runs before extraction
-    recovers them; `SpanUpdater` then maps each citation's offsets from the
-    collapsed text back to `text` so downstream span-based text slicing is
-    unaffected.
-
-    `tokenizer` exists so alternative extraction backends can reuse this
-    collapse-and-remap step rather than reimplement the span mapping below.
-    """
-    cleaned = _REPEATED_INLINE_WHITESPACE.sub(" ", text)
-    citations = get_citations(cleaned, tokenizer=tokenizer)
-    if cleaned == text:
-        return citations
-
-    # Collapsing repeated whitespace is a net insertion going cleaned -> text
-    # (each run gains its extra characters back), the opposite of eyecite's
-    # own plain/markup mapping (a net deletion). bisect_right on the start and
-    # bisect_left on the end is what lands exactly on citation boundaries for
-    # an insertion-direction diff; the reverse pairing off-by-ones by one
-    # collapsed space at segment boundaries.
-    updater = SpanUpdater(cleaned, text)
-    for citation in citations:
-        start, end = citation.span()
-        citation.span_start = updater.update(start, bisect_right)
-        citation.span_end = updater.update(end, bisect_left)
-        if citation.full_span_start is not None:
-            citation.full_span_start = updater.update(citation.full_span_start, bisect_right)
-        if citation.full_span_end is not None:
-            citation.full_span_end = updater.update(citation.full_span_end, bisect_left)
-    return citations
-
 
 EYECITE_CITATION_TYPES = frozenset(
     {
@@ -112,28 +76,107 @@ EYECITE_CITATION_TYPES = frozenset(
 )
 
 
+def _reporter(citation: CitationBase) -> Reporter | None:
+    """The reporter this citation names, with what reporters-db knows about it.
+
+    The edition is taken only when the abbreviation names exactly one. eyecite
+    would break a tie by year, which fails in both directions -- see
+    :class:`~mellea_lrc.core.citations.Reporter` -- so an ambiguous abbreviation
+    is recorded as ambiguous and left for a reviewer.
+    """
+    as_written = citation.groups.get("reporter")
+    if not as_written:
+        return None
+    candidates = list(getattr(citation, "exact_editions", ()) or getattr(citation, "variation_editions", ()))
+    reporters = [getattr(edition, "reporter", None) for edition in candidates]
+    names = tuple(getattr(reporter, "name", "") or "" for reporter in reporters)
+
+    def agreed(attribute: str, default: object) -> object:
+        """The value every candidate gives, or the default when they differ."""
+        values = {getattr(reporter, attribute, None) for reporter in reporters if reporter}
+        return values.pop() if len(values) == 1 else default
+
+    if len(candidates) == 1:
+        edition, reporter = candidates[0], reporters[0]
+        return Reporter(
+            as_written=as_written,
+            short_name=edition.short_name,
+            name=getattr(reporter, "name", None),
+            cite_type=getattr(reporter, "cite_type", None),
+            is_scotus=bool(getattr(reporter, "is_scotus", False)),
+            editions=names,
+        )
+    return Reporter(
+        as_written=as_written,
+        short_name=None,
+        name=None,
+        cite_type=agreed("cite_type", None),
+        is_scotus=bool(agreed("is_scotus", False)),
+        editions=names,
+    )
+
+
+def _date(citation: CitationBase) -> CitationDate | None:
+    """The decision date the citation states, or None when it states none.
+
+    eyecite parses the month and day of a full date and this project used to
+    drop both, keeping only the year.
+    """
+    metadata = citation.metadata
+    year = getattr(metadata, "year", None)
+    if not year:
+        return None
+    return CitationDate(
+        year=str(year),
+        month=getattr(metadata, "month", None),
+        day=getattr(metadata, "day", None),
+    )
+
+
+def _to_docket(citation: EyeciteFullCaseCitation) -> DocketCitation:
+    """Read back the docket a custom extractor wrote into a case citation.
+
+    eyecite has one shape for a case citation and reaches it through a reporter
+    edition, so a docket arrives here wearing volume, reporter and page. The
+    docket number and its court were carried along in the token's groups; this
+    unpacks them and drops the borrowed clothes.
+    """
+    return DocketCitation(
+        plaintiff=citation.metadata.plaintiff,
+        defendant=citation.metadata.defendant,
+        docket_number=citation.groups.get(DOCKET_GROUP),
+        court=citation.groups.get("court"),
+        court_name=citation.groups.get("court_name"),
+        court_text=citation.groups.get("court_text"),
+        pin_cite=strip_connector(citation.metadata.pin_cite),
+        date=_date(citation),
+        parenthetical=citation.metadata.parenthetical,
+    )
+
+
 def _to_full_case(citation: EyeciteFullCaseCitation) -> FullCaseCitation:
     return FullCaseCitation(
         plaintiff=citation.metadata.plaintiff,
         defendant=citation.metadata.defendant,
         volume=citation.groups.get("volume"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("page"),
-        pin_cite=citation.metadata.pin_cite,
+        pin_cite=strip_connector(citation.metadata.pin_cite),
         extra=citation.metadata.extra,
-        year=citation.metadata.year,
+        date=_date(citation),
         court=citation.metadata.court,
         parenthetical=citation.metadata.parenthetical,
+        antecedent=citation.metadata.antecedent_guess,
     )
 
 
 def _to_full_law(citation: EyeciteFullLawCitation) -> FullLawCitation:
     return FullLawCitation(
         volume=citation.groups.get("title"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("section"),
-        pin_cite=citation.metadata.pin_cite,
-        year=citation.metadata.year,
+        pin_cite=strip_connector(citation.metadata.pin_cite),
+        date=_date(citation),
         publisher=citation.metadata.publisher,
         parenthetical=citation.metadata.parenthetical,
     )
@@ -142,10 +185,10 @@ def _to_full_law(citation: EyeciteFullLawCitation) -> FullLawCitation:
 def _to_full_journal(citation: EyeciteFullJournalCitation) -> FullJournalCitation:
     return FullJournalCitation(
         volume=citation.groups.get("volume"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("page"),
-        pin_cite=citation.metadata.pin_cite,
-        year=citation.metadata.year,
+        pin_cite=strip_connector(citation.metadata.pin_cite),
+        date=_date(citation),
         parenthetical=citation.metadata.parenthetical,
     )
 
@@ -153,24 +196,28 @@ def _to_full_journal(citation: EyeciteFullJournalCitation) -> FullJournalCitatio
 def _to_short_case(citation: EyeciteShortCaseCitation) -> ShortCaseCitation:
     return ShortCaseCitation(
         volume=citation.groups.get("volume"),
-        reporter=citation.groups.get("reporter"),
+        reporter=_reporter(citation),
         page=citation.groups.get("page"),
-        pin_cite=citation.metadata.pin_cite,
+        pin_cite=strip_connector(citation.metadata.pin_cite),
         court=citation.metadata.court,
+        date=_date(citation),
         parenthetical=citation.metadata.parenthetical,
+        antecedent=citation.metadata.antecedent_guess,
     )
 
 
 def _to_supra(citation: EyeciteSupraCitation) -> SupraCitation:
     return SupraCitation(
-        pin_cite=citation.metadata.pin_cite,
+        volume=citation.metadata.volume,
+        pin_cite=strip_connector(citation.metadata.pin_cite),
         parenthetical=citation.metadata.parenthetical,
+        antecedent=citation.metadata.antecedent_guess,
     )
 
 
 def _to_id(citation: EyeciteIdCitation) -> IdCitation:
     return IdCitation(
-        pin_cite=citation.metadata.pin_cite,
+        pin_cite=strip_connector(citation.metadata.pin_cite),
         parenthetical=citation.metadata.parenthetical,
     )
 
@@ -179,6 +226,8 @@ def _to_reference(citation: EyeciteReferenceCitation) -> ReferenceCitation:
     return ReferenceCitation(
         plaintiff=citation.metadata.plaintiff,
         defendant=citation.metadata.defendant,
+        pin_cite=strip_connector(citation.metadata.pin_cite),
+        parenthetical=citation.metadata.parenthetical,
     )
 
 
@@ -186,7 +235,18 @@ def _to_unknown(_citation: EyeciteUnknownCitation) -> UnknownCitation:
     return UnknownCitation()
 
 
-def _to_canonical(citation: CitationBase) -> CanonicalCitation:
+def to_canonical(citation: CitationBase) -> CanonicalCitation:
+    """Convert one eyecite citation into this project's canonical representation.
+
+    Public because the adjudication layer re-reads a confirmed candidate through
+    eyecite and needs this same conversion rather than a second one that would
+    drift from it.
+    """
+    # Tested before the case branch, not instead of it: a docket citation *is*
+    # an eyecite full case citation, and only the group written by the docket
+    # extractor tells the two apart.
+    if DOCKET_GROUP in citation.groups and isinstance(citation, EyeciteFullCaseCitation):
+        return _to_docket(citation)
     if isinstance(citation, EyeciteFullCaseCitation):
         return _to_full_case(citation)
     if isinstance(citation, EyeciteFullLawCitation):
@@ -218,7 +278,8 @@ def _assign_citation_ids(
                 "All citation types must be handled explicitly."
             )
             raise ValueError(msg)
-        citation_ids.append((citation, str(uuid.uuid4())[:8]))
+        start, end = citation.span()
+        citation_ids.append((citation, citation_id_for(Span(start=start, end=end), citation.matched_text())))
     return citation_ids
 
 
@@ -237,12 +298,33 @@ def _build_antecedent_map(
     return antecedent_map
 
 
-def _extract_from_text(
+def extract_citations(
     preprocessed: PreprocessedDocument,
+    *,
+    relaxation: Relaxation = Relaxation.BOUNDED,
 ) -> ExtractedDocument:
-    """Extract canonical citations from a preprocessed document."""
+    """Extract canonical citations from a preprocessed document.
+
+    This is the extraction stage's entry point. Preprocessing is a stage of its
+    own and runs first: converting a PDF, deciding which page furniture is not
+    the document's text, settling the coordinate space every span will index.
+    Extraction takes what that produced and reads citations out of it.
+
+    The text is tokenized as it stands. Nothing is rewritten before parsing and
+    no span is remapped afterwards, so every offset indexes straight into
+    ``preprocessed.text``: how much separator damage a citation may carry is
+    entirely a property of ``relaxation``, and of nothing else.
+    """
     text = preprocessed.text
-    eyecite_citations = _get_citations_with_recovered_spans(text)
+    # A relaxed level reads pin cites tolerantly as well as reporter joins: the
+    # same literal single space breaks both, and losing a pin cite loses the
+    # page a filing argues from. NONE is left strict so it stays eyecite exactly
+    # as published, which is what the evaluation baseline means by the name.
+    # See :mod:`mellea_lrc.extraction.reading.pin_cites`.
+    with contextlib.ExitStack() as stack:
+        if relaxation is not Relaxation.NONE:
+            stack.enter_context(relaxed_pin_cites())
+        eyecite_citations = get_citations(text, tokenizer=with_dockets(tokenizer_for(relaxation)))
     resolutions = cast(
         dict[Resource, list[CitationBase]],
         resolve_citations(eyecite_citations),
@@ -254,31 +336,55 @@ def _extract_from_text(
     for eyecite_citation, citation_id in citation_ids:
         span_start, span_end = eyecite_citation.full_span()
         locator_start, locator_end = eyecite_citation.span()
+        full_span = Span(start=span_start, end=span_end)
+        locator_span = Span(start=locator_start, end=locator_end)
+        canonical = to_canonical(eyecite_citation)
         extracted.append(
             ExtractedCitation(
                 citation_id=citation_id,
-                span=Span(start=span_start, end=span_end),
-                locator_span=Span(start=locator_start, end=locator_end),
+                full_span=full_span,
+                locator_span=locator_span,
                 matched_text=eyecite_citation.matched_text(),
-                citation=_to_canonical(eyecite_citation),
+                citation=canonical,
+                pin_cite_span=locate_pin_cite(
+                    text, canonical, locator_span=locator_span, full_span=full_span
+                ),
                 resolves_to=antecedent_map.get(citation_id),
             )
         )
 
+    # The passes over the citation list are ordered, and one reads what another
+    # writes. See :mod:`mellea_lrc.extraction.stages` for the sequence and the
+    # constraint behind it.
+    refined = refine(text, extracted)
     return ExtractedDocument(
         source_metadata=preprocessed.source_metadata,
         text=preprocessed.text,
         preprocessing_metadata=preprocessed.preprocessing_metadata,
-        citations=tuple(extracted),
-        extraction_metadata=ExtractionMetadata(),
+        citations=refined,
+        unread_case_names=unread_case_names(text, refined),
+        extraction_metadata=ExtractionMetadata(relaxation=relaxation),
     )
 
 
-def extract_from_plain_text(text: str, *, source_path: str | None = None) -> ExtractedDocument:
+def extract_from_plain_text(
+    text: str,
+    *,
+    source_path: str | None = None,
+    relaxation: Relaxation = Relaxation.BOUNDED,
+) -> ExtractedDocument:
     """Extract citations from Layer 2 plain text.
 
     Spans index into ``text`` as given, so a caller that already holds the text
     can map results straight back onto it.
+
+    ``relaxation`` chooses how much separator damage a citation may carry and
+    still be found; see :class:`~mellea_lrc.extraction.reading.relaxation.Relaxation`.
     """
-    preprocessed = preprocess_plain_text_from_string(text, source_path=source_path)
-    return _extract_from_text(preprocessed)
+    preprocessed = preprocess(text)
+    if source_path is not None:
+        preprocessed = replace(
+            preprocessed,
+            source_metadata=replace(preprocessed.source_metadata, path=source_path),
+        )
+    return extract_citations(preprocessed, relaxation=relaxation)

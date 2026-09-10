@@ -1,24 +1,24 @@
 """Tests for preprocessing."""
 
 import sys
+from pathlib import Path
 import types
 
 import pytest
 
 from mellea_lrc.core import SourceMetadata
+from mellea_lrc.preprocessing.docket_stamp import looks_like_a_stamp
+from mellea_lrc.preprocessing.docling import is_docling_supported_format, preprocess_with_docling
 from mellea_lrc.preprocessing import (
-    DEFAULT_LAYOUT_RULES,
+    DEFAULT_RULES,
     DocumentBase,
-    LayoutRule,
+    Rule,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
     SourceFormat,
-    is_docling_supported_format,
     preprocess,
-    preprocess_plain_text_from_string,
-    looks_like_a_stamp,
-    preprocess_with_docling,
+    preprocess,
 )
 
 
@@ -26,17 +26,17 @@ def test_a_text_file_is_its_text() -> None:
     """Nothing is stripped from the front, so a file offset is a document offset."""
     raw = "Case: Example\n\n--- Plain text ---\nBody text here."
 
-    document = preprocess_plain_text_from_string(raw)
+    document = preprocess(raw)
 
     assert document.text == raw
-    assert document.preprocessing_metadata.layout_rules == ()
+    assert document.preprocessing_metadata.rules == ()
 
 
-def test_preprocess_plain_text_from_string_wraps_text() -> None:
-    document = preprocess_plain_text_from_string("Hello world.", source_path="sample.txt")
+def test_text_in_hand_needs_no_file() -> None:
+    document = preprocess("Hello world.")
     assert document.text == "Hello world."
     assert isinstance(document, DocumentBase)
-    assert document.source_metadata.path == "sample.txt"
+    assert document.source_metadata.path is None
     assert document.preprocessing_metadata.backend == PreprocessingBackend.PLAIN_TEXT
     assert document.source_metadata.format == SourceFormat.TEXT
 
@@ -49,12 +49,20 @@ def test_is_docling_supported_format_checks_supported_suffixes() -> None:
 
 def test_preprocess_rejects_unsupported_format() -> None:
     with pytest.raises(ValueError, match=r"Unsupported document format: \.csv"):
-        preprocess("sample.csv")
+        preprocess(Path("sample.csv"))
 
 
 def test_preprocess_rejects_path_without_suffix() -> None:
     with pytest.raises(ValueError, match="Unsupported document format: <none>"):
-        preprocess("sample")
+        preprocess(Path("sample"))
+
+
+def test_a_string_is_content_and_a_path_is_a_location() -> None:
+    """The argument's type says what it is, as it does for `extract`."""
+    document = preprocess("sample.csv")
+
+    assert document.text == "sample.csv"
+    assert document.source_metadata.path is None
 
 
 def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -108,7 +116,7 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
 
     # No layout rules: this test is about which export is called, and the rules
     # need a real Docling document to walk.
-    document = preprocess_with_docling("sample.pdf", layout_rules=())
+    document = preprocess_with_docling("sample.pdf", rules=())
 
     assert document.text == "Plain text"
     assert document.source_metadata.format == SourceFormat.PDF
@@ -173,10 +181,10 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
 
     document = preprocess_with_docling("sample.pdf")
 
-    assert document.preprocessing_metadata.layout_rules == DEFAULT_LAYOUT_RULES
+    assert document.preprocessing_metadata.rules == DEFAULT_RULES
 
-    kept = preprocess_with_docling("sample.pdf", layout_rules=())
-    assert kept.preprocessing_metadata.layout_rules == ()
+    kept = preprocess_with_docling("sample.pdf", rules=())
+    assert kept.preprocessing_metadata.rules == ()
 
 
 def test_preprocessed_document_rejects_empty_text() -> None:
@@ -257,8 +265,8 @@ def test_declining_the_table_rule_leaves_the_converter_to_rebuild_the_grid(
     monkeypatch.setitem(sys.modules, "docling.datamodel.base_models", fake_models)
     monkeypatch.setitem(sys.modules, "docling.datamodel.pipeline_options", fake_options)
 
-    preprocess_with_docling("sample.pdf", layout_rules=(LayoutRule.TABLE_AS_TEXT,))
+    preprocess_with_docling("sample.pdf", rules=(Rule.TABLE_AS_TEXT,))
     assert seen["do_table_structure"] is False
 
-    preprocess_with_docling("sample.pdf", layout_rules=(LayoutRule.DOCKET_STAMP,))
+    preprocess_with_docling("sample.pdf", rules=(Rule.DOCKET_STAMP,))
     assert seen["do_table_structure"] is True
