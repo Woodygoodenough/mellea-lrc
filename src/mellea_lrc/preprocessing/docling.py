@@ -62,18 +62,23 @@ def _reads_tables_as_text(rules: Sequence[LayoutRule]) -> bool:
     return LayoutRule.TABLE_AS_TEXT in rules
 
 
-def _apply_layout_rules(document: DoclingDocument, rules: Sequence[LayoutRule]) -> tuple[Span, ...]:
+def _apply_layout_rules(
+    document: DoclingDocument, rules: Sequence[LayoutRule]
+) -> tuple[tuple[tuple[LayoutRule, int], ...], tuple[Span, ...]]:
     """Run each rule against the converted document, in the order given.
 
-    Returns the regions `TABLE_OF_AUTHORITIES` marked, which is the only thing a
-    rule produces that the caller cannot read off the text itself.
+    Returns how many items the counting rules moved out of the body, and the
+    regions `TABLE_OF_AUTHORITIES` marked. The rules added here do not count
+    what they did: `layout_rules` says which ran, and that is all this records
+    until counting is done for every rule the same way.
     """
+    removals = []
     index_spans: tuple[Span, ...] = ()
     for rule in rules:
         if rule is LayoutRule.MARGIN_LINE_NUMBERS:
-            reclassify_margin_line_numbers(document)
+            removals.append((rule, reclassify_margin_line_numbers(document)))
         elif rule is LayoutRule.REPEATED_FURNITURE:
-            reclassify_repeated_furniture(document)
+            removals.append((rule, reclassify_repeated_furniture(document)))
         elif rule is LayoutRule.DOCKET_STAMP:
             reclassify_docket_stamps(document)
         elif rule is LayoutRule.TABLE_AS_TEXT:
@@ -83,7 +88,7 @@ def _apply_layout_rules(document: DoclingDocument, rules: Sequence[LayoutRule]) 
         else:
             msg = f"Unknown layout rule: {rule}"
             raise ValueError(msg)
-    return index_spans
+    return tuple(removals), index_spans
 
 
 def preprocess_with_docling(
@@ -153,7 +158,7 @@ def preprocess_with_docling(
     converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
     result = converter.convert(str(source_path))
     applied = tuple(layout_rules)
-    index_spans = _apply_layout_rules(result.document, applied)
+    removals, index_spans = _apply_layout_rules(result.document, applied)
     text = result.document.export_to_text()  # Ensure to normalize all characters to Unicode TODO
 
     return PreprocessedDocument(
@@ -167,5 +172,6 @@ def preprocess_with_docling(
             backend=PreprocessingBackend.DOCLING,
             backend_version=_docling_version(),
             layout_rules=applied,
+            layout_removals=removals,
         ),
     )
