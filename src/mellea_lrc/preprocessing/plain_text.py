@@ -8,31 +8,45 @@ This project used to write conversion provenance -- the source PDF, the Docling
 version -- as a header above a `--- Plain text ---` marker, and every reader had
 to know to skip it. Court records arrive with enough furniture of their own; the
 provenance now sits beside the text in a `renderings.json` or `documents.json`,
-where reading it is a choice rather than an obligation.
+where reading it is a choice rather than an obligation. Nothing else writes that
+marker: an archive hands over the document's own first page, so there is no
+preamble to take out and no rule that would find one.
+
+The layout rules do not apply here. Every one of them reads the page -- where an
+item sits, whether its neighbours repeat -- and a `.txt` file carries no
+geometry, so a document made this way records that no rule ran.
 """
 
+from __future__ import annotations
+
+from collections.abc import Sequence
 from pathlib import Path
 
 from mellea_lrc.core.documents import SourceFormat, SourceMetadata
 from mellea_lrc.preprocessing.types import (
+    DEFAULT_LAYOUT_RULES,
+    LayoutRule,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
 )
 
 
-def preprocess_plain_text(path: Path | str) -> PreprocessedDocument:
-    """Load a `.txt` file as a preprocessed document."""
+def preprocess_plain_text(
+    path: Path | str,
+    *,
+    layout_rules: Sequence[LayoutRule] = DEFAULT_LAYOUT_RULES,
+) -> PreprocessedDocument:
+    """Load a `.txt` file as a preprocessed document.
+
+    ``layout_rules`` is accepted so that one list serves every format, and is
+    not applied: see the note above.
+    """
     source_path = Path(path)
-    return PreprocessedDocument(
-        source_metadata=SourceMetadata(
-            path=str(source_path),
-            format=SourceFormat.TEXT,
-        ),
-        text=source_path.read_text(encoding="utf-8"),
-        preprocessing_metadata=PreprocessingMetadata(
-            backend=PreprocessingBackend.PLAIN_TEXT,
-        ),
+    return preprocess_plain_text_from_string(
+        source_path.read_text(encoding="utf-8"),
+        source_path=str(source_path),
+        layout_rules=layout_rules,
     )
 
 
@@ -40,8 +54,10 @@ def preprocess_plain_text_from_string(
     text: str,
     *,
     source_path: str | None = None,
+    layout_rules: Sequence[LayoutRule] = DEFAULT_LAYOUT_RULES,
 ) -> PreprocessedDocument:
     """Wrap raw text in a preprocessed document without reading a file."""
+    del layout_rules
     return PreprocessedDocument(
         source_metadata=SourceMetadata(
             path=source_path,

@@ -25,8 +25,11 @@ from mellea_lrc.preprocessing import (
 def test_a_text_file_is_its_text() -> None:
     """Nothing is stripped from the front, so a file offset is a document offset."""
     raw = "Case: Example\n\n--- Plain text ---\nBody text here."
+
     document = preprocess_plain_text_from_string(raw)
+
     assert document.text == raw
+    assert document.preprocessing_metadata.layout_rules == ()
 
 
 def test_preprocess_plain_text_from_string_wraps_text() -> None:
@@ -169,7 +172,11 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
 
     document = preprocess_with_docling("sample.pdf")
 
-    assert document.preprocessing_metadata.layout_rules == DEFAULT_LAYOUT_RULES
+    assert document.preprocessing_metadata.layout_rules == (
+        LayoutRule.MARGIN_LINE_NUMBERS,
+        LayoutRule.REPEATED_FURNITURE,
+        LayoutRule.DOCKET_STAMP,
+    )
     assert document.preprocessing_metadata.layout_removals == (
         (LayoutRule.MARGIN_LINE_NUMBERS, 0),
         (LayoutRule.REPEATED_FURNITURE, 0),

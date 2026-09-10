@@ -17,11 +17,15 @@ class PreprocessingBackend(str, Enum):
 class LayoutRule(str, Enum):
     """A thing printed on the page that is not part of the document's text.
 
-    Each names furniture a court or a word processor added around the writing:
-    the numbered margin of pleading paper, a running head, the stamp an ECF
-    system prints when a document is filed. Every one of them changes the text
-    and therefore every offset after it, so which ran is recorded beside the
-    text rather than assumed.
+    Each names something added around the writing: the numbered margin of
+    pleading paper, a running head, the stamp an ECF system prints when a
+    document is filed. Every one of them changes the text and therefore every
+    offset after it, so which ran is recorded beside the text rather than
+    assumed.
+
+    Every rule here reads the page: where an item sits, and whether its
+    neighbours repeat. A `.txt` file carries no geometry, so none of them
+    applies to one, and a rendering made from text records that none ran.
     """
 
     MARGIN_LINE_NUMBERS = "margin_line_numbers"
@@ -41,7 +45,8 @@ DEFAULT_LAYOUT_RULES: tuple[LayoutRule, ...] = (
 )
 """All of them. None of this is the document's text, and a rendering that keeps
 it is wrong about the document -- a margin number landing inside a citation, a
-page stamp read as part of a date. Pass a shorter list to keep some of it."""
+page stamp read as part of a date. Pass a shorter list to keep some of it, or an
+empty one to keep it all."""
 
 
 @dataclass(frozen=True, slots=True)
