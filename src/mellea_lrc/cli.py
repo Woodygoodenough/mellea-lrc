@@ -50,7 +50,7 @@ def _parse(source: str, *, from_file: bool, from_artifact: bool = False) -> Extr
 def _identify(args: argparse.Namespace) -> int:
     """Establish which case each authority in the source names."""
     document = _parse(args.source, from_file=args.from_file, from_artifact=args.from_artifact)
-    roots = sum(1 for item in document.citations if item.authority_id == item.citation_id)
+    roots = sum(1 for item in document.citations if item.root_id == item.citation_id)
     print(f"{len(document.citations)} citations, {roots} roots; identifying", file=sys.stderr)
     identified = asyncio.run(identify_document(document, govinfo=GovinfoClient.from_env()))
     _write(json.dumps(serialize_identified_document(identified), indent=2, ensure_ascii=False), args.output)

@@ -171,7 +171,7 @@ def _cite(
     *,
     text: str,
     locator: str,
-    authority_id: str | None,
+    root_id: str | None,
     colocation_id: str | None = None,
     resolves_to: str | None = None,
 ) -> ExtractedCitation:
@@ -183,7 +183,7 @@ def _cite(
         matched_text=locator,
         citation=citation,
         resolves_to=resolves_to,
-        authority_id=authority_id,
+        root_id=root_id,
         colocation_id=colocation_id,
     )
 
@@ -267,16 +267,16 @@ def _no_reading() -> dict[str, object]:
 
 def test_only_roots_are_looked_up_and_non_roots_inherit() -> None:
     text = "Bell Atl. Corp. v. Twombly, 550 U.S. 544 (2007). Id. at 570. 28 U.S.C. § 1331."
-    root = _cite("c1", _twombly(), text=text, locator="550 U.S. 544", authority_id="c1")
+    root = _cite("c1", _twombly(), text=text, locator="550 U.S. 544", root_id="c1")
     follow = _cite(
-        "c2", IdCitation(pin_cite="at 570"), text=text, locator="Id.", authority_id="c1", resolves_to="c1"
+        "c2", IdCitation(pin_cite="at 570"), text=text, locator="Id.", root_id="c1", resolves_to="c1"
     )
     statute = _cite(
         "c3",
         FullLawCitation(volume="28", reporter=Reporter(as_written="U.S.C."), page="1331"),
         text=text,
         locator="28 U.S.C. § 1331",
-        authority_id=None,
+        root_id=None,
     )
     client = Client({("550", "U.S.", "544"): (TWOMBLY,)}, courts={"d1": "scotus"})
 
@@ -300,7 +300,7 @@ def test_a_docket_root_is_deferred_and_says_so() -> None:
     docket = DocketCitation(
         plaintiff="Reyes", defendant="Pac. Bell", docket_number="1:25-cv-05745-RPK", court="nyed"
     )
-    root = _cite("c1", docket, text=text, locator="No. 1:25-cv-05745-RPK", authority_id="c1")
+    root = _cite("c1", docket, text=text, locator="No. 1:25-cv-05745-RPK", root_id="c1")
     client = Client({})
 
     result = _run(_document(text, root), client)
@@ -324,7 +324,7 @@ def _docket_root(text: str, *, plaintiff: str = "Reyes", defendant: str = "Pac. 
         court="nyed",
         date=CitationDate(year="2024", month="Oct.", day="31"),
     )
-    return _cite("c1", docket, text=text, locator="No. 1:25-cv-05745-RPK", authority_id="c1")
+    return _cite("c1", docket, text=text, locator="No. 1:25-cv-05745-RPK", root_id="c1")
 
 
 def test_a_docket_key_the_index_holds_confirms_the_case_by_its_caption() -> None:
@@ -431,7 +431,7 @@ def test_the_publishing_office_answers_the_key_on_its_own() -> None:
 def test_the_rule_guard_establishes_identity_without_a_model(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _fake_model(monkeypatch, {})
     text = "Bell Atl. Corp. v. Twombly, 550 U.S. 544 (2007)."
-    root = _cite("c1", _twombly(), text=text, locator="550 U.S. 544", authority_id="c1")
+    root = _cite("c1", _twombly(), text=text, locator="550 U.S. 544", root_id="c1")
     client = Client({("550", "U.S.", "544"): (TWOMBLY,)}, courts={"d1": "scotus"})
 
     result = _run(_document(text, root), client, session=object())
@@ -447,7 +447,7 @@ def test_the_rule_guard_establishes_identity_without_a_model(monkeypatch: pytest
 def test_an_absent_field_is_not_a_disagreement(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _fake_model(monkeypatch, {})
     text = "Twombly, 550 U.S. 544."
-    root = _cite("c1", _twombly(date=None, court=None), text=text, locator="550 U.S. 544", authority_id="c1")
+    root = _cite("c1", _twombly(date=None, court=None), text=text, locator="550 U.S. 544", root_id="c1")
     client = Client({("550", "U.S.", "544"): (TWOMBLY,)})
 
     result = _run(_document(text, root), client, session=object())
@@ -469,7 +469,7 @@ def test_a_year_the_archive_holds_beside_its_filing_date_is_compatible(
         page="1",
         date=CitationDate(year="2014"),
     )
-    root = _cite("c1", citation, text=text, locator="700 F.3d 1", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="700 F.3d 1", root_id="c1")
     amended = CourtListenerOpinionCluster(
         cluster_id="c-a", case_name="Roe v. Acme Corp.", date_filed="2013-12-27"
     )
@@ -503,7 +503,7 @@ def test_the_opinion_header_is_read_when_the_cluster_holds_no_other_date(
         date=CitationDate(year="1948"),
         court="scotus",
     )
-    root = _cite("c1", citation, text=text, locator="300 U.S. 1", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="300 U.S. 1", root_id="c1")
     later = CourtListenerOpinionCluster(
         cluster_id="c-b", case_name="Roe v. Acme Corp.", date_filed="1949-02-14", docket_id="d"
     )
@@ -559,7 +559,7 @@ def test_an_argument_date_does_not_make_a_year_compatible(monkeypatch: pytest.Mo
         date=CitationDate(year="1875"),
         court="scotus",
     )
-    root = _cite("c1", citation, text=text, locator="90 U.S. 1", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="90 U.S. 1", root_id="c1")
     old = CourtListenerOpinionCluster(
         cluster_id="c-o", case_name="Roe v. Acme Corp.", date_filed="1876-04-24", docket_id="d"
     )
@@ -598,7 +598,7 @@ def test_not_found_is_unresolved_not_refuted() -> None:
         page="1",
         date=CitationDate(year="2020"),
     )
-    root = _cite("c1", citation, text=text, locator="999 F.3d 1", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="999 F.3d 1", root_id="c1")
 
     result = _run(_document(text, root), Client({}))
 
@@ -608,7 +608,7 @@ def test_not_found_is_unresolved_not_refuted() -> None:
 
 def test_a_failed_lookup_is_unresolved_with_the_error_in_the_trace() -> None:
     text = "Bell Atl. Corp. v. Twombly, 550 U.S. 544 (2007)."
-    root = _cite("c1", _twombly(), text=text, locator="550 U.S. 544", authority_id="c1")
+    root = _cite("c1", _twombly(), text=text, locator="550 U.S. 544", root_id="c1")
     client = Client({}, failing={("550", "U.S.", "544")})
 
     result = _run(_document(text, root), client)
@@ -650,7 +650,7 @@ def test_a_rule_disagreement_sends_one_composite_call_and_records_its_verdict(
         date=CitationDate(year="2010"),
         court="fladistctapp",
     )
-    root = _cite("c1", citation, text=text, locator="44 So. 3d 587", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="44 So. 3d 587", root_id="c1")
     galeana = CourtListenerOpinionCluster(
         cluster_id="c-g", case_name="Galeana v. Galeana", date_filed="2010-08-11", docket_id="d9"
     )
@@ -706,7 +706,7 @@ def test_the_model_corrects_the_filing_reading_but_never_the_filing(monkeypatch:
         _twombly(court="ca9", date=CitationDate(year="2009")),
         text=text,
         locator="550 U.S. 544",
-        authority_id="c1",
+        root_id="c1",
     )
     client = Client({("550", "U.S.", "544"): (TWOMBLY,)}, courts={"d1": "scotus"})
 
@@ -754,7 +754,7 @@ def test_a_misspelt_party_is_the_same_case_with_a_defect(monkeypatch: pytest.Mon
         date=CitationDate(year="1992"),
         court="scotus",
     )
-    root = _cite("c1", citation, text=text, locator="502 U.S. 367", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="502 U.S. 367", root_id="c1")
     rufo = CourtListenerOpinionCluster(
         cluster_id="c-rufo",
         case_name="Rufo v. Inmates of Suffolk County Jail",
@@ -797,7 +797,7 @@ def test_an_equivalent_caption_is_a_variant_and_not_a_defect(monkeypatch: pytest
         page="1",
         date=CitationDate(year="2001"),
     )
-    root = _cite("c1", citation, text=text, locator="300 F.3d 1", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="300 F.3d 1", root_id="c1")
     record = CourtListenerOpinionCluster(
         cluster_id="c-r", case_name="Doe v. Acme Corporation", date_filed="2001-05-05"
     )
@@ -825,7 +825,7 @@ def test_a_failed_model_call_leaves_the_root_unresolved(monkeypatch: pytest.Monk
         _twombly(plaintiff="Wrong", defendant="Name"),
         text=text,
         locator="550 U.S. 544",
-        authority_id="c1",
+        root_id="c1",
     )
     client = Client({("550", "U.S.", "544"): (TWOMBLY,)}, courts={"d1": "scotus"})
 
@@ -1051,7 +1051,7 @@ def test_a_failed_judgment_keeps_the_readings_whose_evidence_passed(monkeypatch:
         ),
         text=text,
         locator="118 U.S. 425",
-        authority_id="c1",
+        root_id="c1",
     )
     norton = CourtListenerOpinionCluster(
         cluster_id="c-n", case_name="Norton v. Shelby County", date_filed="1886-05-10", docket_id="d"
@@ -1095,7 +1095,7 @@ def test_one_record_agreeing_by_rule_confirms_and_the_page_is_disclosed(
     citation = FullCaseCitation(
         plaintiff="Sprague", defendant="Gen. Motors Corp.", volume="688", reporter=F2D, page="816"
     )
-    root = _cite("c1", citation, text=text, locator="688 F.2d 816", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="688 F.2d 816", root_id="c1")
     page = _page(
         "Kulwiec, in re",
         "Langone v. Leach",
@@ -1128,7 +1128,7 @@ def test_a_decision_the_archive_holds_twice_confirms_with_both_disclosed(
         page="662",
         date=CitationDate(year="2009"),
     )
-    root = _cite("c1", citation, text=text, locator="556 U.S. 662", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="556 U.S. 662", root_id="c1")
     twice = (
         CourtListenerOpinionCluster(cluster_id="c-a", case_name="Ashcroft v. Iqbal", date_filed="2009-05-18"),
         CourtListenerOpinionCluster(cluster_id="c-b", case_name="Ashcroft v. Iqbal", date_filed="2009-05-18"),
@@ -1150,7 +1150,7 @@ def test_a_page_with_more_records_than_a_judgement_is_shown_is_ambiguous(
     citation = FullCaseCitation(
         plaintiff="Conley", defendant="Gibson", volume="44", reporter=SO3D, page="587"
     )
-    root = _cite("c1", citation, text=text, locator="44 So. 3d 587", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="44 So. 3d 587", root_id="c1")
     page = _page(
         "Galeana v. Galeana",
         "Galura v. State",
@@ -1204,7 +1204,7 @@ def test_when_no_record_agrees_one_judgement_sees_them_all_and_may_refute(
     citation = FullCaseCitation(
         plaintiff="Boss", defendant="N.Y. Life Ins. Co.", volume="298", reporter=ny, page="917"
     )
-    root = _cite("c1", citation, text=text, locator="298 N.Y. 917", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="298 N.Y. 917", root_id="c1")
     page = (
         CourtListenerOpinionCluster(
             cluster_id="c1", case_name="Condur Affiliates, Inc. v. Ronnie, Inc.", date_filed="1949-03-03"
@@ -1267,7 +1267,7 @@ def test_the_judgement_may_choose_one_record_and_its_fields_are_then_compared(
         page="896",
         date=CitationDate(year="2012"),
     )
-    root = _cite("c1", citation, text=text, locator="693 F.3d 896", authority_id="c1")
+    root = _cite("c1", citation, text=text, locator="693 F.3d 896", root_id="c1")
     page = (
         CourtListenerOpinionCluster(cluster_id="c1", case_name="Smith v. Jones", date_filed="2012-08-29"),
         CourtListenerOpinionCluster(
@@ -1330,7 +1330,7 @@ def test_parallel_citations_that_resolve_to_one_cluster_become_one_authority() -
         FullCaseCitation(plaintiff="Ashcroft", defendant="Iqbal", volume="556", reporter=US, page="662"),
         text=text,
         locator="556 U.S. 662",
-        authority_id="c1",
+        root_id="c1",
         colocation_id="c1",
     )
     second = _cite(
@@ -1338,7 +1338,7 @@ def test_parallel_citations_that_resolve_to_one_cluster_become_one_authority() -
         FullCaseCitation(plaintiff="Ashcroft", defendant="Iqbal", volume="129", reporter=SCT, page="1937"),
         text=text,
         locator="129 S. Ct. 1937",
-        authority_id="c2",
+        root_id="c2",
         colocation_id="c1",
     )
     follower = _cite(
@@ -1346,7 +1346,7 @@ def test_parallel_citations_that_resolve_to_one_cluster_become_one_authority() -
         FullCaseCitation(volume="129", reporter=SCT, page="1949"),
         text=text,
         locator="129 S. Ct. at 1949",
-        authority_id="c2",
+        root_id="c2",
         resolves_to="c2",
     )
     client = Client({("556", "U.S.", "662"): (IQBAL,), ("129", "S. Ct.", "1937"): (IQBAL,)})
@@ -1380,7 +1380,7 @@ def test_parallel_citations_that_resolve_differently_stay_two_authorities() -> N
         FullCaseCitation(plaintiff="Ashcroft", defendant="Iqbal", volume="556", reporter=US, page="662"),
         text=text,
         locator="556 U.S. 662",
-        authority_id="c1",
+        root_id="c1",
         colocation_id="c1",
     )
     second = _cite(
@@ -1388,7 +1388,7 @@ def test_parallel_citations_that_resolve_differently_stay_two_authorities() -> N
         FullCaseCitation(plaintiff="Ashcroft", defendant="Iqbal", volume="129", reporter=SCT, page="1937"),
         text=text,
         locator="129 S. Ct. 1937",
-        authority_id="c2",
+        root_id="c2",
         colocation_id="c1",
     )
     other = CourtListenerOpinionCluster(
@@ -1410,7 +1410,7 @@ def test_parallel_citations_that_resolve_differently_stay_two_authorities() -> N
 def test_a_correction_must_name_a_node_in_the_trace() -> None:
     text = "Bell Atl. Corp. v. Twombly, 550 U.S. 544 (2007)."
     record = CitationRecord.from_extracted(
-        _cite("c1", _twombly(), text=text, locator="550 U.S. 544", authority_id="c1")
+        _cite("c1", _twombly(), text=text, locator="550 U.S. 544", root_id="c1")
     )
     with pytest.raises(ValueError, match="not in the trace"):
         record.correct_field("court", "ca9", made_by="test", reason="", node_id="c1:nowhere")
@@ -1443,17 +1443,15 @@ def test_the_identified_document_round_trips_through_json(monkeypatch: pytest.Mo
             _twombly(court="ca9", date=CitationDate(year="2009")),
             text=text,
             locator="550 U.S. 544",
-            authority_id="c1",
+            root_id="c1",
         ),
-        _cite(
-            "c2", IdCitation(pin_cite="at 570"), text=text, locator="Id.", authority_id="c1", resolves_to="c1"
-        ),
+        _cite("c2", IdCitation(pin_cite="at 570"), text=text, locator="Id.", root_id="c1", resolves_to="c1"),
         _cite(
             "c3",
             FullCaseCitation(plaintiff="Ashcroft", defendant="Iqbal", volume="556", reporter=US, page="662"),
             text=text,
             locator="556 U.S. 662",
-            authority_id="c3",
+            root_id="c3",
             colocation_id="c3",
         ),
         _cite(
@@ -1463,7 +1461,7 @@ def test_the_identified_document_round_trips_through_json(monkeypatch: pytest.Mo
             ),
             text=text,
             locator="129 S. Ct. 1937",
-            authority_id="c4",
+            root_id="c4",
             colocation_id="c3",
         ),
     )
@@ -1484,6 +1482,8 @@ def test_the_identified_document_round_trips_through_json(monkeypatch: pytest.Mo
     assert restored.record("c1").citation.court == "scotus"
     assert restored.record("c1").source.citation.court == "ca9"
     assert restored.record("c1").corrections == result.record("c1").corrections
+    # c4 keeps the root the filing stated and carries the authority it merged into.
+    assert restored.record("c4").root_id == "c4"
     assert restored.record("c4").authority_id == "c3"
     assert [type(n).__name__ for n in restored.record("c1").trace.nodes] == [
         type(n).__name__ for n in result.record("c1").trace.nodes

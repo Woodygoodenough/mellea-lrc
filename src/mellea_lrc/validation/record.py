@@ -155,7 +155,7 @@ class CitationRecord:
     @classmethod
     def from_extracted(cls, source: ExtractedCitation) -> CitationRecord:
         """Start a record from what extraction produced, unchanged."""
-        return cls(source=source, citation=source.citation, root_id=source.authority_id)
+        return cls(source=source, citation=source.citation, root_id=source.root_id)
 
     @property
     def citation_id(self) -> str:

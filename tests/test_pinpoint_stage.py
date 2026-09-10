@@ -118,7 +118,7 @@ def _document(text: str = TEXT) -> ExtractedDocument:
             court="scotus",
             date=None,
         ),
-        authority_id="root",
+        root_id="root",
         pin_cite_span=Span(text.index(", 570") + 2, text.index(", 570") + 5),
     )
     ids = []
@@ -132,7 +132,7 @@ def _document(text: str = TEXT) -> ExtractedDocument:
                 matched_text="Id.",
                 citation=IdCitation(pin_cite=pin),
                 resolves_to="root",
-                authority_id="root",
+                root_id="root",
             )
         )
     preprocessed = preprocess_plain_text_from_string(text)
@@ -264,7 +264,7 @@ def test_a_citation_with_no_pin_cite_is_not_retrieved() -> None:
             page="544",
             court="scotus",
         ),
-        authority_id="root",
+        root_id="root",
     )
     preprocessed = preprocess_plain_text_from_string(text)
     document = ExtractedDocument(
