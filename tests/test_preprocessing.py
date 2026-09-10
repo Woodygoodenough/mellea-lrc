@@ -123,7 +123,7 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
 ) -> None:
     """Every rule in the list runs, and the result says which did.
 
-    A rule that is exported but never reached removes nothing, and a document
+    A rule that is exported but never reached does nothing, and a document
     rendered without it is a different coordinate space than one rendered with
     it. The record is what tells the two apart.
     """
@@ -174,17 +174,9 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
     document = preprocess_with_docling("sample.pdf")
 
     assert document.preprocessing_metadata.layout_rules == DEFAULT_LAYOUT_RULES
-    assert document.preprocessing_metadata.layout_counts == (
-        (LayoutRule.MARGIN_LINE_NUMBERS, 0),
-        (LayoutRule.REPEATED_FURNITURE, 0),
-        (LayoutRule.DOCKET_STAMP, 0),
-        (LayoutRule.TABLE_AS_TEXT, 0),
-        (LayoutRule.TABLE_OF_AUTHORITIES, 0),
-    )
 
     kept = preprocess_with_docling("sample.pdf", layout_rules=())
     assert kept.preprocessing_metadata.layout_rules == ()
-    assert kept.preprocessing_metadata.layout_counts == ()
 
 
 def test_preprocessed_document_rejects_empty_text() -> None:

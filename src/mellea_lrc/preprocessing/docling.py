@@ -62,37 +62,28 @@ def _reads_tables_as_text(rules: Sequence[LayoutRule]) -> bool:
     return LayoutRule.TABLE_AS_TEXT in rules
 
 
-def _apply_layout_rules(
-    document: DoclingDocument, rules: Sequence[LayoutRule]
-) -> tuple[tuple[tuple[LayoutRule, int], ...], tuple[Span, ...]]:
+def _apply_layout_rules(document: DoclingDocument, rules: Sequence[LayoutRule]) -> tuple[Span, ...]:
     """Run each rule against the converted document, in the order given.
 
-    Returns how many items each rule acted on, and the regions
-    `TABLE_OF_AUTHORITIES` marked. A rule that ran and found nothing counts
-    zero, which is not the same as a rule that never ran: the first is a
-    document with no margin, the second is a rendering that kept one.
+    Returns the regions `TABLE_OF_AUTHORITIES` marked, which is the only thing a
+    rule produces that the caller cannot read off the text itself.
     """
-    counts = []
     index_spans: tuple[Span, ...] = ()
     for rule in rules:
         if rule is LayoutRule.MARGIN_LINE_NUMBERS:
-            count = reclassify_margin_line_numbers(document)
+            reclassify_margin_line_numbers(document)
         elif rule is LayoutRule.REPEATED_FURNITURE:
-            count = reclassify_repeated_furniture(document)
+            reclassify_repeated_furniture(document)
         elif rule is LayoutRule.DOCKET_STAMP:
-            count = reclassify_docket_stamps(document)
+            reclassify_docket_stamps(document)
         elif rule is LayoutRule.TABLE_AS_TEXT:
-            # Decided before the conversion; counted after it, because what the
-            # rule is worth is how many regions it kept in the page's own order.
-            count = len(document.tables)
+            pass  # Decided before the conversion; see `_reads_tables_as_text`.
         elif rule is LayoutRule.TABLE_OF_AUTHORITIES:
             index_spans = index_table_spans(document)
-            count = len(index_spans)
         else:
             msg = f"Unknown layout rule: {rule}"
             raise ValueError(msg)
-        counts.append((rule, count))
-    return tuple(counts), index_spans
+    return index_spans
 
 
 def preprocess_with_docling(
@@ -162,7 +153,7 @@ def preprocess_with_docling(
     converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
     result = converter.convert(str(source_path))
     applied = tuple(layout_rules)
-    counts, index_spans = _apply_layout_rules(result.document, applied)
+    index_spans = _apply_layout_rules(result.document, applied)
     text = result.document.export_to_text()  # Ensure to normalize all characters to Unicode TODO
 
     return PreprocessedDocument(
@@ -176,6 +167,5 @@ def preprocess_with_docling(
             backend=PreprocessingBackend.DOCLING,
             backend_version=_docling_version(),
             layout_rules=applied,
-            layout_counts=counts,
         ),
     )

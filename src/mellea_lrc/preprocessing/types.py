@@ -81,14 +81,6 @@ class PreprocessingMetadata:
     has to record which reading it was rendered under.
     """
 
-    layout_counts: tuple[tuple[LayoutRule, int], ...] = ()
-    """How many items each rule acted on, in the order the rules ran.
-
-    Removed, for the three furniture rules; read as text, for `TABLE_AS_TEXT`;
-    marked, for `TABLE_OF_AUTHORITIES`. Zero means the rule ran and found
-    nothing, which is not the same as a rule that did not run.
-    """
-
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PreprocessedDocument(DocumentBase):

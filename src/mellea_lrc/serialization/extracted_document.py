@@ -26,7 +26,6 @@ from mellea_lrc.extraction.types import (
     ExtractionMetadata,
 )
 from mellea_lrc.preprocessing.types import (
-    LayoutRule,
     PreprocessingBackend,
     PreprocessingMetadata,
 )
@@ -102,8 +101,6 @@ def deserialize_extracted_document(payload: Mapping[str, object]) -> ExtractedDo
             backend_version=_optional_string(
                 preprocessing_metadata.get("backend_version"), name="preprocessing_metadata.backend_version"
             ),
-            layout_rules=_layout_rules(preprocessing_metadata.get("layout_rules")),
-            layout_counts=_layout_counts(preprocessing_metadata.get("layout_counts")),
         ),
         citations=tuple(_deserialize_citation(item) for item in citations),
         extraction_metadata=ExtractionMetadata(
@@ -115,25 +112,6 @@ def deserialize_extracted_document(payload: Mapping[str, object]) -> ExtractedDo
             ),
         ),
     )
-
-
-def _layout_rules(value: object) -> tuple[LayoutRule, ...]:
-    """Which rules ran, as the artifact recorded them."""
-    if value is None:
-        return ()
-    return tuple(LayoutRule(str(rule)) for rule in require_list(value, name="layout_rules"))
-
-
-def _layout_counts(value: object) -> tuple[tuple[LayoutRule, int], ...]:
-    """How much each rule removed, as pairs the artifact recorded in order."""
-    if value is None:
-        return ()
-    removals = []
-    for item in require_list(value, name="layout_counts"):
-        pair = require_list(item, name="layout_counts entry")
-        rule, removed = pair
-        removals.append((LayoutRule(str(rule)), int(removed)))  # type: ignore[arg-type]
-    return tuple(removals)
 
 
 def _deserialize_citation(value: object) -> ExtractedCitation:
