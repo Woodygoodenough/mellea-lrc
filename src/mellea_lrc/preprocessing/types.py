@@ -15,17 +15,25 @@ class PreprocessingBackend(str, Enum):
 
 
 class LayoutRule(str, Enum):
-    """A thing printed on the page that is not part of the document's text.
+    """One reading of the page this project makes rather than leaving to the converter.
 
-    Each names something added around the writing: the numbered margin of
+    Each names one reading of the page that a converter would otherwise decide
+    on its own: what is furniture rather than writing, how a table is read, and
+    which region of the text cites nothing. Every one of them changes the text
+    or what can be said about it, so which ran is recorded beside the text
+    rather than assumed.
+
+    Three of them take something out of the body: the numbered margin of
     pleading paper, a running head, the stamp an ECF system prints when a
-    document is filed. Every one of them changes the text and therefore every
-    offset after it, so which ran is recorded beside the text rather than
-    assumed.
+    document is filed. `TABLE_AS_TEXT` takes nothing out and changes how a
+    region is read. `TABLE_OF_AUTHORITIES` changes nothing at all and marks
+    where the index sits, because an entry there names a case and claims
+    nothing about it.
 
-    Every rule here reads the page: where an item sits, and whether its
-    neighbours repeat. A `.txt` file carries no geometry, so none of them
-    applies to one, and a rendering made from text records that none ran.
+    Every rule reads the page -- where an item sits, whether its neighbours
+    repeat, what a converter made of a region. A `.txt` file carries no
+    geometry, so none of them applies to one, and a rendering made from text
+    records that none ran.
     """
 
     MARGIN_LINE_NUMBERS = "margin_line_numbers"
@@ -37,16 +45,26 @@ class LayoutRule(str, Enum):
     DOCKET_STAMP = "docket_stamp"
     """The filing stamp a court prints across the top of every page."""
 
+    TABLE_AS_TEXT = "table_as_text"
+    """A table read in the order the page reads it, not rebuilt as a grid."""
+
+    TABLE_OF_AUTHORITIES = "table_of_authorities"
+    """The index of cited cases, marked because it cites nothing."""
+
 
 DEFAULT_LAYOUT_RULES: tuple[LayoutRule, ...] = (
     LayoutRule.MARGIN_LINE_NUMBERS,
     LayoutRule.REPEATED_FURNITURE,
     LayoutRule.DOCKET_STAMP,
+    LayoutRule.TABLE_AS_TEXT,
+    LayoutRule.TABLE_OF_AUTHORITIES,
 )
 """All of them. None of this is the document's text, and a rendering that keeps
 it is wrong about the document -- a margin number landing inside a citation, a
-page stamp read as part of a date. Pass a shorter list to keep some of it, or an
-empty one to keep it all."""
+page stamp read as part of a date, a table of authorities rebuilt into cells
+that put a case name in a different one from its own citation. Pass a shorter
+list to decline some of them, or an empty one to take the converter's own
+reading whole."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,8 +81,13 @@ class PreprocessingMetadata:
     has to record which reading it was rendered under.
     """
 
-    layout_removals: tuple[tuple[LayoutRule, int], ...] = ()
-    """How many items each rule moved out of the body."""
+    layout_counts: tuple[tuple[LayoutRule, int], ...] = ()
+    """How many items each rule acted on, in the order the rules ran.
+
+    Removed, for the three furniture rules; read as text, for `TABLE_AS_TEXT`;
+    marked, for `TABLE_OF_AUTHORITIES`. Zero means the rule ran and found
+    nothing, which is not the same as a rule that did not run.
+    """
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -77,8 +100,10 @@ class PreprocessedDocument(DocumentBase):
     """Regions of `text` holding a table of authorities, which cites nothing.
 
     An index entry lists a case; it attaches no proposition to it and makes no
-    claim about any page. Empty when the backend cannot tell -- plain text
-    carries no structure, so absence here means unknown rather than none.
+    claim about any page. What `LayoutRule.TABLE_OF_AUTHORITIES` marked, and
+    empty when that rule did not run or the backend cannot tell -- plain text
+    carries no structure, so absence here means unknown rather than none, and
+    `layout_rules` is what says which.
     """
 
     def __post_init__(self) -> None:

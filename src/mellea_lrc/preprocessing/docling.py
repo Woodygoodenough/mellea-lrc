@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mellea_lrc.core.documents import SourceFormat, SourceMetadata
+from mellea_lrc.core.spans import Span
 from mellea_lrc.preprocessing.docket_stamp import reclassify_docket_stamps
 from mellea_lrc.preprocessing.document_index import index_table_spans
 from mellea_lrc.preprocessing.margin_line_numbers import reclassify_margin_line_numbers
@@ -50,28 +51,48 @@ def _source_format(path: Path) -> SourceFormat:
     return _SOURCE_FORMAT_BY_SUFFIX.get(path.suffix.lower(), SourceFormat.UNKNOWN)
 
 
+def _reads_tables_as_text(rules: Sequence[LayoutRule]) -> bool:
+    """Whether the converter should leave a table as text rather than rebuild it.
+
+    This rule is decided before the conversion runs, because it is the only one
+    that changes what the converter does rather than what is done with what it
+    produced. It is still a rule: named, declinable, and recorded on the result
+    like the rest.
+    """
+    return LayoutRule.TABLE_AS_TEXT in rules
+
+
 def _apply_layout_rules(
     document: DoclingDocument, rules: Sequence[LayoutRule]
-) -> tuple[tuple[LayoutRule, int], ...]:
-    """Run each rule against the document, in the order given.
+) -> tuple[tuple[tuple[LayoutRule, int], ...], tuple[Span, ...]]:
+    """Run each rule against the converted document, in the order given.
 
-    Returns how many items each one moved out of the body, which is what the
-    result records: a rule that ran and removed nothing is not the same as a
-    rule that never ran.
+    Returns how many items each rule acted on, and the regions
+    `TABLE_OF_AUTHORITIES` marked. A rule that ran and found nothing counts
+    zero, which is not the same as a rule that never ran: the first is a
+    document with no margin, the second is a rendering that kept one.
     """
-    removals = []
+    counts = []
+    index_spans: tuple[Span, ...] = ()
     for rule in rules:
         if rule is LayoutRule.MARGIN_LINE_NUMBERS:
-            removed = reclassify_margin_line_numbers(document)
+            count = reclassify_margin_line_numbers(document)
         elif rule is LayoutRule.REPEATED_FURNITURE:
-            removed = reclassify_repeated_furniture(document)
+            count = reclassify_repeated_furniture(document)
         elif rule is LayoutRule.DOCKET_STAMP:
-            removed = reclassify_docket_stamps(document)
+            count = reclassify_docket_stamps(document)
+        elif rule is LayoutRule.TABLE_AS_TEXT:
+            # Decided before the conversion; counted after it, because what the
+            # rule is worth is how many regions it kept in the page's own order.
+            count = len(document.tables)
+        elif rule is LayoutRule.TABLE_OF_AUTHORITIES:
+            index_spans = index_table_spans(document)
+            count = len(index_spans)
         else:
             msg = f"Unknown layout rule: {rule}"
             raise ValueError(msg)
-        removals.append((rule, removed))
-    return tuple(removals)
+        counts.append((rule, count))
+    return tuple(counts), index_spans
 
 
 def preprocess_with_docling(
@@ -137,13 +158,12 @@ def preprocess_with_docling(
     # A table is read as one block of text rather than as a grid. See the note
     # on `do_table_structure` below.
     options = PdfPipelineOptions()
-    options.do_table_structure = False
+    options.do_table_structure = not _reads_tables_as_text(layout_rules)
     converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
     result = converter.convert(str(source_path))
     applied = tuple(layout_rules)
-    removals = _apply_layout_rules(result.document, applied)
+    counts, index_spans = _apply_layout_rules(result.document, applied)
     text = result.document.export_to_text()  # Ensure to normalize all characters to Unicode TODO
-    index_spans = index_table_spans(result.document)
 
     return PreprocessedDocument(
         source_metadata=SourceMetadata(
@@ -156,6 +176,6 @@ def preprocess_with_docling(
             backend=PreprocessingBackend.DOCLING,
             backend_version=_docling_version(),
             layout_rules=applied,
-            layout_removals=removals,
+            layout_counts=counts,
         ),
     )

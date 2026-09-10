@@ -113,7 +113,8 @@ def test_preprocess_with_docling_exports_plain_text(monkeypatch: pytest.MonkeyPa
     assert document.text == "Plain text"
     assert document.source_metadata.format == SourceFormat.PDF
     assert document.preprocessing_metadata.backend == PreprocessingBackend.DOCLING
-    assert calls == {"path": "sample.pdf", "export_to_text": True, "do_table_structure": False}
+    # No rules: the converter's own reading, table structure included.
+    assert calls == {"path": "sample.pdf", "export_to_text": True, "do_table_structure": True}
     assert document.index_spans == ()
 
 
@@ -172,20 +173,18 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
 
     document = preprocess_with_docling("sample.pdf")
 
-    assert document.preprocessing_metadata.layout_rules == (
-        LayoutRule.MARGIN_LINE_NUMBERS,
-        LayoutRule.REPEATED_FURNITURE,
-        LayoutRule.DOCKET_STAMP,
-    )
-    assert document.preprocessing_metadata.layout_removals == (
+    assert document.preprocessing_metadata.layout_rules == DEFAULT_LAYOUT_RULES
+    assert document.preprocessing_metadata.layout_counts == (
         (LayoutRule.MARGIN_LINE_NUMBERS, 0),
         (LayoutRule.REPEATED_FURNITURE, 0),
         (LayoutRule.DOCKET_STAMP, 0),
+        (LayoutRule.TABLE_AS_TEXT, 0),
+        (LayoutRule.TABLE_OF_AUTHORITIES, 0),
     )
 
     kept = preprocess_with_docling("sample.pdf", layout_rules=())
     assert kept.preprocessing_metadata.layout_rules == ()
-    assert kept.preprocessing_metadata.layout_removals == ()
+    assert kept.preprocessing_metadata.layout_counts == ()
 
 
 def test_preprocessed_document_rejects_empty_text() -> None:
@@ -211,3 +210,63 @@ def test_prose_is_not_a_filing_stamp() -> None:
     assert not looks_like_a_stamp("In that case the court reached page 12 of the opinion before saying so.")
     assert not looks_like_a_stamp("See Ashcroft v. Iqbal, 556 U.S. 662, 678 (2009).")
     assert not looks_like_a_stamp("")
+
+
+def test_declining_the_table_rule_leaves_the_converter_to_rebuild_the_grid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`TABLE_AS_TEXT` is the only rule decided before the conversion runs.
+
+    It is still a rule: name it and a table is read in the order the page reads
+    it, leave it out and the converter divides the region into cells, which is
+    what put a case name in a different cell from its own citation.
+    """
+    seen: dict[str, bool] = {}
+
+    class FakeDocument:
+        texts: tuple[object, ...] = ()
+        tables: tuple[object, ...] = ()
+
+        def iterate_items(self, **_kwargs: object) -> tuple[object, ...]:
+            return ()
+
+        def export_to_text(self) -> str:
+            return "Plain text"
+
+    class FakeResult:
+        document = FakeDocument()
+
+    class FakePipelineOptions:
+        do_table_structure = True
+
+    class FakeFormatOption:
+        def __init__(self, pipeline_options: object) -> None:
+            self.pipeline_options = pipeline_options
+
+    class FakeConverter:
+        def __init__(self, format_options: dict[object, object] | None = None) -> None:
+            (option,) = (format_options or {}).values()
+            seen["do_table_structure"] = option.pipeline_options.do_table_structure
+
+        def convert(self, path: str) -> FakeResult:
+            return FakeResult()
+
+    fake_docling = types.ModuleType("docling")
+    fake_converter_module = types.ModuleType("docling.document_converter")
+    fake_converter_module.DocumentConverter = FakeConverter
+    fake_converter_module.PdfFormatOption = FakeFormatOption
+    fake_models = types.ModuleType("docling.datamodel.base_models")
+    fake_models.InputFormat = types.SimpleNamespace(PDF="pdf")
+    fake_options = types.ModuleType("docling.datamodel.pipeline_options")
+    fake_options.PdfPipelineOptions = FakePipelineOptions
+    monkeypatch.setitem(sys.modules, "docling", fake_docling)
+    monkeypatch.setitem(sys.modules, "docling.document_converter", fake_converter_module)
+    monkeypatch.setitem(sys.modules, "docling.datamodel", types.ModuleType("docling.datamodel"))
+    monkeypatch.setitem(sys.modules, "docling.datamodel.base_models", fake_models)
+    monkeypatch.setitem(sys.modules, "docling.datamodel.pipeline_options", fake_options)
+
+    preprocess_with_docling("sample.pdf", layout_rules=(LayoutRule.TABLE_AS_TEXT,))
+    assert seen["do_table_structure"] is False
+
+    preprocess_with_docling("sample.pdf", layout_rules=(LayoutRule.DOCKET_STAMP,))
+    assert seen["do_table_structure"] is True
