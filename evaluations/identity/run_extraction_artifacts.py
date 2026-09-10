@@ -221,7 +221,7 @@ def run(run_dir: Path, out_dir: Path, *, miss_budget: int, limit: int | None, on
     for entry in entries:
         artifact = run_dir / entry["artifact"]
         document = deserialize_extracted_document(json.loads(artifact.read_text(encoding="utf-8")))
-        roots = sum(1 for item in document.citations if item.authority_id == item.citation_id)
+        roots = sum(1 for item in document.citations if item.root_id == item.citation_id)
         print(
             f"{entry['document'][:60]:60} {len(document.citations):4} citations {roots:4} roots",
             file=sys.stderr,
