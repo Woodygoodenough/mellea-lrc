@@ -125,8 +125,13 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
     """
 
     class FakeDocument:
-        # Both rules walk these. Empty here: this test is about which rules run.
+        # The rules walk these, and the index locator walks the tables. Empty
+        # here: this test is about which rules run, not about what they find.
         texts: tuple[object, ...] = ()
+        tables: tuple[object, ...] = ()
+
+        def iterate_items(self, **_kwargs: object) -> tuple[object, ...]:
+            return ()
 
         def export_to_text(self) -> str:
             return "Plain text"
@@ -134,15 +139,33 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
     class FakeResult:
         document = FakeDocument()
 
+    class FakePipelineOptions:
+        do_table_structure = True
+
+    class FakeFormatOption:
+        def __init__(self, pipeline_options: object) -> None:
+            self.pipeline_options = pipeline_options
+
     class FakeConverter:
+        def __init__(self, format_options: dict[object, object] | None = None) -> None:
+            del format_options
+
         def convert(self, path: str) -> FakeResult:
             return FakeResult()
 
     fake_docling = types.ModuleType("docling")
     fake_converter_module = types.ModuleType("docling.document_converter")
     fake_converter_module.DocumentConverter = FakeConverter
+    fake_converter_module.PdfFormatOption = FakeFormatOption
+    fake_models = types.ModuleType("docling.datamodel.base_models")
+    fake_models.InputFormat = types.SimpleNamespace(PDF="pdf")
+    fake_options = types.ModuleType("docling.datamodel.pipeline_options")
+    fake_options.PdfPipelineOptions = FakePipelineOptions
     monkeypatch.setitem(sys.modules, "docling", fake_docling)
     monkeypatch.setitem(sys.modules, "docling.document_converter", fake_converter_module)
+    monkeypatch.setitem(sys.modules, "docling.datamodel", types.ModuleType("docling.datamodel"))
+    monkeypatch.setitem(sys.modules, "docling.datamodel.base_models", fake_models)
+    monkeypatch.setitem(sys.modules, "docling.datamodel.pipeline_options", fake_options)
 
     document = preprocess_with_docling("sample.pdf")
 
@@ -150,6 +173,7 @@ def test_docling_runs_the_rules_it_was_given_and_records_them(
     assert document.preprocessing_metadata.layout_removals == (
         (LayoutRule.MARGIN_LINE_NUMBERS, 0),
         (LayoutRule.REPEATED_FURNITURE, 0),
+        (LayoutRule.DOCKET_STAMP, 0),
     )
 
     kept = preprocess_with_docling("sample.pdf", layout_rules=())
