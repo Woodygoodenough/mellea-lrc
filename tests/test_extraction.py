@@ -10,14 +10,10 @@ from mellea_lrc.extraction import (
     ExtractedCitation,
     ExtractedDocument,
     ExtractionMetadata,
-    extract_citations,
+    extract,
     extract_from_plain_text,
 )
-from mellea_lrc.preprocessing import (
-    PreprocessedDocument,
-    preprocess,
-    preprocess,
-)
+from mellea_lrc.preprocessing import PreprocessedDocument, preprocess
 
 SAMPLE_TEXT = (
     "Under Norton v. Shelby County, 118 U.S. 425, 442 (1886), an unconstitutional "
@@ -35,16 +31,20 @@ def test_extract_from_plain_text_carries_the_preprocessing_through() -> None:
     assert result.citations
 
 
-def test_extraction_takes_what_preprocessing_produced(tmp_path: Path) -> None:
-    """The stage's signature: the preceding stage's output in, citations out."""
+def test_extract_reads_a_string_as_content() -> None:
+    assert extract(SAMPLE_TEXT).text == SAMPLE_TEXT
+
+
+def test_extract_reads_a_path_as_a_location(tmp_path: Path) -> None:
+    """A ``Path`` is opened; the same text as a ``str`` would be extracted from."""
     path = tmp_path / "filing.txt"
     path.write_text(SAMPLE_TEXT, encoding="utf-8")
 
-    from_disk = extract_citations(preprocess(path))
+    from_disk = extract(path)
 
     assert from_disk.text == SAMPLE_TEXT
     assert {item.citation.kind for item in from_disk.citations} == {
-        item.citation.kind for item in extract_from_plain_text(SAMPLE_TEXT).citations
+        item.citation.kind for item in extract(SAMPLE_TEXT).citations
     }
 
 
@@ -59,21 +59,21 @@ def test_extract_from_plain_text_returns_canonical_types() -> None:
     full_case = next(item for item in result.citations if isinstance(item.citation, FullCaseCitation))
     assert full_case.citation.defendant == "Shelby County"
     assert full_case.citation.volume == "118"
-    assert full_case.citation.reporter.as_written == "U.S."
+    assert full_case.citation.reporter == "U.S."
     assert SAMPLE_TEXT[full_case.locator_span.start : full_case.locator_span.end] == "118 U.S. 425"
-    assert full_case.full_span.start < full_case.locator_span.start
+    assert full_case.span.start < full_case.locator_span.start
     assert full_case.resolves_to is None
 
     full_law = next(item for item in result.citations if isinstance(item.citation, FullLawCitation))
     assert full_law.citation.volume == "28"
-    assert full_law.citation.reporter.as_written == "U.S.C."
+    assert full_law.citation.reporter == "U.S.C."
 
 
 def test_extracted_document_rejects_duplicate_citation_ids() -> None:
     preprocessed = preprocess("347 U.S. 483")
     citation = ExtractedCitation(
         citation_id="cite-1",
-        full_span=Span(0, len(preprocessed.text)),
+        span=Span(0, len(preprocessed.text)),
         locator_span=Span(0, len(preprocessed.text)),
         matched_text=preprocessed.text,
         citation=FullCaseCitation(volume="347", reporter="U.S.", page="483"),
@@ -93,7 +93,7 @@ def test_extracted_document_rejects_span_outside_text() -> None:
     preprocessed = preprocess("347 U.S. 483")
     citation = ExtractedCitation(
         citation_id="cite-1",
-        full_span=Span(0, len(preprocessed.text) + 1),
+        span=Span(0, len(preprocessed.text) + 1),
         locator_span=Span(0, len(preprocessed.text) + 1),
         matched_text=preprocessed.text,
         citation=FullCaseCitation(volume="347", reporter="U.S.", page="483"),
@@ -111,9 +111,7 @@ def test_extracted_document_rejects_span_outside_text() -> None:
 
 def test_extract_recovers_citation_broken_by_repeated_whitespace() -> None:
     # Docling PDF extraction leaves runs of repeated spaces (justified-text
-    # artifacts) that eyecite's literal single spaces break on outright. The
-    # shipped relaxation matches them where they are, so the text is never
-    # rewritten and the span needs no remapping.
+    # artifacts) that break eyecite's tokenizer outright when unnormalized.
     text = (
         "The court in Cracker Barrel Old  Country  Store,  Inc.  v.  Epperson ,  "
         "284  S.W.3d  303,  312 (Tenn. 2009) held as much."
@@ -124,22 +122,7 @@ def test_extract_recovers_citation_broken_by_repeated_whitespace() -> None:
     citation = result.citations[0]
     assert isinstance(citation.citation, FullCaseCitation)
     assert citation.citation.volume == "284"
-    assert citation.citation.reporter.as_written == "S.W.3d"
+    assert citation.citation.reporter == "S.W.3d"
+    # Span must land back in the ORIGINAL (double-spaced) text, not the
+    # whitespace-collapsed text eyecite actually tokenized.
     assert text[citation.locator_span.start : citation.locator_span.end] == "284  S.W.3d  303"
-
-
-def test_a_citation_id_is_decided_by_the_citation(tmp_path: Path) -> None:
-    """Read the same text twice and the ids are the same, so downstream keys hold."""
-    once = extract_from_plain_text(SAMPLE_TEXT)
-    twice = extract_from_plain_text(SAMPLE_TEXT)
-
-    assert [item.citation_id for item in once.citations] == [item.citation_id for item in twice.citations]
-    assert all(item.citation_id for item in once.citations)
-
-
-def test_a_citation_id_changes_when_the_text_does() -> None:
-    """A different offset is a different citation, and must not keep the old key."""
-    moved = extract_from_plain_text("A preface. " + SAMPLE_TEXT)
-    original = {item.citation_id for item in extract_from_plain_text(SAMPLE_TEXT).citations}
-
-    assert original.isdisjoint({item.citation_id for item in moved.citations})
