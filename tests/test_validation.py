@@ -197,7 +197,10 @@ def test_a_prefix_is_sent_as_the_system_message_and_nowhere_else(monkeypatch) ->
             )
         )
     assert ModelOption.SYSTEM_PROMPT not in calls[0]["model_options"]
-    assert calls[1]["model_options"] == {"max_tokens": 10, ModelOption.SYSTEM_PROMPT: "The cited text:\nthe opinion"}
+    assert calls[1]["model_options"] == {
+        "max_tokens": 10,
+        ModelOption.SYSTEM_PROMPT: "The cited text:\nthe opinion",
+    }
     assert options == {"max_tokens": 10}
 
 
