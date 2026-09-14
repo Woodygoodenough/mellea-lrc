@@ -176,6 +176,31 @@ def test_instruct_ivr_forwards_the_pydantic_output_format(monkeypatch: pytest.Mo
     assert calls[0]["format"] is ExpectedOutput
 
 
+def test_a_prefix_is_sent_as_the_system_message_and_nowhere_else(monkeypatch) -> None:
+    from mellea.backends import ModelOption
+
+    calls: list[dict[str, object]] = []
+
+    def fake_instruct(*_args: object, **kwargs: object) -> str:
+        calls.append(kwargs)
+        return "{}"
+
+    monkeypatch.setattr("mellea_lrc.llm.ivr.mfuncs.instruct", fake_instruct)
+    options = {"max_tokens": 10}
+    for prefix in (None, "The cited text:\nthe opinion"):
+        asyncio.run(
+            run_instruct_ivr(
+                SimpleNamespace(backend=object()),
+                InstructIvrSpec(description="Return a value.", prefix=prefix),
+                strategy=MultiTurnStrategy(loop_budget=1),
+                model_options=options,
+            )
+        )
+    assert ModelOption.SYSTEM_PROMPT not in calls[0]["model_options"]
+    assert calls[1]["model_options"] == {"max_tokens": 10, ModelOption.SYSTEM_PROMPT: "The cited text:\nthe opinion"}
+    assert options == {"max_tokens": 10}
+
+
 def test_initialize_validation_instances_one_progression_per_extracted_citation() -> None:
     extracted = _document(FullCaseCitation(volume="347", reporter="U.S.", page="483"))
 
