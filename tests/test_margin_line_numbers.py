@@ -77,7 +77,10 @@ def test_every_margin_number_is_moved_and_nothing_else_is() -> None:
     _pleading_page(document, "first page prose", page=1)
     _pleading_page(document, "second page prose", page=2)
 
-    assert reclassify_margin_line_numbers(document) == 56
+    reclassify_margin_line_numbers(document)
+
+    furniture = [item for item, _ in document.iterate_items(included_content_layers={ContentLayer.FURNITURE})]
+    assert len(furniture) == 56
     assert document.export_to_text() == "first page prose\n\nsecond page prose"
 
 
@@ -90,6 +93,54 @@ def test_a_numbered_list_in_the_body_is_not_a_margin() -> None:
     document = _document()
     for number in range(1, 9):
         _add(document, str(number), left=PROSE_LEFT, right=PROSE_RIGHT, label="list_item")
+
+    assert margin_line_numbers(document) == []
+
+
+def _stacked(document: DoclingDocument, values: list[int], *, left: float, right: float) -> None:
+    """A column of numbers down the page, each lower than the one above it."""
+    for index, number in enumerate(values):
+        document.add_text(
+            label="text",
+            text=str(number),
+            prov=ProvenanceItem(
+                page_no=1,
+                bbox=BoundingBox(l=left, t=740.0 - index * 24.0, r=right, b=730.0 - index * 24.0),
+                charspan=(0, len(str(number))),
+            ),
+        )
+
+
+def test_a_margin_is_found_when_the_prose_starts_in_it_too() -> None:
+    """Some filings number the right margin, and Docling merges most of them.
+
+    What is left is a column at the page edge, and the prose items Docling
+    built around the numbers it absorbed begin at that same edge -- so the
+    column is not *left* of the prose and the position test cannot separate
+    them. The numbers still count down the page, which prose does not.
+    """
+    document = _document()
+    _stacked(document, [1, 2, 3, 10, 11, 12, 13, 14], left=23.3, right=38.4)
+    _add(document, "fix evidentiary failures. In re Motors Liquidation Co., 23", left=23.3, right=558.0)
+    _add(document, "361-62 (2d Cir. 2020) ('[A] reply brief cannot 24", left=23.3, right=558.0)
+
+    assert len(margin_line_numbers(document)) == 8
+
+
+def test_a_column_at_the_page_edge_that_does_not_count_is_not_a_margin() -> None:
+    """Line numbers rise. A column of quantities repeats and falls."""
+    document = _document()
+    _stacked(document, [40, 12, 12, 8, 3, 1], left=23.3, right=38.4)
+    _add(document, "Amount claimed per quarter, in thousands", left=23.3, right=558.0)
+
+    assert margin_line_numbers(document) == []
+
+
+def test_a_counting_column_inside_the_text_is_not_a_margin() -> None:
+    """A numbered list counts too, and it is not at the edge of the page."""
+    document = _document()
+    _stacked(document, [1, 2, 3, 4, 5, 6], left=PROSE_LEFT, right=PROSE_RIGHT)
+    _add(document, "prose beside it", left=PROSE_LEFT, right=PROSE_RIGHT)
 
     assert margin_line_numbers(document) == []
 
@@ -172,13 +223,15 @@ def test_a_page_of_nothing_but_numbers_is_left_alone() -> None:
     assert margin_line_numbers(document) == []
 
 
-def test_furniture_is_not_counted_twice() -> None:
-    """Re-running the rule reports no further work, and changes nothing."""
+def test_running_the_rule_twice_changes_nothing_the_second_time() -> None:
     document = _document()
     _pleading_page(document, "prose")
 
-    assert reclassify_margin_line_numbers(document) == 28
-    assert reclassify_margin_line_numbers(document) == 0
+    reclassify_margin_line_numbers(document)
+    once = document.export_to_text()
+    reclassify_margin_line_numbers(document)
+
+    assert document.export_to_text() == once == "prose"
 
 
 def test_an_item_without_provenance_is_left_alone() -> None:
@@ -202,4 +255,4 @@ def test_a_document_with_no_text_layer_has_no_margin() -> None:
     class Bare:
         pass
 
-    assert reclassify_margin_line_numbers(Bare()) == 0
+    reclassify_margin_line_numbers(Bare())

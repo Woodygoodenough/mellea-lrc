@@ -81,13 +81,6 @@ class PreprocessingMetadata:
     has to record which reading it was rendered under.
     """
 
-    removals: tuple[tuple[Rule, int], ...] = ()
-    """How many items each rule moved out of the body.
-
-    Only the two rules that were here before this counted: a rule added since
-    runs without reporting, and `rules` is what says it ran.
-    """
-
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PreprocessedDocument(DocumentBase):

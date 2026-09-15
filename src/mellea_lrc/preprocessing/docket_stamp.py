@@ -116,13 +116,9 @@ def docket_stamps(document: DoclingDocument) -> list[Any]:
     return found
 
 
-def reclassify_docket_stamps(document: DoclingDocument) -> int:
-    """Move filing stamps left in the body to furniture. Modifies in place."""
+def reclassify_docket_stamps(document: DoclingDocument) -> None:
+    """Move filing stamps left in the body to furniture, in place."""
     from docling_core.types.doc.common.content_layer import ContentLayer
 
-    moved = 0
     for item in docket_stamps(document):
-        if item.content_layer is not ContentLayer.FURNITURE:
-            item.content_layer = ContentLayer.FURNITURE
-            moved += 1
-    return moved
+        item.content_layer = ContentLayer.FURNITURE

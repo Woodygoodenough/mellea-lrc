@@ -45,19 +45,12 @@ FURNITURE_LABELS = frozenset({"page_header", "page_footer"})
 _BOX_TOLERANCE = 3.0
 
 
-def reclassify_repeated_furniture(document: DoclingDocument) -> int:
-    """Move body items sharing a box with a labelled header or footer to furniture.
-
-    Returns how many items were moved. The document is modified in place.
-    """
+def reclassify_repeated_furniture(document: DoclingDocument) -> None:
+    """Move body items sharing a box with a labelled header or footer to furniture, in place."""
     from docling_core.types.doc.common.content_layer import ContentLayer
 
-    moved = 0
     for item in repeated_furniture(document):
-        if item.content_layer is not ContentLayer.FURNITURE:
-            item.content_layer = ContentLayer.FURNITURE
-            moved += 1
-    return moved
+        item.content_layer = ContentLayer.FURNITURE
 
 
 def repeated_furniture(document: DoclingDocument) -> list[Any]:
