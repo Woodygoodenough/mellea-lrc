@@ -15,8 +15,6 @@ def build_task_payload(text: str, *, source_path: str | None = None) -> dict[str
     """Build a Label Studio task whose text matches extraction span offsets."""
     extraction = extract_from_plain_text(text, source_path=source_path)
     data: dict[str, object] = {"text": extraction.text}
-    if extraction.source_metadata.header is not None:
-        data["source_header"] = extraction.source_metadata.header
     if source_path is not None:
         data["source_path"] = source_path
     return {

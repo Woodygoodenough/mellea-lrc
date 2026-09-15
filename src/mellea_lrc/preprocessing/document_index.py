@@ -1,0 +1,143 @@
+"""Locate the table of authorities, which cites nothing.
+
+A brief opens with an index of the cases it relies on:
+
+    Doe v. Megless , 654 F.3d 404 (3d Cir. 2011) ...................... 8, 12, 13
+
+That entry is a *listing*. It attaches no proposition to the case, makes no
+claim about any page of it, and the numbers trailing the dot leaders are pages
+of the brief rather than of the reporter. There is nothing in it that can be
+right or wrong beyond the case existing.
+
+Extraction cannot see the difference, because by the time the document is text
+the index reads like any other run of citations. On false-citation-bench that
+is **113 of 302 citation occurrences** in the seven filings that carry an
+index -- 37% of them, every one asserting nothing. Counting those beside
+citations a brief actually argues from inflates any coverage figure, and
+sending them to a pinpoint check spends retrieval on a question nobody asked.
+
+Docling already knows. It labels these tables `document_index`, distinctly from
+an ordinary `table`, in 14 of the 20 tables across the corpus. This module
+turns that label into character spans over the exported text, so a consumer can
+tell an argued citation from an indexed one.
+
+**The index is located, not removed**, because it is independently useful: it is
+the document's own declaration of what it cites, and therefore a free check on
+whether extraction found everything. An identifier listed in the index and
+absent from the body is either a genuine index-only entry or an extraction
+miss, and on this corpus the check finds a real one -- `759 F.2d 1032` in
+document 007, which reaches the text as `759\\n\\nF.2d 1032` and is lost to the
+production tokenizer.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from mellea_lrc.core.spans import Span
+
+if TYPE_CHECKING:
+    from docling_core.types.doc.document import DoclingDocument
+
+INDEX_LABEL = "document_index"
+
+
+def index_table_spans(document: DoclingDocument) -> tuple[Span, ...]:
+    """Return the spans of the exported text occupied by index tables.
+
+    Measured by rendering the document with the index in place and again with it
+    out, and taking the difference, rather than by searching the output for a
+    table's text: an index entry repeats verbatim in the body of a brief -- that
+    is what an index is -- and a search would have no way to tell which
+    occurrence it had found.
+
+    **One table at a time, and by prefix and suffix.** Removing a single item
+    deletes one contiguous region, so the two renderings share a prefix and a
+    suffix and the difference is what lies between. Comparing them with a block
+    matcher instead invites it to pair fragments of the removed index against
+    the body text those fragments also appear in, which is not a hypothetical:
+    an index this returns as one span came back from `difflib` as 175
+    two-character ones.
+
+    Each table is toggled against the *unmodified* rendering, so every span is in
+    the coordinates of the text the caller will hold, and removing one index does
+    not shift the next.
+
+    The document is left as it was found.
+    """
+    from docling_core.types.doc.common.content_layer import ContentLayer
+
+    tables = [table for table in document.tables if table.label.value == INDEX_LABEL]
+    if not tables:
+        return ()
+
+    with_index = document.export_to_text()
+    spans: list[Span] = []
+    for table in tables:
+        restore = table.content_layer
+        try:
+            table.content_layer = ContentLayer.FURNITURE
+            without = document.export_to_text()
+        finally:
+            table.content_layer = restore
+        span = _deleted_region(with_index, without)
+        if span is not None:
+            spans.append(span)
+    return _without_overlap(sorted(spans, key=lambda span: span.start), with_index)
+
+
+def _deleted_region(before: str, after: str) -> Span | None:
+    """The one contiguous region of `before` that `after` does not have.
+
+    ``None`` when nothing was removed, which means the table contributed no text
+    -- an empty index, or one already outside the body layer.
+
+    The suffix is measured only as far back as the prefix reaches. Without that
+    bound the walk runs past the deletion and into text the two renderings share
+    on both sides of it, and the region comes back empty or inverted.
+    """
+    if len(after) >= len(before):
+        return None
+
+    limit = len(after)
+    prefix = 0
+    while prefix < limit and before[prefix] == after[prefix]:
+        prefix += 1
+    suffix = 0
+    while suffix < limit - prefix and before[-1 - suffix] == after[-1 - suffix]:
+        suffix += 1
+    return _trimmed(before, prefix, len(before) - suffix)
+
+
+def _without_overlap(spans: list[Span], text: str) -> tuple[Span, ...]:
+    """Keep consecutive regions apart.
+
+    Two indexes in a row are serialized alike, down to the pipes and the rule
+    row, so the characters joining them belong equally to the end of one and the
+    start of the next and both walks claim them. They belong to neither.
+    """
+    kept: list[Span] = []
+    for span in spans:
+        start = max(span.start, kept[-1].end) if kept else span.start
+        trimmed = _trimmed(text, start, span.end)
+        if trimmed is not None:
+            kept.append(trimmed)
+    return tuple(kept)
+
+
+def _trimmed(text: str, start: int, end: int) -> Span | None:
+    """The region without the blank lines that join it to what surrounds it."""
+    while start < end and text[start].isspace():
+        start += 1
+    while end > start and text[end - 1].isspace():
+        end -= 1
+    return Span(start, end) if start < end else None
+
+
+def is_within(span: Span, regions: tuple[Span, ...]) -> bool:
+    """Whether a span falls inside any of the regions.
+
+    Containment rather than overlap: a citation that merely abuts an index is
+    argued text, and treating it as indexed would silently drop a real claim.
+    """
+    return any(region.start <= span.start and span.end <= region.end for region in regions)

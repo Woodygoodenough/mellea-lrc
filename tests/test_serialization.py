@@ -15,7 +15,7 @@ from mellea_lrc.core.citations import (
 from mellea_lrc.core.spans import Span
 from mellea_lrc.courtlistener import CourtListenerOpinionCluster, CourtListenerSearchResult
 from mellea_lrc.extraction import ExtractedCitation, ExtractedDocument, ExtractionMetadata
-from mellea_lrc.preprocessing import preprocess_plain_text_from_string
+from mellea_lrc.preprocessing import preprocess
 from mellea_lrc.serialization import (
     deserialize_extracted_document,
     deserialize_validated_document,
@@ -74,7 +74,7 @@ from mellea_lrc.validation import (
 def _document_with_one_citation() -> ExtractedDocument:
     """Build one extracted case citation for serializer tests."""
     text = "Brown v. Board of Education, 347 U.S. 483 (1954)."
-    preprocessed = preprocess_plain_text_from_string(text)
+    preprocessed = preprocess(text)
     matched_text = "347 U.S. 483"
     start = text.index(matched_text)
     return ExtractedDocument(
@@ -128,7 +128,7 @@ def test_extracted_document_round_trip_supports_every_canonical_citation_type() 
         ReferenceCitation(plaintiff="A", defendant="B"),
         UnknownCitation(),
     )
-    source = preprocess_plain_text_from_string("x" * len(citations))
+    source = preprocess("x" * len(citations))
     document = ExtractedDocument(
         source_metadata=source.source_metadata,
         text=source.text,
@@ -152,7 +152,7 @@ def test_extracted_document_round_trip_supports_every_canonical_citation_type() 
 def test_serialize_validated_document_preserves_source_and_node_graph() -> None:
     """Emit one source citation and its explicit validation-node dependency."""
     text = "Brown v. Board of Education, 347 U.S. 483 (1954)."
-    preprocessed = preprocess_plain_text_from_string(text)
+    preprocessed = preprocess(text)
     matched_text = "347 U.S. 483"
     start = text.index(matched_text)
     extracted = ExtractedDocument(

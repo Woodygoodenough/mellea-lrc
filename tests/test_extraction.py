@@ -13,7 +13,7 @@ from mellea_lrc.extraction import (
     extract,
     extract_from_plain_text,
 )
-from mellea_lrc.preprocessing import PreprocessedDocument, preprocess_plain_text_from_string
+from mellea_lrc.preprocessing import PreprocessedDocument, preprocess
 
 SAMPLE_TEXT = (
     "Under Norton v. Shelby County, 118 U.S. 425, 442 (1886), an unconstitutional "
@@ -22,7 +22,7 @@ SAMPLE_TEXT = (
 
 
 def test_extract_from_plain_text_carries_the_preprocessing_through() -> None:
-    reference = preprocess_plain_text_from_string(SAMPLE_TEXT)
+    reference = preprocess(SAMPLE_TEXT)
     result = extract_from_plain_text(SAMPLE_TEXT)
     assert isinstance(result, PreprocessedDocument)
     assert result.source_metadata == reference.source_metadata
@@ -70,7 +70,7 @@ def test_extract_from_plain_text_returns_canonical_types() -> None:
 
 
 def test_extracted_document_rejects_duplicate_citation_ids() -> None:
-    preprocessed = preprocess_plain_text_from_string("347 U.S. 483")
+    preprocessed = preprocess("347 U.S. 483")
     citation = ExtractedCitation(
         citation_id="cite-1",
         span=Span(0, len(preprocessed.text)),
@@ -90,7 +90,7 @@ def test_extracted_document_rejects_duplicate_citation_ids() -> None:
 
 
 def test_extracted_document_rejects_span_outside_text() -> None:
-    preprocessed = preprocess_plain_text_from_string("347 U.S. 483")
+    preprocessed = preprocess("347 U.S. 483")
     citation = ExtractedCitation(
         citation_id="cite-1",
         span=Span(0, len(preprocessed.text) + 1),

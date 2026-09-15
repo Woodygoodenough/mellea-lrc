@@ -1,38 +1,27 @@
-"""Preprocessing layer public API."""
+"""Preprocessing layer public API.
+
+One function and one list of rules: `preprocess(source, rules)`. Everything
+else here is a type it returns.
+"""
 
 from mellea_lrc.core.documents import DocumentBase, SourceFormat, SourceMetadata
-from mellea_lrc.preprocessing.docling import is_docling_supported_format, preprocess_with_docling
 from mellea_lrc.preprocessing.pipeline import preprocess
-from mellea_lrc.preprocessing.plain_text import (
-    preprocess_plain_text_from_string,
-    split_plain_text_file,
-)
-from mellea_lrc.preprocessing.repeated_furniture import (
-    reclassify_repeated_furniture,
-    repeated_furniture,
-)
 from mellea_lrc.preprocessing.types import (
-    DEFAULT_LAYOUT_RULES,
-    LayoutRule,
+    DEFAULT_RULES,
     PreprocessedDocument,
     PreprocessingBackend,
     PreprocessingMetadata,
+    Rule,
 )
 
 __all__ = [
-    "DEFAULT_LAYOUT_RULES",
+    "DEFAULT_RULES",
     "DocumentBase",
-    "LayoutRule",
     "PreprocessedDocument",
     "PreprocessingBackend",
     "PreprocessingMetadata",
+    "Rule",
     "SourceFormat",
     "SourceMetadata",
-    "is_docling_supported_format",
     "preprocess",
-    "preprocess_plain_text_from_string",
-    "preprocess_with_docling",
-    "reclassify_repeated_furniture",
-    "repeated_furniture",
-    "split_plain_text_file",
 ]

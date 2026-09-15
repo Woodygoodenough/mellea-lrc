@@ -18,7 +18,7 @@ from mellea_lrc.courtlistener import (
 )
 from mellea_lrc.extraction import ExtractedCitation, ExtractedDocument, ExtractionMetadata
 from mellea_lrc.llm.ivr import InstructIvrSpec, run_instruct_ivr
-from mellea_lrc.preprocessing import preprocess_plain_text_from_string
+from mellea_lrc.preprocessing import preprocess
 from mellea_lrc.validation import (
     AggregatedFieldOutcome,
     CandidateEvaluationNode,
@@ -131,7 +131,7 @@ def _validate(document: ExtractedDocument, client: LookupClient) -> ValidatedDoc
 
 def _document(citation: FullCaseCitation | FullLawCitation) -> ExtractedDocument:
     text = "Brown v. Board, 347 U.S. 483 (1954)."
-    preprocessed = preprocess_plain_text_from_string(text)
+    preprocessed = preprocess(text)
     locator = "347 U.S. 483"
     start = text.index(locator)
     extracted = ExtractedCitation(

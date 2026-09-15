@@ -52,7 +52,7 @@ from mellea_lrc.core.citations import (
 )
 from mellea_lrc.core.spans import Span
 from mellea_lrc.extraction.types import ExtractedCitation, ExtractedDocument, ExtractionMetadata
-from mellea_lrc.preprocessing.plain_text import preprocess_plain_text_from_string
+from mellea_lrc.preprocessing import preprocess
 from mellea_lrc.preprocessing.types import PreprocessedDocument
 
 _REPEATED_INLINE_WHITESPACE = re.compile(r"[ \t]{2,}")
@@ -280,5 +280,5 @@ def extract_from_plain_text(text: str, *, source_path: str | None = None) -> Ext
     Spans index into ``text`` as given, so a caller that already holds the text
     can map results straight back onto it.
     """
-    preprocessed = preprocess_plain_text_from_string(text, source_path=source_path)
+    preprocessed = preprocess(text)
     return _extract_from_text(preprocessed)
