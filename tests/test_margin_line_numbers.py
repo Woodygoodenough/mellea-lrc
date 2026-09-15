@@ -94,6 +94,54 @@ def test_a_numbered_list_in_the_body_is_not_a_margin() -> None:
     assert margin_line_numbers(document) == []
 
 
+def _stacked(document: DoclingDocument, values: list[int], *, left: float, right: float) -> None:
+    """A column of numbers down the page, each lower than the one above it."""
+    for index, number in enumerate(values):
+        document.add_text(
+            label="text",
+            text=str(number),
+            prov=ProvenanceItem(
+                page_no=1,
+                bbox=BoundingBox(l=left, t=740.0 - index * 24.0, r=right, b=730.0 - index * 24.0),
+                charspan=(0, len(str(number))),
+            ),
+        )
+
+
+def test_a_margin_is_found_when_the_prose_starts_in_it_too() -> None:
+    """Some filings number the right margin, and Docling merges most of them.
+
+    What is left is a column at the page edge, and the prose items Docling
+    built around the numbers it absorbed begin at that same edge -- so the
+    column is not *left* of the prose and the position test cannot separate
+    them. The numbers still count down the page, which prose does not.
+    """
+    document = _document()
+    _stacked(document, [1, 2, 3, 10, 11, 12, 13, 14], left=23.3, right=38.4)
+    _add(document, "fix evidentiary failures. In re Motors Liquidation Co., 23", left=23.3, right=558.0)
+    _add(document, "361-62 (2d Cir. 2020) ('[A] reply brief cannot 24", left=23.3, right=558.0)
+
+    assert len(margin_line_numbers(document)) == 8
+
+
+def test_a_column_at_the_page_edge_that_does_not_count_is_not_a_margin() -> None:
+    """Line numbers rise. A column of quantities repeats and falls."""
+    document = _document()
+    _stacked(document, [40, 12, 12, 8, 3, 1], left=23.3, right=38.4)
+    _add(document, "Amount claimed per quarter, in thousands", left=23.3, right=558.0)
+
+    assert margin_line_numbers(document) == []
+
+
+def test_a_counting_column_inside_the_text_is_not_a_margin() -> None:
+    """A numbered list counts too, and it is not at the edge of the page."""
+    document = _document()
+    _stacked(document, [1, 2, 3, 4, 5, 6], left=PROSE_LEFT, right=PROSE_RIGHT)
+    _add(document, "prose beside it", left=PROSE_LEFT, right=PROSE_RIGHT)
+
+    assert margin_line_numbers(document) == []
+
+
 def test_prose_in_a_narrow_left_column_is_not_a_margin() -> None:
     """Being numeric is the other half, and it is the half geometry cannot fake."""
     document = _document()

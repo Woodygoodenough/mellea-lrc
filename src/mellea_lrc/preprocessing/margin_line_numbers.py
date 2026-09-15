@@ -36,6 +36,27 @@ alignment separates a margin from numbers that merely happen to be short, the
 count separates it from a stray figure, and the position separates it from a
 numeric column inside a table.
 
+## When the position cannot answer
+
+Some filings number the **right** margin, and there Docling merges most of the
+numbers into the end of the prose item beside them -- `'... In re Motors
+Liquidation Co., 957 F.3d 357, 23'` is one text item. The survivors still form
+a column at the page edge, but the prose items built around the absorbed ones
+begin at that same edge, so the column is not *left* of the prose and the
+position test cannot separate them::
+
+    page 2   prose left median 23.3   column of 9 at right edge 38.4
+
+A second reading answers what position cannot: **line numbers count**. They
+rise by one down the page, and where some were absorbed the survivors still
+rise, in runs with gaps where the absorbed ones were -- `[27, 28, 33, 34, 35,
+36, 37, 38, 39]`. A numeric column in a table holds quantities, which repeat and
+fall. So a column is also a margin when it counts down the page and sits within
+a margin's width of the page edge.
+
+What this does not reach is the number Docling has already put inside a prose
+item. Removing that would mean editing the text, which no rule here does.
+
 The prose edge is taken as the **median** left edge of the page's non-numeric
 items rather than the minimum. Docling does not always separate the margin
 cleanly -- on some pages it absorbs the first few line numbers into the text
@@ -53,6 +74,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from itertools import pairwise
 from statistics import median
 from typing import TYPE_CHECKING, Any
 
@@ -71,6 +93,11 @@ MIN_MARGIN_NUMBERS = 5
 # Right edges within a column agree to well under a character width; the slack
 # covers the extra digit of a two-digit number overhanging its neighbours.
 _ALIGNMENT_SLACK = 5.0
+# How far into a page a margin reaches, in points. A column of counting numbers
+# this close to the edge of a letter page is a margin whatever Docling thinks
+# the prose begins at -- which on a filing whose numbers it merges into the
+# lines beside them is the same edge as the numbers themselves.
+_MARGIN_EDGE = 60.0
 
 
 def reclassify_margin_line_numbers(document: DoclingDocument) -> int:
@@ -117,9 +144,30 @@ def _margin_items(document: DoclingDocument) -> list[Any]:
             continue
         edge = median(prose_left[page])
         for column in _right_aligned_columns(items):
-            if len(column) >= MIN_MARGIN_NUMBERS and _placement(column[0])[1].r <= edge:
+            if len(column) < MIN_MARGIN_NUMBERS:
+                continue
+            right = _placement(column[0])[1].r
+            if right <= edge or (_counts_down_the_page(column) and right <= _MARGIN_EDGE):
                 found.extend(column)
     return found
+
+
+def _counts_down_the_page(column: list[Any]) -> bool:
+    """Whether the column's numbers increase from top to bottom.
+
+    Line numbers count. A numeric column in a table holds quantities, which may
+    repeat and may fall, and the numbers a margin holds do neither: they rise by
+    one down the page, and where Docling has absorbed some of them into the
+    prose beside them the survivors still rise, in runs with gaps where the
+    absorbed ones were.
+    """
+    values = [
+        _line_number_value(getattr(item, "text", "") or "")
+        for item in sorted(column, key=lambda entry: -_placement(entry)[1].t)
+    ]
+    return all(
+        earlier is not None and later is not None and earlier < later for earlier, later in pairwise(values)
+    )
 
 
 def _right_aligned_columns(items: list[Any]) -> list[list[Any]]:
