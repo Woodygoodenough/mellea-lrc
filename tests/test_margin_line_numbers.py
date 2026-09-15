@@ -77,7 +77,10 @@ def test_every_margin_number_is_moved_and_nothing_else_is() -> None:
     _pleading_page(document, "first page prose", page=1)
     _pleading_page(document, "second page prose", page=2)
 
-    assert reclassify_margin_line_numbers(document) == 56
+    reclassify_margin_line_numbers(document)
+
+    furniture = [item for item, _ in document.iterate_items(included_content_layers={ContentLayer.FURNITURE})]
+    assert len(furniture) == 56
     assert document.export_to_text() == "first page prose\n\nsecond page prose"
 
 
@@ -220,13 +223,15 @@ def test_a_page_of_nothing_but_numbers_is_left_alone() -> None:
     assert margin_line_numbers(document) == []
 
 
-def test_furniture_is_not_counted_twice() -> None:
-    """Re-running the rule reports no further work, and changes nothing."""
+def test_running_the_rule_twice_changes_nothing_the_second_time() -> None:
     document = _document()
     _pleading_page(document, "prose")
 
-    assert reclassify_margin_line_numbers(document) == 28
-    assert reclassify_margin_line_numbers(document) == 0
+    reclassify_margin_line_numbers(document)
+    once = document.export_to_text()
+    reclassify_margin_line_numbers(document)
+
+    assert document.export_to_text() == once == "prose"
 
 
 def test_an_item_without_provenance_is_left_alone() -> None:
@@ -250,4 +255,4 @@ def test_a_document_with_no_text_layer_has_no_margin() -> None:
     class Bare:
         pass
 
-    assert reclassify_margin_line_numbers(Bare()) == 0
+    reclassify_margin_line_numbers(Bare())

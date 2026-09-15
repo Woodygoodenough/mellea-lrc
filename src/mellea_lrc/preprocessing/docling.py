@@ -62,23 +62,17 @@ def _reads_tables_as_text(rules: Sequence[Rule]) -> bool:
     return Rule.TABLE_AS_TEXT in rules
 
 
-def _apply_rules(
-    document: DoclingDocument, rules: Sequence[Rule]
-) -> tuple[tuple[tuple[Rule, int], ...], tuple[Span, ...]]:
+def _apply_rules(document: DoclingDocument, rules: Sequence[Rule]) -> tuple[Span, ...]:
     """Run each rule against the converted document, in the order given.
 
-    Returns how many items the counting rules moved out of the body, and the
-    regions `TABLE_OF_AUTHORITIES` marked. The rules added here do not count
-    what they did: `rules` says which ran, and that is all this records
-    until counting is done for every rule the same way.
+    Returns the regions `TABLE_OF_AUTHORITIES` marked.
     """
-    removals = []
     index_spans: tuple[Span, ...] = ()
     for rule in rules:
         if rule is Rule.MARGIN_LINE_NUMBERS:
-            removals.append((rule, reclassify_margin_line_numbers(document)))
+            reclassify_margin_line_numbers(document)
         elif rule is Rule.REPEATED_FURNITURE:
-            removals.append((rule, reclassify_repeated_furniture(document)))
+            reclassify_repeated_furniture(document)
         elif rule is Rule.DOCKET_STAMP:
             reclassify_docket_stamps(document)
         elif rule is Rule.TABLE_AS_TEXT:
@@ -88,7 +82,7 @@ def _apply_rules(
         else:
             msg = f"Unknown layout rule: {rule}"
             raise ValueError(msg)
-    return tuple(removals), index_spans
+    return index_spans
 
 
 def preprocess_with_docling(
@@ -158,7 +152,7 @@ def preprocess_with_docling(
     converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
     result = converter.convert(str(source_path))
     applied = tuple(rules)
-    counted, index_spans = _apply_rules(result.document, applied)
+    index_spans = _apply_rules(result.document, applied)
     text = result.document.export_to_text()  # Ensure to normalize all characters to Unicode TODO
 
     return PreprocessedDocument(
@@ -172,6 +166,5 @@ def preprocess_with_docling(
             backend=PreprocessingBackend.DOCLING,
             backend_version=_docling_version(),
             rules=applied,
-            removals=counted,
         ),
     )

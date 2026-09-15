@@ -100,19 +100,12 @@ _ALIGNMENT_SLACK = 5.0
 _MARGIN_EDGE = 60.0
 
 
-def reclassify_margin_line_numbers(document: DoclingDocument) -> int:
-    """Move this document's margin line numbers to the furniture layer.
-
-    Returns how many items were moved. The document is modified in place.
-    """
+def reclassify_margin_line_numbers(document: DoclingDocument) -> None:
+    """Move this document's margin line numbers to the furniture layer, in place."""
     from docling_core.types.doc.common.content_layer import ContentLayer
 
-    moved = 0
     for item in _margin_items(document):
-        if item.content_layer is not ContentLayer.FURNITURE:
-            item.content_layer = ContentLayer.FURNITURE
-            moved += 1
-    return moved
+        item.content_layer = ContentLayer.FURNITURE
 
 
 def margin_line_numbers(document: DoclingDocument) -> list[str]:
