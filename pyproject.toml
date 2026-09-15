@@ -58,11 +58,6 @@ extraction = [
     "mellea>=0.6",
     "rapidfuzz>=3.14.5",
 ]
-label-studio = [
-    { include-group = "extraction" },
-    "requests>=2.32",
-    "python-dotenv>=1.0",
-]
 dev = [
     { include-group = "extraction" },
     "autogitsemver>=0.9.13",

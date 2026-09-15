@@ -2306,15 +2306,6 @@ extraction = [
     { name = "mellea" },
     { name = "rapidfuzz" },
 ]
-label-studio = [
-    { name = "docling" },
-    { name = "dotenv" },
-    { name = "eyecite" },
-    { name = "mellea" },
-    { name = "python-dotenv" },
-    { name = "rapidfuzz" },
-    { name = "requests" },
-]
 notebook = [
     { name = "ipykernel" },
     { name = "ipython" },
@@ -2356,15 +2347,6 @@ extraction = [
     { name = "eyecite", specifier = ">=2.6" },
     { name = "mellea", specifier = ">=0.6" },
     { name = "rapidfuzz", specifier = ">=3.14.5" },
-]
-label-studio = [
-    { name = "docling", specifier = ">=2.102.2" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "eyecite", specifier = ">=2.6" },
-    { name = "mellea", specifier = ">=0.6" },
-    { name = "python-dotenv", specifier = ">=1.0" },
-    { name = "rapidfuzz", specifier = ">=3.14.5" },
-    { name = "requests", specifier = ">=2.32" },
 ]
 notebook = [
     { name = "ipykernel", specifier = ">=7.2.0" },
