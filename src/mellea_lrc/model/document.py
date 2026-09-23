@@ -1,132 +1,34 @@
-"""Durable, natively serializable extraction state.
-
-A node records why a stage acted; its operations record what changed. The
-materialized citations make ordinary reads cheap, while the append-only
-operations retain every update needed to replay a checkpoint.
-"""
+"""The cumulative, natively serializable document across pipeline stages."""
 
 from __future__ import annotations
 
-from enum import Enum
 from pathlib import Path
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import model_validator
 
-from mellea_lrc.model.preprocessed import PreprocessedDocument
-from mellea_lrc.model.spans import Span
-
-
-class CitationKind(str, Enum):
-    REPORTER = "reporter"
-    DOCKET = "docket"
-
-
-class CitationField(str, Enum):
-    LOCATOR_SPAN = "locator_span"
-    LOCATOR_TEXT = "locator_text"
-    VOLUME = "volume"
-    REPORTER = "reporter"
-    PAGE = "page"
-    DOCKET_NUMBER = "docket_number"
-    DOCKET_ENTRY = "docket_entry"
-    DOCKET_ENTRY_SPAN = "docket_entry_span"
-    CASE_NAME = "case_name"
-    CASE_NAME_SPAN = "case_name_span"
-    COURT = "court"
-    COURT_SPAN = "court_span"
-    DATE = "date"
-    DATE_SPAN = "date_span"
-    PIN_CITE = "pin_cite"
-    PIN_CITE_SPAN = "pin_cite_span"
-    COLOCATION_ID = "colocation_id"
-    ROOT_ID = "root_id"
-
-
-class OperationKind(str, Enum):
-    CREATE = "create"
-    UPDATE = "update"
-
-
-class CitationDate(BaseModel):
-    """A written decision date, possibly only a year."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    year: int
-    month: int | None = None
-    day: int | None = None
-
-
-class Citation(BaseModel):
-    """One written full locator occurrence, before or after root formation."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    id: str
-    kind: CitationKind
-    locator_span: Span | None = None
-    locator_text: str | None = None
-    volume: str | None = None
-    reporter: str | None = None
-    page: str | None = None
-    docket_number: str | None = None
-    docket_entry: str | None = None
-    docket_entry_span: Span | None = None
-    case_name: str | None = None
-    case_name_span: Span | None = None
-    court: str | None = None
-    court_span: Span | None = None
-    date: CitationDate | None = None
-    date_span: Span | None = None
-    pin_cite: str | None = None
-    pin_cite_span: Span | None = None
-    colocation_id: str | None = None
-    root_id: str | None = None
-
-
-FieldValue = Span | CitationDate | str | None
-WITHDRAWN_ROOT_ID = "__withdrawn__"
-
-
-class Operation(BaseModel):
-    """One durable create or field update made by a stage node."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    id: str
-    node_id: str
-    kind: OperationKind
-    citation_id: str
-    citation_kind: CitationKind | None = None
-    field: CitationField | None = None
-    value: FieldValue = None
-
-
-class Node(BaseModel):
-    """One stage decision; it may materialize several field operations."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    id: str
-    stage: str
-    citation_id: str
-    operation_ids: tuple[str, ...]
-
-
-class Colocation(BaseModel):
-    """Adjacent full locators sharing a citation site, not proven identity."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    id: str
-    citation_ids: tuple[str, ...]
+from mellea_lrc.model.citations import (
+    FullCitation,
+    FullCitationKind,
+    FullCitationVariant,
+    full_citation_type,
+)
+from mellea_lrc.model.colocation import Colocation
+from mellea_lrc.model.operations import (
+    WITHDRAWN_ROOT_ID,
+    CitationField,
+    FieldValue,
+    Node,
+    Operation,
+    OperationKind,
+)
+from mellea_lrc.model.preprocessed_document import PreprocessedDocument
 
 
 class Document(PreprocessedDocument):
-    """A complete extraction save; each later stage includes all earlier state."""
+    """A complete save whose materialized citations replay from its operations."""
 
-    citations: tuple[Citation, ...] = ()
+    citations: tuple[FullCitationVariant, ...] = ()
     colocations: tuple[Colocation, ...] = ()
     nodes: tuple[Node, ...] = ()
     operations: tuple[Operation, ...] = ()
@@ -134,32 +36,32 @@ class Document(PreprocessedDocument):
 
     @classmethod
     def from_preprocessed(cls, source: PreprocessedDocument) -> Self:
-        """Start extraction without changing the preprocessed text or spans."""
+        """Start citation work without changing source text or offsets."""
         return cls.model_validate(source.model_dump(mode="python"))
 
     @classmethod
     def from_source(cls, source: Path | str) -> Self:
-        """Preprocess a file path or supplied text, then start extraction."""
+        """Preprocess a file path or supplied text, then start citation work."""
         from mellea_lrc.preprocessing import preprocess
 
         return cls.from_preprocessed(preprocess(source))
 
     @property
-    def full_locators(self) -> tuple[Citation, ...]:
-        """Every detected occurrence, including later duplicates of one root."""
+    def full_locators(self) -> tuple[FullCitation, ...]:
+        """Every detected full citation occurrence, including repeated roots."""
         return tuple(citation for citation in self.citations if citation.locator_span is not None)
 
     @property
-    def roots(self) -> tuple[Citation, ...]:
+    def roots(self) -> tuple[FullCitation, ...]:
         """Canonical first occurrences after root formation."""
         return tuple(citation for citation in self.citations if citation.root_id == citation.id)
 
-    def create_citation(self, stage: str, citation_id: str, kind: CitationKind) -> Self:
-        """Initialize only the citation type; fields are separate updates."""
+    def create_citation(self, stage: str, citation_id: str, kind: FullCitationKind) -> Self:
+        """Initialize a concrete full citation type without filling its fields."""
         return self._record(stage, citation_id, create_kind=kind)
 
     def update_fields(self, stage: str, citation_id: str, changes: dict[CitationField, FieldValue]) -> Self:
-        """Write any number of fields through one decision node."""
+        """Write any number of type-checked fields through one decision node."""
         return self._record(stage, citation_id, changes=changes)
 
     def withdraw_citation(self, stage: str, citation_id: str) -> Self:
@@ -171,10 +73,10 @@ class Document(PreprocessedDocument):
         stage: str,
         citation_id: str,
         *,
-        create_kind: CitationKind | None = None,
+        create_kind: FullCitationKind | None = None,
         changes: dict[CitationField, FieldValue] | None = None,
     ) -> Self:
-        """Atomically append a decision and materialize its field operations."""
+        """Append a decision and materialize its create or field operations."""
         current = {citation.id: citation for citation in self.citations}
         if create_kind is None and citation_id not in current:
             raise KeyError(f"Unknown citation: {citation_id}")
@@ -183,7 +85,7 @@ class Document(PreprocessedDocument):
         node_id = f"{stage}:{citation_id}:{len(self.nodes)}"
         operations: list[Operation] = []
         if create_kind is not None:
-            current[citation_id] = Citation(id=citation_id, kind=create_kind)
+            current[citation_id] = full_citation_type(create_kind)(id=citation_id)
             operations.append(
                 Operation(
                     id=f"op:{len(self.operations) + len(operations)}",
@@ -195,9 +97,13 @@ class Document(PreprocessedDocument):
             )
         citation = current[citation_id]
         for field, value in (changes or {}).items():
+            if field.value not in type(citation).model_fields:
+                raise ValueError(f"{type(citation).__name__} has no {field.value} field")
             if getattr(citation, field.value) == value:
                 continue
-            citation = Citation.model_validate({**citation.model_dump(mode="python"), field.value: value})
+            citation = type(citation).model_validate(
+                {**citation.model_dump(mode="python"), field.value: value}
+            )
             operations.append(
                 Operation(
                     id=f"op:{len(self.operations) + len(operations)}",
@@ -232,7 +138,7 @@ class Document(PreprocessedDocument):
         )
 
     def complete(self, stage: str, *, colocations: tuple[Colocation, ...] | None = None) -> Self:
-        """Mark an inspectable stage complete, including one with no findings."""
+        """Mark an inspectable stage complete, even if it found nothing."""
         if stage in self.completed_stages:
             return self
         changes: dict[str, object] = {"completed_stages": (*self.completed_stages, stage)}
@@ -242,31 +148,37 @@ class Document(PreprocessedDocument):
 
     @model_validator(mode="after")
     def _validate_replay(self) -> Self:
-        """Reject a checkpoint whose visible citations disagree with its log."""
-        replay: dict[str, Citation] = {}
+        """Reject a checkpoint that does not replay to its visible state."""
+        replay: dict[str, FullCitation] = {}
         node_ids = {node.id for node in self.nodes}
         if len(node_ids) != len(self.nodes):
-            raise ValueError("Duplicate node in extraction log")
+            raise ValueError("Duplicate node in document log")
+        if len({operation.id for operation in self.operations}) != len(self.operations):
+            raise ValueError("Duplicate operation in document log")
         by_node: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
         for operation in self.operations:
             if operation.node_id not in by_node:
-                raise ValueError("Extraction operation has no decision node")
+                raise ValueError("Operation has no decision node")
             by_node[operation.node_id].append(operation.id)
             if operation.kind is OperationKind.CREATE:
                 if operation.citation_kind is None or operation.citation_id in replay:
-                    raise ValueError("Invalid citation creation in extraction log")
-                replay[operation.citation_id] = Citation(
-                    id=operation.citation_id, kind=operation.citation_kind
+                    raise ValueError("Invalid full citation creation in document log")
+                replay[operation.citation_id] = full_citation_type(operation.citation_kind)(
+                    id=operation.citation_id
                 )
             else:
                 if operation.field is None or operation.citation_id not in replay:
-                    raise ValueError("Invalid field update in extraction log")
+                    raise ValueError("Invalid field update in document log")
                 citation = replay[operation.citation_id]
-                replay[operation.citation_id] = Citation.model_validate(
+                if operation.field.value not in type(citation).model_fields:
+                    raise ValueError("Field does not belong to citation type")
+                replay[operation.citation_id] = type(citation).model_validate(
                     {**citation.model_dump(mode="python"), operation.field.value: operation.value}
                 )
         if any(tuple(by_node[node.id]) != node.operation_ids for node in self.nodes):
-            raise ValueError("Extraction node disagrees with its operations")
+            raise ValueError("Decision node disagrees with its operations")
+        if len({citation.id for citation in self.citations}) != len(self.citations):
+            raise ValueError("Duplicate citation in document state")
         if replay != {citation.id: citation for citation in self.citations}:
             raise ValueError("Citation state disagrees with extraction operations")
         ids = set(replay)
