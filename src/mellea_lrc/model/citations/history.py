@@ -1,11 +1,11 @@
-"""Stage-neutral decisions and durable changes to citation state."""
+"""Citation-local decisions and append-only field values."""
+
+from __future__ import annotations
 
 from enum import Enum
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
-
-from mellea_lrc.model.citations import CitationDate, FullCitationKind
-from mellea_lrc.model.span import Span
 
 
 class CitationField(str, Enum):
@@ -29,35 +29,29 @@ class CitationField(str, Enum):
     ROOT_ID = "root_id"
 
 
-class OperationKind(str, Enum):
-    CREATE = "create"
-    UPDATE = "update"
-
-
-FieldValue = Span | CitationDate | str | None
 WITHDRAWN_ROOT_ID = "__withdrawn__"
 
+T = TypeVar("T")
 
-class Operation(BaseModel):
-    """One durable create or field update made by a decision node."""
+
+class FieldUpdate(BaseModel, Generic[T]):
+    """One value appended to a field, pointing to its decision node."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    id: str
+    value: T
     node_id: str
-    kind: OperationKind
-    citation_id: str
-    citation_kind: FullCitationKind | None = None
-    field: CitationField | None = None
-    value: FieldValue = None
+
+
+def latest(log: tuple[FieldUpdate[T], ...]) -> T | None:
+    """Read the last value; an empty log has not been read yet."""
+    return log[-1].value if log else None
 
 
 class Node(BaseModel):
-    """One stage decision; it may materialize several field operations."""
+    """A citation-local decision that can update any number of fields."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: str
     stage: str
-    citation_id: str
-    operation_ids: tuple[str, ...]
