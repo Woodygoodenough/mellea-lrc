@@ -1,4 +1,4 @@
-"""A full reporter locator and its eyecite-normalized reporter identity."""
+"""A short reporter citation and its eyecite-normalized reporter and pin page."""
 
 from __future__ import annotations
 
@@ -10,68 +10,65 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from mellea_lrc.model.citations.fields.base import CitationField, normalization_record, source_quote
 from mellea_lrc.model.span import Span
-from mellea_lrc.reporter_reading import full_reporter_readings
+from mellea_lrc.reporter_reading import short_reporter_readings
 
 
-class ReporterLocatorValue(BaseModel):
-    """Normalized parts of one complete reporter or database locator."""
+class ShortReporterLocatorValue(BaseModel):
+    """Reporter identity and the first pinpoint page in a short citation."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     volume: int
     reporter: Reporter
     edition: str
-    page: str
+    pin_page: str
 
     @model_validator(mode="after")
     def _validate_parts(self) -> Self:
-        if self.volume < 1 or not self.edition.strip() or not self.page.strip():
-            raise ValueError("Full reporter locator has incomplete normalized parts")
+        if self.volume < 1 or not self.edition.strip() or not self.pin_page.strip():
+            raise ValueError("Short reporter locator has incomplete normalized parts")
         if not self.reporter.short_name or not self.reporter.name:
             raise ValueError("Reporter has no normalized identity")
         return self
 
 
 @lru_cache(maxsize=8192)
-def normalize_reporter_locator(quote: str) -> ReporterLocatorValue:
-    """Re-read one locator with the same eyecite path used for discovery."""
-    matches = [reading for reading in full_reporter_readings(quote) if reading.span == (0, len(quote))]
+def normalize_short_reporter_locator(quote: str) -> ShortReporterLocatorValue:
+    """Read one complete short citation through the shared eyecite service."""
+    matches = [reading for reading in short_reporter_readings(quote) if reading.span == (0, len(quote))]
     if len(matches) != 1:
-        raise ValueError(f"Cannot normalize full reporter locator: {quote!r}")
-    reading = matches[0]
-    match = reading.citation
+        raise ValueError(f"Cannot normalize short reporter locator: {quote!r}")
+    match = matches[0].citation
 
-    # A parsed spelling is not necessarily a resolved reporter edition.
-    # Preserve that uncertainty instead of recording raw text as normalized.
     edition = match.edition_guess
     if edition is None:
-        raise ValueError(f"Cannot normalize ambiguous reporter locator: {quote!r}")
+        raise ValueError(f"Cannot normalize ambiguous short reporter locator: {quote!r}")
     volume_text = match.groups.get("volume")
     reporter_text = match.groups.get("reporter")
     page_text = match.groups.get("page")
-    page = match.corrected_page()
-    if not volume_text or not reporter_text or not page_text or not page:
-        raise ValueError(f"Cannot normalize full reporter locator: {quote!r}")
+    pin_page = match.corrected_page()
+    if not volume_text or not reporter_text or not page_text or not pin_page:
+        raise ValueError(f"Cannot normalize short reporter locator: {quote!r}")
     offset = 0
     for part in (volume_text, reporter_text, page_text):
         position = quote.find(part, offset)
         if position < 0:
-            raise ValueError(f"Reporter component does not match locator quote: {quote!r}")
+            raise ValueError(f"Reporter component does not match short locator quote: {quote!r}")
         offset = position + len(part)
     try:
         volume = int(volume_text)
     except ValueError as exc:
         raise ValueError(f"Cannot normalize reporter volume: {volume_text!r}") from exc
-    return ReporterLocatorValue(
+    return ShortReporterLocatorValue(
         volume=volume,
         reporter=edition.reporter,
         edition=edition.short_name,
-        page=page,
+        pin_page=pin_page,
     )
 
 
-class FullReporterLocator(CitationField[ReporterLocatorValue]):
-    """One exact written locator with a normalized Reporter object."""
+class ShortReporterLocator(CitationField[ShortReporterLocatorValue]):
+    """One exact short reporter quote with its normalized reporter identity."""
 
     quote: str
     span: Span
@@ -83,10 +80,10 @@ class FullReporterLocator(CitationField[ReporterLocatorValue]):
             node_id=node_id,
             quote=quote,
             span=span,
-            **normalization_record(lambda: normalize_reporter_locator(quote)),
+            **normalization_record(lambda: normalize_short_reporter_locator(quote)),
         )
 
     @model_validator(mode="after")
     def _validate_normalization(self) -> Self:
-        self.validate_normalization(lambda: normalize_reporter_locator(self.quote))
+        self.validate_normalization(lambda: normalize_short_reporter_locator(self.quote))
         return self
