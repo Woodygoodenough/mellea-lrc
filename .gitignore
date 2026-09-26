@@ -30,3 +30,4 @@ data
 run-artifact.jsonl
 run-validation/
 evaluation-result/
+evaluations/results/*/documents/
