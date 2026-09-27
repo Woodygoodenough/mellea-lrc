@@ -31,3 +31,5 @@ run-artifact.jsonl
 run-validation/
 evaluation-result/
 evaluations/results/*/documents/
+evaluations/results/*/*/documents/
+archive/evaluation-results-before-timestamped-2026-09-27/
