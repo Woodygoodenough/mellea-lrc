@@ -1,4 +1,4 @@
-"""Small, reusable literal matching policies for noisy document text."""
+"""Convert literal text into regex patterns with optional whitespace relaxation."""
 
 from __future__ import annotations
 
