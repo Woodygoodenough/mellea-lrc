@@ -33,6 +33,6 @@ run-validation/
 evaluation-result/
 evaluations/results/*/documents/
 evaluations/results/*/*/documents/
-experiments/identity/results/*/documents/
-experiments/pinpoint/results/*/documents/
 archive/evaluation-results-before-timestamped-2026-09-27/
+
+/experiments/
