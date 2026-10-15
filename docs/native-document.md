@@ -1,43 +1,24 @@
-# Native Document foundation
+# Native source and citation fields
 
-`mellea_lrc.model.Document` persists source text, typed full reporter/docket citations, and their complete field histories through Pydantic. This increment adds the data model; it does not change the existing CLI or extraction and validation pipelines.
+This increment defines source metadata, preprocessed text, exact character spans, and typed case-name, date, and docket readings. These models serialize directly through Pydantic. Existing pipelines remain unchanged.
 
 ```python
-from mellea_lrc.model import (
-    Document,
-    FullReporterCitation,
-    PreprocessedDocument,
-    PreprocessingMetadata,
-    SourceMetadata,
-    Span,
-)
+from mellea_lrc.model import PreprocessedDocument, PreprocessingMetadata, SourceMetadata, Span
+from mellea_lrc.model.citations.fields import CaseNameField
 
-text = "Smith v. Jones, 347 U.S. 483 (1954)."
-document = Document.from_preprocessed(
-    PreprocessedDocument(
-        text=text,
-        source_metadata=SourceMetadata(path="filing.txt"),
-        preprocessing_metadata=PreprocessingMetadata(),
-    )
+source = PreprocessedDocument(
+    text="Alpha v. Beta, 556 U.S. 662.",
+    source_metadata=SourceMetadata(path="filing.txt"),
+    preprocessing_metadata=PreprocessingMetadata(),
 )
-citation = FullReporterCitation.from_locator(
-    citation_id="reporter:15:27",
-    substage="discover",
-    source=text,
-    span=Span(15, 27),
-)
-document = document.add_citation(citation).complete_substage("discover")
-citation = citation.record("read_name").with_case_name(text, Span(0, 14))
-document = document.replace_citation(citation).complete_substage("read_name")
-
-saved = document.model_dump_json()
-restored = Document.model_validate_json(saved)
-assert restored == document
-assert restored.get_substage("discover").citations[0].case_name == ()
+reading = CaseNameField.from_source(source.text, Span(0, 13), node_id="read-name")
+assert reading.get_normalized().plaintiff == "Alpha"
+assert CaseNameField.model_validate_json(reading.model_dump_json()) == reading
+assert PreprocessedDocument.model_validate_json(source.model_dump_json()) == source
 ```
 
-A citation's `nodes` record decisions. Each field history entry holds its source quote, character span, typed normalization, and producing `node_id`. Named methods append readings; `Document.replace_citation()` rejects rewriting earlier nodes or field entries. Failed normalization remains a quoted reading with `normalizable=False`; its getter raises.
+Each field holds its exact quote, span, producing `node_id`, and typed normalization. Case names distinguish adversarial, in-re, ex-parte, partial, and unstated forms. Dates preserve their available precision. Docket numbers remain opaque, and docket entries are separate fields.
 
-`complete_substage()` commits an atomic boundary, including a run with no changes. `get_substage()` restores exactly that boundary from the cumulative document. `complete_stage()` and `get_stage()` provide the same behavior for semantic groups. The initial catalog describes the planned `grow_roots` groups; it contains no execution functions. Later PRs add their own workflow definitions and histories. Unqualified names support local development checkpoints; unknown qualified names and duplicate completions raise.
+`normalizable=False` preserves an unsuccessful reading with an explicit error; `get_normalized()` raises rather than returning a silent null. Source quotes are checked against their spans, including through `validate_source()` after loading. Model-supplied case-name normalization still requires an exact source quote.
 
-Pending edits may involve multiple citations within one substage. A committed root attachment must point directly to a self-root; withdrawal appends the dummy-root assignment. Table-of-authorities tags refer to source components and remain attached to their creation node. Retrieval records, judgments, leaf kinds, and content-review records belong to later increments.
+Citation collections, node ownership and histories, root graphs, checkpoints, stage/workflow definitions, other normalizers, and pipeline integration belong to later PRs. No compatibility adapters are introduced.
